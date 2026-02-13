@@ -21,12 +21,16 @@ class _UndoAction {
       {required this.type, required this.dayIndex, this.task, this.tasks});
 }
 
+/// Sort order for task lists.
+enum SortOrder { asc, desc }
+
 class ScheduleProvider extends ChangeNotifier {
   List<DayPlan> _weekPlan = [];
   List<PlanTemplate> _templates = [];
   int _selectedDayIndex = 0;
   bool _isLoading = true;
   final List<_UndoAction> _undoStack = [];
+  SortOrder _sortOrder = SortOrder.asc;
 
   List<DayPlan> get weekPlan => _weekPlan;
   List<PlanTemplate> get templates => _templates;
@@ -41,10 +45,13 @@ class ScheduleProvider extends ChangeNotifier {
           tasks: []);
   bool get isLoading => _isLoading;
   bool get canUndo => _undoStack.isNotEmpty;
+  SortOrder get sortOrder => _sortOrder;
 
   ScheduleProvider() {
     _loadData();
   }
+
+  // ─── Week Initialization ──────────────────────────
 
   void _initializeWeek() {
     final now = DateTime.now();
@@ -67,20 +74,17 @@ class ScheduleProvider extends ChangeNotifier {
     if (_selectedDayIndex > 6) _selectedDayIndex = 6;
   }
 
-  /// Checks if the saved week data is stale (belongs to a different week).
-  /// Compares the Monday of the saved week to the Monday of the current week.
   bool _isWeekStale(List<DayPlan> savedWeek) {
     if (savedWeek.isEmpty) return true;
-
     final now = DateTime.now();
     final currentMonday = now.subtract(Duration(days: now.weekday - 1));
     final savedMonday = savedWeek.first.date;
-
-    // Compare just dates (ignore time)
     return currentMonday.year != savedMonday.year ||
         currentMonday.month != savedMonday.month ||
         currentMonday.day != savedMonday.day;
   }
+
+  // ─── Persistence ──────────────────────────────────
 
   Future<void> _loadData() async {
     _isLoading = true;
@@ -93,9 +97,7 @@ class ScheduleProvider extends ChangeNotifier {
       if (weekJson != null) {
         final List<dynamic> decoded = jsonDecode(weekJson);
         final savedWeek = decoded.map((e) => DayPlan.fromJson(e)).toList();
-
         if (_isWeekStale(savedWeek)) {
-          // Week is from a previous week — start fresh
           _initializeWeek();
           _saveWeek();
         } else {
@@ -154,6 +156,10 @@ class ScheduleProvider extends ChangeNotifier {
               ]),
         ];
       }
+
+      // Load sort order preference
+      final savedSortOrder = prefs.getString('chronos-sort-order');
+      _sortOrder = savedSortOrder == 'desc' ? SortOrder.desc : SortOrder.asc;
     } catch (e) {
       debugPrint("Error loading data: $e");
       _initializeWeek();
@@ -177,13 +183,34 @@ class ScheduleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ─── Day Selection ────────────────────────────────
+
   void selectDay(int index) {
     _selectedDayIndex = index;
     notifyListeners();
   }
 
-  /// Validates that start time is before end time.
-  /// Returns an error message if invalid, null if valid.
+  // ─── Sort Order ───────────────────────────────────
+
+  void toggleSortOrder() async {
+    _sortOrder = _sortOrder == SortOrder.asc ? SortOrder.desc : SortOrder.asc;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'chronos-sort-order', _sortOrder == SortOrder.desc ? 'desc' : 'asc');
+    notifyListeners();
+  }
+
+  /// Returns a sorted copy of the tasks for the given day plan.
+  List<Task> getSortedTasks(DayPlan dayPlan) {
+    final tasks = List<Task>.from(dayPlan.tasks);
+    tasks.sort((a, b) => _sortOrder == SortOrder.asc
+        ? a.startTime.compareTo(b.startTime)
+        : b.startTime.compareTo(a.startTime));
+    return tasks;
+  }
+
+  // ─── Time Validation ──────────────────────────────
+
   String? validateTimeRange(String startTime, String endTime) {
     try {
       final s = startTime.split(':').map(int.parse).toList();
@@ -199,6 +226,8 @@ class ScheduleProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Schedule Task CRUD ───────────────────────────
+
   void addTask(Task task) {
     if (_weekPlan.isEmpty) return;
     _weekPlan[_selectedDayIndex].tasks.add(task);
@@ -208,7 +237,6 @@ class ScheduleProvider extends ChangeNotifier {
     _saveWeek();
   }
 
-  /// Updates an existing task by replacing it with the updated version.
   void updateTask(String taskId, Task updatedTask) {
     if (_weekPlan.isEmpty) return;
     final tasks = _weekPlan[_selectedDayIndex].tasks;
@@ -234,7 +262,6 @@ class ScheduleProvider extends ChangeNotifier {
     final taskIndex = tasks.indexWhere((t) => t.id == taskId);
     if (taskIndex != -1) {
       final removed = tasks.removeAt(taskIndex);
-      // Push undo action
       _undoStack.add(_UndoAction(
         type: _UndoType.deleteTask,
         dayIndex: _selectedDayIndex,
@@ -258,7 +285,6 @@ class ScheduleProvider extends ChangeNotifier {
     _saveWeek();
   }
 
-  /// Undoes the last destructive action (delete task or clear day).
   bool undo() {
     if (_undoStack.isEmpty) return false;
     final action = _undoStack.removeLast();
@@ -286,9 +312,34 @@ class ScheduleProvider extends ChangeNotifier {
     return true;
   }
 
+  // ─── Template Operations ──────────────────────────
+
   void applyTemplate(PlanTemplate template) {
     if (_weekPlan.isEmpty) return;
+    _applyTemplateToIndex(template, _selectedDayIndex);
+  }
 
+  /// Apply a template to a specific day index (0=Mon, 6=Sun).
+  void applyTemplateToDay(PlanTemplate template, int dayIndex) {
+    if (_weekPlan.isEmpty || dayIndex < 0 || dayIndex >= _weekPlan.length) {
+      return;
+    }
+    _applyTemplateToIndex(template, dayIndex);
+  }
+
+  /// Apply a template to multiple day indices at once.
+  void applyTemplateToDays(PlanTemplate template, List<int> dayIndices) {
+    if (_weekPlan.isEmpty) return;
+    for (final idx in dayIndices) {
+      if (idx >= 0 && idx < _weekPlan.length) {
+        _applyTemplateToIndex(template, idx, save: false);
+      }
+    }
+    _saveWeek();
+  }
+
+  void _applyTemplateToIndex(PlanTemplate template, int dayIndex,
+      {bool save = true}) {
     final newTasks = template.tasks
         .map((t) => Task(
               id: const Uuid().v4(),
@@ -301,11 +352,11 @@ class ScheduleProvider extends ChangeNotifier {
             ))
         .toList();
 
-    _weekPlan[_selectedDayIndex].tasks.addAll(newTasks);
-    _weekPlan[_selectedDayIndex]
+    _weekPlan[dayIndex].tasks.addAll(newTasks);
+    _weekPlan[dayIndex]
         .tasks
         .sort((a, b) => a.startTime.compareTo(b.startTime));
-    _saveWeek();
+    if (save) _saveWeek();
   }
 
   void addTemplate(PlanTemplate template) {
@@ -318,9 +369,50 @@ class ScheduleProvider extends ChangeNotifier {
     _saveTemplates();
   }
 
+  /// Update template metadata (name, description).
+  void updateTemplate(String templateId, {String? name, String? description}) {
+    final index = _templates.indexWhere((t) => t.id == templateId);
+    if (index == -1) return;
+    _templates[index] = _templates[index].copyWith(
+      name: name,
+      description: description,
+    );
+    _saveTemplates();
+  }
+
+  // ─── Template Task CRUD ───────────────────────────
+
+  void addTaskToTemplate(String templateId, Task task) {
+    final index = _templates.indexWhere((t) => t.id == templateId);
+    if (index == -1) return;
+    _templates[index].tasks.add(task);
+    _templates[index].tasks.sort((a, b) => a.startTime.compareTo(b.startTime));
+    _saveTemplates();
+  }
+
+  void removeTaskFromTemplate(String templateId, String taskId) {
+    final index = _templates.indexWhere((t) => t.id == templateId);
+    if (index == -1) return;
+    _templates[index].tasks.removeWhere((t) => t.id == taskId);
+    _saveTemplates();
+  }
+
+  void updateTaskInTemplate(
+      String templateId, String taskId, Task updatedTask) {
+    final tmplIndex = _templates.indexWhere((t) => t.id == templateId);
+    if (tmplIndex == -1) return;
+    final taskIndex =
+        _templates[tmplIndex].tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return;
+    _templates[tmplIndex].tasks[taskIndex] = updatedTask;
+    _templates[tmplIndex]
+        .tasks
+        .sort((a, b) => a.startTime.compareTo(b.startTime));
+    _saveTemplates();
+  }
+
   void saveCurrentDayAsTemplate(String name, String description) {
     if (_weekPlan.isEmpty) return;
-
     final currentTasks = _weekPlan[_selectedDayIndex].tasks;
     final template = PlanTemplate(
       id: const Uuid().v4(),
@@ -339,11 +431,11 @@ class ScheduleProvider extends ChangeNotifier {
               ))
           .toList(),
     );
-
     addTemplate(template);
   }
 
-  // Analytics Getters
+  // ─── Analytics ────────────────────────────────────
+
   int get totalTasks => _weekPlan.fold(0, (sum, day) => sum + day.tasks.length);
   int get completedTasks => _weekPlan.fold(
       0, (sum, day) => sum + day.tasks.where((t) => t.completed).length);

@@ -12,15 +12,29 @@ class PlanTemplate {
     required this.description,
     required this.tasks,
   });
-  
-  Map<String, dynamic> toJson() => {
-    'id': id, 
-    'name': name, 
-    'description': description, 
-    'tasks': tasks.map((t) => t.toJson()).toList()
-  };
 
-   factory PlanTemplate.fromJson(Map<String, dynamic> json) {
+  PlanTemplate copyWith({
+    String? id,
+    String? name,
+    String? description,
+    List<Task>? tasks,
+  }) {
+    return PlanTemplate(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      tasks: tasks ?? this.tasks,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'tasks': tasks.map((t) => t.toJson()).toList(),
+      };
+
+  factory PlanTemplate.fromJson(Map<String, dynamic> json) {
     return PlanTemplate(
       id: json['id'],
       name: json['name'],

@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/plan_template_model.dart';
 import '../../providers/schedule_provider.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/work_plan_detail_dialog.dart';
 
 class WorkPlansView extends StatelessWidget {
   const WorkPlansView({super.key});
@@ -102,50 +103,7 @@ class WorkPlansView extends StatelessWidget {
                     onTap: () {
                       showDialog(
                         context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: AppColors.surface,
-                          shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.xxl)),
-                          title: Text(tmpl.name, style: AppTextStyles.heading3),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Apply this template to ${provider.selectedDay.dayOfWeek}?",
-                                style: AppTextStyles.subtitle,
-                              ),
-                              const SizedBox(height: 8),
-                              Text("${tmpl.tasks.length} tasks will be added.",
-                                  style: AppTextStyles.bodySmall),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text("Cancel")),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.neonBlue,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.md)),
-                              ),
-                              onPressed: () {
-                                provider.applyTemplate(tmpl);
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          "Template applied successfully")),
-                                );
-                              },
-                              child: const Text("Apply",
-                                  style: TextStyle(color: Colors.white)),
-                            ),
-                          ],
-                        ),
+                        builder: (_) => WorkPlanDetailDialog(template: tmpl),
                       );
                     },
                     child: Column(
@@ -160,27 +118,18 @@ class WorkPlansView extends StatelessWidget {
                                       .copyWith(fontSize: 18),
                                   overflow: TextOverflow.ellipsis),
                             ),
-                            Row(
-                              children: [
-                                Container(
-                                  margin: const EdgeInsets.only(right: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                      color: Colors.white10,
-                                      borderRadius:
-                                          BorderRadius.circular(AppRadius.sm)),
-                                  child: Text("${tmpl.tasks.length}",
-                                      style: AppTextStyles.bodySmall.copyWith(
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                                InkWell(
-                                  onTap: () => provider.removeTemplate(tmpl.id),
-                                  child: const Icon(Icons.delete_outline,
-                                      size: 18, color: Colors.white30),
-                                )
-                              ],
-                            )
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: Colors.white10,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.sm)),
+                              child: Text(
+                                  "${tmpl.tasks.length} task${tmpl.tasks.length == 1 ? '' : 's'}",
+                                  style: AppTextStyles.bodySmall
+                                      .copyWith(fontWeight: FontWeight.bold)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -201,10 +150,10 @@ class WorkPlansView extends StatelessWidget {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.check,
+                              const Icon(Icons.open_in_new,
                                   size: 14, color: AppColors.neonBlue),
                               const SizedBox(width: 4),
-                              Text("Use Plan",
+                              Text("Open Plan",
                                   style: AppTextStyles.chip
                                       .copyWith(color: AppColors.neonBlue)),
                             ],
@@ -279,17 +228,18 @@ class WorkPlansView extends StatelessWidget {
             ),
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
-                provider.addTemplate(PlanTemplate(
+                final newTemplate = PlanTemplate(
                   id: const Uuid().v4(),
                   name: nameCtrl.text,
                   description: descCtrl.text,
                   tasks: [],
-                ));
+                );
+                provider.addTemplate(newTemplate);
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text(
-                          "Plan created! Add tasks to it from your schedule.")),
+                // Immediately open the detail dialog so user can add tasks
+                showDialog(
+                  context: context,
+                  builder: (_) => WorkPlanDetailDialog(template: newTemplate),
                 );
               }
             },

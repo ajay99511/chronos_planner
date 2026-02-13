@@ -23,7 +23,7 @@ class ScheduleView extends StatelessWidget {
     }
 
     final dayPlan = provider.selectedDay;
-    final sortedTasks = dayPlan.tasks;
+    final sortedTasks = provider.getSortedTasks(dayPlan);
 
     return Stack(
       children: [
@@ -62,16 +62,12 @@ class ScheduleView extends StatelessWidget {
         Column(
           children: [
             const SizedBox(height: 10),
-            // Day Selector
-            SizedBox(
-              height: 110,
-              child: ListView.separated(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                scrollDirection: Axis.horizontal,
-                itemCount: provider.weekPlan.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
+
+            // ── Day Selector (fixed Row, always fits screen) ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: List.generate(provider.weekPlan.length, (index) {
                   final day = provider.weekPlan[index];
                   final isSelected = index == provider.selectedDayIndex;
                   final hasTasks = day.tasks.isNotEmpty;
@@ -80,120 +76,106 @@ class ScheduleView extends StatelessWidget {
                   final progress =
                       hasTasks ? completedCount / day.tasks.length : 0.0;
 
-                  return GestureDetector(
-                    onTap: () => provider.selectDay(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      width: 75,
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [AppColors.neonBlue, Color(0xFF6366F1)],
-                              )
-                            : LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.surface.withValues(alpha: 0.8),
-                                  AppColors.surface.withValues(alpha: 0.5),
-                                ],
-                              ),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.white.withValues(alpha: 0.2)
-                              : AppColors.glassBorder,
-                          width: 1,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 8)),
-                                BoxShadow(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.2),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2)),
-                              ]
-                            : [],
-                      ),
-                      child: Stack(
-                        children: [
-                          if (!isSelected && hasTasks)
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration: const BoxDecoration(
-                                      color: AppColors.neonPurple,
-                                      shape: BoxShape.circle),
-                                ),
-                              ),
-                            ),
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  day.dayOfWeek,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? Colors.white.withValues(alpha: 0.9)
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  day.dateStr.split(' ')[1],
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => provider.selectDay(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        margin: EdgeInsets.only(right: index < 6 ? 6 : 0),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.neonBlue,
+                                    Color(0xFF6366F1)
+                                  ],
+                                )
+                              : null,
+                          color: isSelected ? null : AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.2)
+                                : AppColors.glassBorder,
                           ),
-                          if (isSelected && hasTasks)
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                    bottom: Radius.circular(24)),
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: Colors.black12,
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  minHeight: 4,
-                                ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                      color: AppColors.neonBlue
+                                          .withValues(alpha: 0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4)),
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              day.dayOfWeek.substring(0, 3),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.9)
+                                    : AppColors.textSecondary,
                               ),
-                            )
-                        ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              day.dateStr.split(' ').length > 1
+                                  ? day.dateStr.split(' ')[1]
+                                  : day.dateStr,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Dot indicator or progress bar
+                            if (isSelected && hasTasks)
+                              SizedBox(
+                                width: 24,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    backgroundColor: Colors.black26,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    minHeight: 3,
+                                  ),
+                                ),
+                              )
+                            else if (!isSelected && hasTasks)
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.neonPurple,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            else
+                              const SizedBox(height: 5),
+                          ],
+                        ),
                       ),
                     ),
                   );
-                },
+                }),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Header Area
+            // ── Header Area ─────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -232,7 +214,7 @@ class ScheduleView extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Undo button (visible when undo stack is not empty)
+                        // Undo
                         if (provider.canUndo)
                           _ActionButton(
                             icon: Icons.undo,
@@ -251,6 +233,21 @@ class ScheduleView extends StatelessWidget {
                             tooltip: 'Undo',
                           ),
                         if (provider.canUndo) const SizedBox(width: 4),
+
+                        // Sort toggle
+                        _ActionButton(
+                          icon: provider.sortOrder == SortOrder.asc
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          color: AppColors.neonCyan,
+                          onTap: () => provider.toggleSortOrder(),
+                          tooltip: provider.sortOrder == SortOrder.asc
+                              ? 'Sorted: Earliest First'
+                              : 'Sorted: Latest First',
+                        ),
+                        const SizedBox(width: 4),
+
+                        // Save template
                         _ActionButton(
                           icon: Icons.save_outlined,
                           color: AppColors.neonPurple,
@@ -259,17 +256,22 @@ class ScheduleView extends StatelessWidget {
                           tooltip: 'Save Template',
                         ),
                         const SizedBox(width: 4),
+
+                        // Clear day
                         _ActionButton(
                           icon: Icons.delete_outline,
                           color: Colors.redAccent.shade200,
                           onTap: () => _confirmClearDay(context, provider),
                           tooltip: 'Clear Day',
                         ),
+
                         Container(
                             width: 1,
                             height: 24,
                             color: Colors.white10,
                             margin: const EdgeInsets.symmetric(horizontal: 8)),
+
+                        // Add task
                         InkWell(
                           onTap: () {
                             showModalBottomSheet(
@@ -306,7 +308,7 @@ class ScheduleView extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Task List
+            // ── Task List ───────────────────────────
             Expanded(
               child: sortedTasks.isEmpty
                   ? Center(
@@ -408,7 +410,8 @@ class ScheduleView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.xxl)),
         title: const Text("Clear All Tasks?",
             style: TextStyle(color: Colors.white)),
         content: Text(
@@ -422,7 +425,7 @@ class ScheduleView extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
             onPressed: () {
               provider.clearDay();
@@ -461,7 +464,8 @@ class ScheduleView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.xxl)),
         title: const Text("Save as Template",
             style: TextStyle(color: Colors.white)),
         content: Column(
@@ -476,7 +480,7 @@ class ScheduleView extends StatelessWidget {
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     borderSide: BorderSide.none),
               ),
             ),
@@ -490,7 +494,7 @@ class ScheduleView extends StatelessWidget {
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.05),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     borderSide: BorderSide.none),
               ),
             ),
@@ -503,7 +507,7 @@ class ScheduleView extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.neonBlue,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(AppRadius.md)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             onPressed: () {
@@ -545,7 +549,8 @@ class _ActionButton extends StatelessWidget {
       style: IconButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.1),
         highlightColor: color.withValues(alpha: 0.2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
     );
   }
