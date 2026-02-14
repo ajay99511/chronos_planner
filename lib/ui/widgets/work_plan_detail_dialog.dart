@@ -369,7 +369,7 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddTaskSheet(
-        onAdd: (task) => provider.addTaskToTemplate(templateId, task),
+        onAdd: (task, _) => provider.addTaskToTemplate(templateId, task),
       ),
     );
   }
@@ -381,7 +381,7 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
       backgroundColor: Colors.transparent,
       builder: (_) => AddTaskSheet(
         editingTask: task,
-        onAdd: (_) {},
+        onAdd: (_, __) {},
         onUpdate: (updated) =>
             provider.updateTaskInTemplate(widget.template.id, task.id, updated),
       ),

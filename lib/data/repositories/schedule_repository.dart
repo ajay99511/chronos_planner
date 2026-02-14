@@ -4,8 +4,13 @@ import '../models/task_model.dart';
 /// Abstract interface for schedule (week plan + tasks) operations.
 /// The UI layer only depends on this interface — never on Drift directly.
 abstract class ScheduleRepository {
-  /// Load (or initialize) the current week's day plans.
-  Future<List<DayPlan>> getWeekPlan();
+  /// Get the upcoming [count] days starting from Today.
+  /// Automatically initializes missing days if needed.
+  Future<List<DayPlan>> getUpcomingDays(int count);
+
+  /// Add a task to a specific date.
+  /// Automatically creates the day plan if it doesn't exist.
+  Future<void> addTaskToDate(DateTime date, Task task);
 
   /// Persist a full day plan (all tasks for one day).
   Future<void> saveDayPlan(DayPlan dayPlan);
@@ -21,10 +26,4 @@ abstract class ScheduleRepository {
 
   /// Delete all tasks for a day plan.
   Future<void> clearDay(String dayPlanId);
-
-  /// Check if the stored week is stale (belongs to a previous week).
-  Future<bool> isWeekStale();
-
-  /// Initialize a fresh week (7 empty day plans).
-  Future<List<DayPlan>> initializeWeek();
 }

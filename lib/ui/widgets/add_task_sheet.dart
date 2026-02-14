@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/task_model.dart';
 
 class AddTaskSheet extends StatefulWidget {
-  final Function(Task) onAdd;
+  final Function(Task, DateTime) onAdd;
   final Function(Task)? onUpdate;
   final Task? editingTask;
+  final DateTime? defaultDate;
 
   const AddTaskSheet({
     super.key,
     required this.onAdd,
     this.onUpdate,
     this.editingTask,
+    this.defaultDate,
   });
 
   @override
@@ -22,6 +25,7 @@ class AddTaskSheet extends StatefulWidget {
 class _AddTaskSheetState extends State<AddTaskSheet> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  late DateTime _selectedDate;
   String _startTime = "09:00";
   String _endTime = "10:00";
   TaskType _selectedType = TaskType.work;
@@ -33,6 +37,9 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   @override
   void initState() {
     super.initState();
+    // Default to provided date or today
+    _selectedDate = widget.defaultDate ?? DateTime.now();
+
     if (_isEditing) {
       final t = widget.editingTask!;
       _titleCtrl.text = t.title;
@@ -41,6 +48,9 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
       _endTime = t.endTime;
       _selectedType = t.type;
       _selectedPriority = t.priority;
+      // Note: Task model doesn't strictly store full date,
+      // but if we were editing an existing task, we might want to know its date.
+      // For now, we assume editing keeps the same day unless changed.
     }
   }
 
@@ -49,6 +59,32 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.neonBlue,
+              onPrimary: Colors.white,
+              surface: AppColors.surface,
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
   }
 
   Future<void> _pickTime(bool isStart) async {
@@ -80,8 +116,10 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
       final e = _endTime.split(':').map(int.parse).toList();
       final startMin = s[0] * 60 + s[1];
       final endMin = e[0] * 60 + e[1];
-      if (endMin <= startMin) {
-        _timeError = 'End time must be after start time';
+
+      // Allow overnight tasks (identical start/end is invalid)
+      if (startMin == endMin) {
+        _timeError = 'End time must differ from start time';
       } else {
         _timeError = null;
       }
@@ -161,6 +199,44 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
             ),
             const Divider(color: Colors.white10),
             const SizedBox(height: 16),
+
+            // Date Picker (New)
+            GestureDetector(
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today,
+                        color: AppColors.neonBlue, size: 18),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("DATE",
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(
+                          DateFormat('EEE, MMM d, yyyy').format(_selectedDate),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Time pickers
             Row(
@@ -362,15 +438,18 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                   );
                   widget.onUpdate?.call(updated);
                 } else {
-                  widget.onAdd(Task(
-                    id: const Uuid().v4(),
-                    title: _titleCtrl.text,
-                    startTime: _startTime,
-                    endTime: _endTime,
-                    type: _selectedType,
-                    priority: _selectedPriority,
-                    description: _descCtrl.text,
-                  ));
+                  widget.onAdd(
+                    Task(
+                      id: const Uuid().v4(),
+                      title: _titleCtrl.text,
+                      startTime: _startTime,
+                      endTime: _endTime,
+                      type: _selectedType,
+                      priority: _selectedPriority,
+                      description: _descCtrl.text,
+                    ),
+                    _selectedDate,
+                  );
                 }
                 Navigator.pop(context);
               },

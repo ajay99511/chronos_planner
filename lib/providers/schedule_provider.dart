@@ -68,17 +68,11 @@ class ScheduleProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load week plan
-      _weekPlan = await _scheduleRepo.getWeekPlan();
+      // Load rolling 7-day plan (Today + 6)
+      _weekPlan = await _scheduleRepo.getUpcomingDays(7);
 
-      // If empty (first launch, no migration data), seed defaults
-      if (_weekPlan.isEmpty) {
-        _weekPlan = await _scheduleRepo.initializeWeek();
-      }
-
-      // Set selected day to today
-      final now = DateTime.now();
-      _selectedDayIndex = (now.weekday - 1).clamp(0, 6);
+      // Always select Today (index 0)
+      _selectedDayIndex = 0;
 
       // Load templates
       _templates = await _templateRepo.getAllTemplates();
@@ -197,13 +191,26 @@ class ScheduleProvider extends ChangeNotifier {
 
   // ─── Schedule Task CRUD ───────────────────────
 
-  void addTask(Task task) async {
-    if (_weekPlan.isEmpty) return;
-    final dayPlan = _weekPlan[_selectedDayIndex];
-    dayPlan.tasks.add(task);
-    dayPlan.tasks.sort((a, b) => a.startTime.compareTo(b.startTime));
-    notifyListeners();
-    await _scheduleRepo.addTask(dayPlan.id, task);
+  void addTask(Task task, [DateTime? date]) async {
+    // If no date provided, default to currently selected day
+    final targetDate = date ?? selectedDay.date;
+
+    // Check if target date matches any currently loaded day
+    final existingPlanIndex = _weekPlan.indexWhere((p) =>
+        p.date.year == targetDate.year &&
+        p.date.month == targetDate.month &&
+        p.date.day == targetDate.day);
+
+    if (existingPlanIndex != -1) {
+      // Optimistic update if visible
+      final dayPlan = _weekPlan[existingPlanIndex];
+      dayPlan.tasks.add(task);
+      dayPlan.tasks.sort((a, b) => a.startTime.compareTo(b.startTime));
+      notifyListeners();
+    }
+
+    // Always persist to DB (handles finding/creating day plan)
+    await _scheduleRepo.addTaskToDate(targetDate, task);
   }
 
   void updateTask(String taskId, Task updatedTask) async {

@@ -17,6 +17,24 @@ class DayPlanDao extends DatabaseAccessor<AppDatabase> with _$DayPlanDaoMixin {
         .get();
   }
 
+  /// Get day plans starting from a specific date with a limit.
+  Future<List<DayPlan>> getDayPlansFrom(DateTime date, int limit) {
+    return (select(dayPlans)
+          ..where((d) => d.date.isBiggerOrEqualValue(date))
+          ..orderBy([(d) => OrderingTerm.asc(d.date)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Get the ID of a day plan for a specific date (if exists).
+  Future<String?> getDayPlanId(DateTime date) async {
+    final result = await (select(dayPlans)
+          ..where((d) => d.date.equals(date))
+          ..limit(1))
+        .getSingleOrNull();
+    return result?.id;
+  }
+
   /// Insert a single day plan.
   Future<void> insertDayPlan(DayPlansCompanion plan) {
     return into(dayPlans).insert(plan);

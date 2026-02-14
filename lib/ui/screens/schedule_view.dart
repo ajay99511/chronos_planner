@@ -279,7 +279,8 @@ class ScheduleView extends StatelessWidget {
                               isScrollControlled: true,
                               backgroundColor: Colors.transparent,
                               builder: (_) => AddTaskSheet(
-                                  onAdd: (t) => provider.addTask(t)),
+                                  defaultDate: dayPlan.date,
+                                  onAdd: (t, d) => provider.addTask(t, d)),
                             );
                           },
                           child: Container(
@@ -392,7 +393,7 @@ class ScheduleView extends StatelessWidget {
                                 backgroundColor: Colors.transparent,
                                 builder: (_) => AddTaskSheet(
                                   editingTask: task,
-                                  onAdd: (_) {},
+                                  onAdd: (_, __) {},
                                   onUpdate: (updatedTask) =>
                                       provider.updateTask(task.id, updatedTask),
                                 ),
