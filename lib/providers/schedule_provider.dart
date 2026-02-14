@@ -184,9 +184,11 @@ class ScheduleProvider extends ChangeNotifier {
       final e = endTime.split(':').map(int.parse).toList();
       final startMinutes = s[0] * 60 + s[1];
       final endMinutes = e[0] * 60 + e[1];
-      if (endMinutes <= startMinutes) {
-        return 'End time must be after start time';
+      // Only reject if start and end are identical
+      if (startMinutes == endMinutes) {
+        return 'End time must differ from start time';
       }
+      // Overnight ranges (e.g. 22:00–01:00) are valid
       return null;
     } catch (e) {
       return 'Invalid time format';
@@ -453,6 +455,8 @@ class ScheduleProvider extends ChangeNotifier {
       final e = end.split(':').map(int.parse).toList();
       double startH = s[0] + s[1] / 60.0;
       double endH = e[0] + e[1] / 60.0;
+      // Handle overnight tasks (e.g. 22:00–01:00 = 3 hours)
+      if (endH <= startH) endH += 24;
       return (endH - startH).clamp(0, 24);
     } catch (e) {
       return 0;
