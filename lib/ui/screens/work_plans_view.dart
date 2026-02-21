@@ -130,6 +130,31 @@ class WorkPlansView extends StatelessWidget {
                                   style: AppTextStyles.bodySmall
                                       .copyWith(fontWeight: FontWeight.bold)),
                             ),
+                            if (tmpl.isRecurring) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                    color: AppColors.neonBlue
+                                        .withValues(alpha: 0.2),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.sm)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.repeat,
+                                        size: 10, color: AppColors.neonBlue),
+                                    const SizedBox(width: 3),
+                                    Text("Recurring",
+                                        style: AppTextStyles.bodySmall.copyWith(
+                                            fontSize: 10,
+                                            color: AppColors.neonBlue,
+                                            fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 8),

@@ -5,12 +5,16 @@ class PlanTemplate {
   final String name;
   final String description;
   final List<Task> tasks;
+  final List<int> activeDays;
+
+  bool get isRecurring => activeDays.isNotEmpty;
 
   PlanTemplate({
     required this.id,
     required this.name,
     required this.description,
     required this.tasks,
+    this.activeDays = const [],
   });
 
   PlanTemplate copyWith({
@@ -18,12 +22,14 @@ class PlanTemplate {
     String? name,
     String? description,
     List<Task>? tasks,
+    List<int>? activeDays,
   }) {
     return PlanTemplate(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
       tasks: tasks ?? this.tasks,
+      activeDays: activeDays ?? this.activeDays,
     );
   }
 
@@ -32,6 +38,7 @@ class PlanTemplate {
         'name': name,
         'description': description,
         'tasks': tasks.map((t) => t.toJson()).toList(),
+        'activeDays': activeDays,
       };
 
   factory PlanTemplate.fromJson(Map<String, dynamic> json) {
@@ -40,6 +47,9 @@ class PlanTemplate {
       name: json['name'],
       description: json['description'],
       tasks: (json['tasks'] as List).map((t) => Task.fromJson(t)).toList(),
+      activeDays: json['activeDays'] != null
+          ? (json['activeDays'] as List).cast<int>()
+          : const [],
     );
   }
 }

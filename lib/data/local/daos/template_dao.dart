@@ -17,6 +17,15 @@ class TemplateDao extends DatabaseAccessor<AppDatabase>
     return select(planTemplates).get();
   }
 
+  /// Get only templates that have recurring active days set.
+  Future<List<PlanTemplate>> getRecurringTemplates() {
+    return (select(planTemplates)
+          ..where((t) =>
+              t.activeDays.length.isBiggerThanValue(0) &
+              t.activeDays.isNotValue('')))
+        .get();
+  }
+
   /// Watch all templates (reactive).
   Stream<List<PlanTemplate>> watchAllTemplates() {
     return select(planTemplates).watch();

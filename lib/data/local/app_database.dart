@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -37,7 +37,14 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
         },
         onUpgrade: (m, from, to) async {
-          // Future migrations go here
+          if (from < 2) {
+            // Add sourceTemplateId to tasks table
+            await customStatement(
+                "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''");
+            // Add activeDays to plan_templates table
+            await customStatement(
+                "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''");
+          }
         },
       );
 }

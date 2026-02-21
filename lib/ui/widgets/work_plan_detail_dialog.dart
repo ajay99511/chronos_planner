@@ -74,9 +74,38 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_currentName,
-                            style: AppTextStyles.heading3
-                                .copyWith(color: Colors.white)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(_currentName,
+                                  style: AppTextStyles.heading3
+                                      .copyWith(color: Colors.white)),
+                            ),
+                            if (tmpl.isRecurring) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white24,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.sm),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.repeat,
+                                        size: 12, color: Colors.white),
+                                    const SizedBox(width: 4),
+                                    Text('Recurring',
+                                        style: AppTextStyles.chip
+                                            .copyWith(color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                         if (_currentDesc.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(_currentDesc,
@@ -218,40 +247,97 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
                     }),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _selectedDays.isEmpty || tmpl.tasks.isEmpty
-                          ? null
-                          : () {
-                              provider.applyTemplateToDays(
-                                  tmpl, _selectedDays.toList());
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    "Applied to ${_selectedDays.length} day${_selectedDays.length == 1 ? '' : 's'}",
-                                  ),
-                                ),
-                              );
-                            },
-                      icon: const Icon(Icons.check, size: 18),
-                      label: Text(
-                        _selectedDays.isEmpty
-                            ? "Select Days to Apply"
-                            : "Apply to ${_selectedDays.length} Day${_selectedDays.length == 1 ? '' : 's'}",
+                  Row(
+                    children: [
+                      // This Week button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _selectedDays.isEmpty || tmpl.tasks.isEmpty
+                              ? null
+                              : () {
+                                  provider.applyTemplateToDays(
+                                      tmpl, _selectedDays.toList());
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Applied to ${_selectedDays.length} day${_selectedDays.length == 1 ? '' : 's'} this week",
+                                      ),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.today, size: 16),
+                          label: const Text('This Week'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.surface,
+                            foregroundColor: AppColors.neonBlue,
+                            disabledBackgroundColor: AppColors.surface,
+                            disabledForegroundColor: Colors.white30,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.md)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(
+                                color:
+                                    AppColors.neonBlue.withValues(alpha: 0.3)),
+                          ),
+                        ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.neonBlue,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.surface,
-                        disabledForegroundColor: Colors.white30,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.md)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      const SizedBox(width: 10),
+                      // Every Week button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _selectedDays.isEmpty || tmpl.tasks.isEmpty
+                              ? null
+                              : () {
+                                  provider.setTemplateRecurring(
+                                      tmpl.id, _selectedDays.toList());
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Recurring on ${_selectedDays.length} day${_selectedDays.length == 1 ? '' : 's'} every week",
+                                      ),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.repeat, size: 16),
+                          label: const Text('Every Week'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.neonBlue,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: AppColors.surface,
+                            disabledForegroundColor: Colors.white30,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.md)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Stop Recurring option
+                  if (tmpl.isRecurring) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          provider.stopTemplateRecurring(tmpl.id);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Recurring schedule stopped'),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.stop_circle_outlined,
+                            size: 16, color: Colors.orange.shade300),
+                        label: Text('Stop Recurring',
+                            style: TextStyle(color: Colors.orange.shade300)),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

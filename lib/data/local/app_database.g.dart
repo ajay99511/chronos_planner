@@ -381,6 +381,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       requiredDuringInsert: true,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('REFERENCES day_plans (id)'));
+  static const VerificationMeta _sourceTemplateIdMeta =
+      const VerificationMeta('sourceTemplateId');
+  @override
+  late final GeneratedColumn<String> sourceTemplateId = GeneratedColumn<String>(
+      'source_template_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -391,7 +399,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         type,
         priority,
         completed,
-        dayPlanId
+        dayPlanId,
+        sourceTemplateId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -454,6 +463,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     } else if (isInserting) {
       context.missing(_dayPlanIdMeta);
     }
+    if (data.containsKey('source_template_id')) {
+      context.handle(
+          _sourceTemplateIdMeta,
+          sourceTemplateId.isAcceptableOrUnknown(
+              data['source_template_id']!, _sourceTemplateIdMeta));
+    }
     return context;
   }
 
@@ -481,6 +496,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.bool, data['${effectivePrefix}completed'])!,
       dayPlanId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}day_plan_id'])!,
+      sourceTemplateId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_template_id'])!,
     );
   }
 
@@ -500,6 +517,7 @@ class Task extends DataClass implements Insertable<Task> {
   final String priority;
   final bool completed;
   final String dayPlanId;
+  final String sourceTemplateId;
   const Task(
       {required this.id,
       required this.title,
@@ -509,7 +527,8 @@ class Task extends DataClass implements Insertable<Task> {
       required this.type,
       required this.priority,
       required this.completed,
-      required this.dayPlanId});
+      required this.dayPlanId,
+      required this.sourceTemplateId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -522,6 +541,7 @@ class Task extends DataClass implements Insertable<Task> {
     map['priority'] = Variable<String>(priority);
     map['completed'] = Variable<bool>(completed);
     map['day_plan_id'] = Variable<String>(dayPlanId);
+    map['source_template_id'] = Variable<String>(sourceTemplateId);
     return map;
   }
 
@@ -536,6 +556,7 @@ class Task extends DataClass implements Insertable<Task> {
       priority: Value(priority),
       completed: Value(completed),
       dayPlanId: Value(dayPlanId),
+      sourceTemplateId: Value(sourceTemplateId),
     );
   }
 
@@ -552,6 +573,7 @@ class Task extends DataClass implements Insertable<Task> {
       priority: serializer.fromJson<String>(json['priority']),
       completed: serializer.fromJson<bool>(json['completed']),
       dayPlanId: serializer.fromJson<String>(json['dayPlanId']),
+      sourceTemplateId: serializer.fromJson<String>(json['sourceTemplateId']),
     );
   }
   @override
@@ -567,6 +589,7 @@ class Task extends DataClass implements Insertable<Task> {
       'priority': serializer.toJson<String>(priority),
       'completed': serializer.toJson<bool>(completed),
       'dayPlanId': serializer.toJson<String>(dayPlanId),
+      'sourceTemplateId': serializer.toJson<String>(sourceTemplateId),
     };
   }
 
@@ -579,7 +602,8 @@ class Task extends DataClass implements Insertable<Task> {
           String? type,
           String? priority,
           bool? completed,
-          String? dayPlanId}) =>
+          String? dayPlanId,
+          String? sourceTemplateId}) =>
       Task(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -590,6 +614,7 @@ class Task extends DataClass implements Insertable<Task> {
         priority: priority ?? this.priority,
         completed: completed ?? this.completed,
         dayPlanId: dayPlanId ?? this.dayPlanId,
+        sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
       );
   Task copyWithCompanion(TasksCompanion data) {
     return Task(
@@ -603,6 +628,9 @@ class Task extends DataClass implements Insertable<Task> {
       priority: data.priority.present ? data.priority.value : this.priority,
       completed: data.completed.present ? data.completed.value : this.completed,
       dayPlanId: data.dayPlanId.present ? data.dayPlanId.value : this.dayPlanId,
+      sourceTemplateId: data.sourceTemplateId.present
+          ? data.sourceTemplateId.value
+          : this.sourceTemplateId,
     );
   }
 
@@ -617,14 +645,15 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('type: $type, ')
           ..write('priority: $priority, ')
           ..write('completed: $completed, ')
-          ..write('dayPlanId: $dayPlanId')
+          ..write('dayPlanId: $dayPlanId, ')
+          ..write('sourceTemplateId: $sourceTemplateId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, title, description, startTime, endTime,
-      type, priority, completed, dayPlanId);
+      type, priority, completed, dayPlanId, sourceTemplateId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -637,7 +666,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.type == this.type &&
           other.priority == this.priority &&
           other.completed == this.completed &&
-          other.dayPlanId == this.dayPlanId);
+          other.dayPlanId == this.dayPlanId &&
+          other.sourceTemplateId == this.sourceTemplateId);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -650,6 +680,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<String> priority;
   final Value<bool> completed;
   final Value<String> dayPlanId;
+  final Value<String> sourceTemplateId;
   final Value<int> rowid;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -661,6 +692,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.priority = const Value.absent(),
     this.completed = const Value.absent(),
     this.dayPlanId = const Value.absent(),
+    this.sourceTemplateId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -673,6 +705,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.priority = const Value.absent(),
     this.completed = const Value.absent(),
     required String dayPlanId,
+    this.sourceTemplateId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
@@ -690,6 +723,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? priority,
     Expression<bool>? completed,
     Expression<String>? dayPlanId,
+    Expression<String>? sourceTemplateId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -702,6 +736,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (priority != null) 'priority': priority,
       if (completed != null) 'completed': completed,
       if (dayPlanId != null) 'day_plan_id': dayPlanId,
+      if (sourceTemplateId != null) 'source_template_id': sourceTemplateId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -716,6 +751,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<String>? priority,
       Value<bool>? completed,
       Value<String>? dayPlanId,
+      Value<String>? sourceTemplateId,
       Value<int>? rowid}) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -727,6 +763,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       priority: priority ?? this.priority,
       completed: completed ?? this.completed,
       dayPlanId: dayPlanId ?? this.dayPlanId,
+      sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -761,6 +798,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (dayPlanId.present) {
       map['day_plan_id'] = Variable<String>(dayPlanId.value);
     }
+    if (sourceTemplateId.present) {
+      map['source_template_id'] = Variable<String>(sourceTemplateId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -779,6 +819,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('priority: $priority, ')
           ..write('completed: $completed, ')
           ..write('dayPlanId: $dayPlanId, ')
+          ..write('sourceTemplateId: $sourceTemplateId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -812,8 +853,16 @@ class $PlanTemplatesTable extends PlanTemplates
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
+  static const VerificationMeta _activeDaysMeta =
+      const VerificationMeta('activeDays');
   @override
-  List<GeneratedColumn> get $columns => [id, name, description];
+  late final GeneratedColumn<String> activeDays = GeneratedColumn<String>(
+      'active_days', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, description, activeDays];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -841,6 +890,12 @@ class $PlanTemplatesTable extends PlanTemplates
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
     }
+    if (data.containsKey('active_days')) {
+      context.handle(
+          _activeDaysMeta,
+          activeDays.isAcceptableOrUnknown(
+              data['active_days']!, _activeDaysMeta));
+    }
     return context;
   }
 
@@ -856,6 +911,8 @@ class $PlanTemplatesTable extends PlanTemplates
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      activeDays: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}active_days'])!,
     );
   }
 
@@ -869,14 +926,19 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
   final String id;
   final String name;
   final String description;
+  final String activeDays;
   const PlanTemplate(
-      {required this.id, required this.name, required this.description});
+      {required this.id,
+      required this.name,
+      required this.description,
+      required this.activeDays});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['description'] = Variable<String>(description);
+    map['active_days'] = Variable<String>(activeDays);
     return map;
   }
 
@@ -885,6 +947,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: Value(id),
       name: Value(name),
       description: Value(description),
+      activeDays: Value(activeDays),
     );
   }
 
@@ -895,6 +958,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String>(json['description']),
+      activeDays: serializer.fromJson<String>(json['activeDays']),
     );
   }
   @override
@@ -904,14 +968,20 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String>(description),
+      'activeDays': serializer.toJson<String>(activeDays),
     };
   }
 
-  PlanTemplate copyWith({String? id, String? name, String? description}) =>
+  PlanTemplate copyWith(
+          {String? id,
+          String? name,
+          String? description,
+          String? activeDays}) =>
       PlanTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
         description: description ?? this.description,
+        activeDays: activeDays ?? this.activeDays,
       );
   PlanTemplate copyWithCompanion(PlanTemplatesCompanion data) {
     return PlanTemplate(
@@ -919,6 +989,8 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
+      activeDays:
+          data.activeDays.present ? data.activeDays.value : this.activeDays,
     );
   }
 
@@ -927,37 +999,42 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
     return (StringBuffer('PlanTemplate(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('description: $description')
+          ..write('description: $description, ')
+          ..write('activeDays: $activeDays')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, description);
+  int get hashCode => Object.hash(id, name, description, activeDays);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlanTemplate &&
           other.id == this.id &&
           other.name == this.name &&
-          other.description == this.description);
+          other.description == this.description &&
+          other.activeDays == this.activeDays);
 }
 
 class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> description;
+  final Value<String> activeDays;
   final Value<int> rowid;
   const PlanTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
+    this.activeDays = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlanTemplatesCompanion.insert({
     required String id,
     required String name,
     this.description = const Value.absent(),
+    this.activeDays = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name);
@@ -965,12 +1042,14 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? description,
+    Expression<String>? activeDays,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
+      if (activeDays != null) 'active_days': activeDays,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -979,11 +1058,13 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
       {Value<String>? id,
       Value<String>? name,
       Value<String>? description,
+      Value<String>? activeDays,
       Value<int>? rowid}) {
     return PlanTemplatesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      activeDays: activeDays ?? this.activeDays,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1000,6 +1081,9 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (activeDays.present) {
+      map['active_days'] = Variable<String>(activeDays.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1012,6 +1096,7 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
+          ..write('activeDays: $activeDays, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1915,6 +2000,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<String> priority,
   Value<bool> completed,
   required String dayPlanId,
+  Value<String> sourceTemplateId,
   Value<int> rowid,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
@@ -1927,6 +2013,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<String> priority,
   Value<bool> completed,
   Value<String> dayPlanId,
+  Value<String> sourceTemplateId,
   Value<int> rowid,
 });
 
@@ -1980,6 +2067,10 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<bool> get completed => $composableBuilder(
       column: $table.completed, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceTemplateId => $composableBuilder(
+      column: $table.sourceTemplateId,
+      builder: (column) => ColumnFilters(column));
 
   $$DayPlansTableFilterComposer get dayPlanId {
     final $$DayPlansTableFilterComposer composer = $composerBuilder(
@@ -2035,6 +2126,10 @@ class $$TasksTableOrderingComposer
   ColumnOrderings<bool> get completed => $composableBuilder(
       column: $table.completed, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get sourceTemplateId => $composableBuilder(
+      column: $table.sourceTemplateId,
+      builder: (column) => ColumnOrderings(column));
+
   $$DayPlansTableOrderingComposer get dayPlanId {
     final $$DayPlansTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -2089,6 +2184,9 @@ class $$TasksTableAnnotationComposer
   GeneratedColumn<bool> get completed =>
       $composableBuilder(column: $table.completed, builder: (column) => column);
 
+  GeneratedColumn<String> get sourceTemplateId => $composableBuilder(
+      column: $table.sourceTemplateId, builder: (column) => column);
+
   $$DayPlansTableAnnotationComposer get dayPlanId {
     final $$DayPlansTableAnnotationComposer composer = $composerBuilder(
         composer: this,
@@ -2142,6 +2240,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String> priority = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<String> dayPlanId = const Value.absent(),
+            Value<String> sourceTemplateId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion(
@@ -2154,6 +2253,7 @@ class $$TasksTableTableManager extends RootTableManager<
             priority: priority,
             completed: completed,
             dayPlanId: dayPlanId,
+            sourceTemplateId: sourceTemplateId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -2166,6 +2266,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String> priority = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             required String dayPlanId,
+            Value<String> sourceTemplateId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion.insert(
@@ -2178,6 +2279,7 @@ class $$TasksTableTableManager extends RootTableManager<
             priority: priority,
             completed: completed,
             dayPlanId: dayPlanId,
+            sourceTemplateId: sourceTemplateId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -2238,6 +2340,7 @@ typedef $$PlanTemplatesTableCreateCompanionBuilder = PlanTemplatesCompanion
   required String id,
   required String name,
   Value<String> description,
+  Value<String> activeDays,
   Value<int> rowid,
 });
 typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
@@ -2245,6 +2348,7 @@ typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
   Value<String> id,
   Value<String> name,
   Value<String> description,
+  Value<String> activeDays,
   Value<int> rowid,
 });
 
@@ -2287,6 +2391,9 @@ class $$PlanTemplatesTableFilterComposer
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get activeDays => $composableBuilder(
+      column: $table.activeDays, builder: (column) => ColumnFilters(column));
+
   Expression<bool> templateTasksRefs(
       Expression<bool> Function($$TemplateTasksTableFilterComposer f) f) {
     final $$TemplateTasksTableFilterComposer composer = $composerBuilder(
@@ -2326,6 +2433,9 @@ class $$PlanTemplatesTableOrderingComposer
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get activeDays => $composableBuilder(
+      column: $table.activeDays, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlanTemplatesTableAnnotationComposer
@@ -2345,6 +2455,9 @@ class $$PlanTemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get activeDays => $composableBuilder(
+      column: $table.activeDays, builder: (column) => column);
 
   Expression<T> templateTasksRefs<T extends Object>(
       Expression<T> Function($$TemplateTasksTableAnnotationComposer a) f) {
@@ -2394,24 +2507,28 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String> description = const Value.absent(),
+            Value<String> activeDays = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion(
             id: id,
             name: name,
             description: description,
+            activeDays: activeDays,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
             required String name,
             Value<String> description = const Value.absent(),
+            Value<String> activeDays = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion.insert(
             id: id,
             name: name,
             description: description,
+            activeDays: activeDays,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

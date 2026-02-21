@@ -10,6 +10,7 @@ class Task {
   final TaskType type;
   final TaskPriority priority;
   final String description;
+  final String sourceTemplateId;
   bool completed;
 
   Task({
@@ -20,6 +21,7 @@ class Task {
     required this.type,
     this.priority = TaskPriority.medium,
     this.description = '',
+    this.sourceTemplateId = '',
     this.completed = false,
   });
 
@@ -31,6 +33,7 @@ class Task {
     TaskType? type,
     TaskPriority? priority,
     String? description,
+    String? sourceTemplateId,
     bool? completed,
   }) {
     return Task(
@@ -41,6 +44,7 @@ class Task {
       type: type ?? this.type,
       priority: priority ?? this.priority,
       description: description ?? this.description,
+      sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
       completed: completed ?? this.completed,
     );
   }
@@ -53,6 +57,7 @@ class Task {
         'type': type.toString(),
         'priority': priority.toString(),
         'description': description,
+        'sourceTemplateId': sourceTemplateId,
         'completed': completed,
       };
 
@@ -71,6 +76,7 @@ class Task {
         orElse: () => TaskPriority.medium,
       ),
       description: json['description'] ?? '',
+      sourceTemplateId: json['sourceTemplateId'] ?? '',
       completed: json['completed'] ?? false,
     );
   }

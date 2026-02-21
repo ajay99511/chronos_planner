@@ -85,6 +85,9 @@ class ScheduleProvider extends ChangeNotifier {
       // Load sort order
       final savedSort = await _prefRepo.get('sort_order');
       _sortOrder = savedSort == 'desc' ? SortOrder.desc : SortOrder.asc;
+
+      // Auto-apply recurring templates to new days
+      await _applyRecurringTemplates();
     } catch (e) {
       debugPrint("Error loading data: $e");
     }
@@ -317,7 +320,8 @@ class ScheduleProvider extends ChangeNotifier {
     }
   }
 
-  void _applyTemplateToIndex(PlanTemplate template, int dayIndex) {
+  void _applyTemplateToIndex(PlanTemplate template, int dayIndex,
+      {String sourceTemplateId = ''}) {
     final dayPlan = _weekPlan[dayIndex];
     final newTasks = template.tasks
         .map((t) => Task(
@@ -328,6 +332,7 @@ class ScheduleProvider extends ChangeNotifier {
               type: t.type,
               priority: t.priority,
               description: t.description,
+              sourceTemplateId: sourceTemplateId,
             ))
         .toList();
 
@@ -335,6 +340,59 @@ class ScheduleProvider extends ChangeNotifier {
     dayPlan.tasks.sort((a, b) => a.startTime.compareTo(b.startTime));
     notifyListeners();
     _scheduleRepo.saveDayPlan(dayPlan);
+  }
+
+  /// Set a template to recur on specific weekdays.
+  /// dayIndices: 0=Monday, 1=Tuesday, ..., 6=Sunday.
+  void setTemplateRecurring(String templateId, List<int> days) async {
+    final index = _templates.indexWhere((t) => t.id == templateId);
+    if (index == -1) return;
+    _templates[index] = _templates[index].copyWith(activeDays: days);
+    notifyListeners();
+    await _templateRepo.updateTemplateActiveDays(templateId, days);
+
+    // Immediately apply to matching days in the current week
+    for (int i = 0; i < _weekPlan.length; i++) {
+      final weekday = _weekPlan[i].date.weekday - 1; // 0-indexed Mon=0
+      if (days.contains(weekday)) {
+        // Skip if already applied
+        final alreadyApplied =
+            _weekPlan[i].tasks.any((t) => t.sourceTemplateId == templateId);
+        if (!alreadyApplied) {
+          _applyTemplateToIndex(_templates[index], i,
+              sourceTemplateId: templateId);
+        }
+      }
+    }
+  }
+
+  /// Stop a template from recurring.
+  void stopTemplateRecurring(String templateId) async {
+    final index = _templates.indexWhere((t) => t.id == templateId);
+    if (index == -1) return;
+    _templates[index] = _templates[index].copyWith(activeDays: []);
+    notifyListeners();
+    await _templateRepo.updateTemplateActiveDays(templateId, []);
+  }
+
+  /// Auto-apply recurring templates to new days that haven't received them.
+  Future<void> _applyRecurringTemplates() async {
+    final recurring = _templates.where((t) => t.isRecurring).toList();
+    if (recurring.isEmpty) return;
+
+    for (int i = 0; i < _weekPlan.length; i++) {
+      final weekday = _weekPlan[i].date.weekday - 1; // 0-indexed Mon=0
+      for (final tmpl in recurring) {
+        if (tmpl.activeDays.contains(weekday)) {
+          // Check if this template was already applied to this day
+          final alreadyApplied =
+              _weekPlan[i].tasks.any((t) => t.sourceTemplateId == tmpl.id);
+          if (!alreadyApplied) {
+            _applyTemplateToIndex(tmpl, i, sourceTemplateId: tmpl.id);
+          }
+        }
+      }
+    }
   }
 
   void addTemplate(PlanTemplate template) async {

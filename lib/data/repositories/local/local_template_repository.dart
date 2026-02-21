@@ -24,6 +24,7 @@ class LocalTemplateRepository implements TemplateRepository {
         name: t.name,
         description: t.description,
         tasks: dbTasks.map(_dbTemplateTaskToModel).toList(),
+        activeDays: _parseActiveDays(t.activeDays),
       ));
     }
 
@@ -36,6 +37,7 @@ class LocalTemplateRepository implements TemplateRepository {
       id: Value(template.id),
       name: Value(template.name),
       description: Value(template.description),
+      activeDays: Value(_encodeDays(template.activeDays)),
     ));
 
     if (template.tasks.isNotEmpty) {
@@ -90,6 +92,35 @@ class LocalTemplateRepository implements TemplateRepository {
     return _templateDao.deleteTemplateTask(taskId);
   }
 
+  @override
+  Future<void> updateTemplateActiveDays(String templateId, List<int> days) {
+    return _templateDao.updateTemplate(
+      templateId,
+      PlanTemplatesCompanion(
+        activeDays: Value(_encodeDays(days)),
+      ),
+    );
+  }
+
+  @override
+  Future<List<model.PlanTemplate>> getRecurringTemplates() async {
+    final dbTemplates = await _templateDao.getRecurringTemplates();
+    final result = <model.PlanTemplate>[];
+
+    for (final t in dbTemplates) {
+      final dbTasks = await _templateDao.getTasksForTemplate(t.id);
+      result.add(model.PlanTemplate(
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        tasks: dbTasks.map(_dbTemplateTaskToModel).toList(),
+        activeDays: _parseActiveDays(t.activeDays),
+      ));
+    }
+
+    return result;
+  }
+
   // ── Mappers ───────────────────────────────────
 
   model.Task _dbTemplateTaskToModel(TemplateTask dbTask) {
@@ -122,5 +153,21 @@ class LocalTemplateRepository implements TemplateRepository {
       type: Value(task.type.name),
       priority: Value(task.priority.name),
     );
+  }
+
+  // ── activeDays helpers ────────────────────────
+
+  List<int> _parseActiveDays(String raw) {
+    if (raw.isEmpty) return [];
+    return raw
+        .split(',')
+        .map((s) => int.tryParse(s.trim()) ?? -1)
+        .where((i) => i >= 0)
+        .toList();
+  }
+
+  String _encodeDays(List<int> days) {
+    if (days.isEmpty) return '';
+    return days.join(',');
   }
 }

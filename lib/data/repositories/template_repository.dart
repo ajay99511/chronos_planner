@@ -25,4 +25,10 @@ abstract class TemplateRepository {
 
   /// Remove a task from a template.
   Future<void> removeTaskFromTemplate(String templateId, String taskId);
+
+  /// Update the active recurring days for a template.
+  Future<void> updateTemplateActiveDays(String templateId, List<int> days);
+
+  /// Get all templates with recurring active days set.
+  Future<List<PlanTemplate>> getRecurringTemplates();
 }

@@ -11,6 +11,7 @@ class Tasks extends Table {
   TextColumn get priority => text().withDefault(const Constant('medium'))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   TextColumn get dayPlanId => text().references(DayPlans, #id)();
+  TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -33,6 +34,7 @@ class PlanTemplates extends Table {
   TextColumn get id => text()();
   TextColumn get name => text().withLength(min: 1, max: 100)();
   TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get activeDays => text().withDefault(const Constant(''))();
 
   @override
   Set<Column> get primaryKey => {id};

@@ -179,6 +179,7 @@ class LocalScheduleRepository implements ScheduleRepository {
         orElse: () => model.TaskPriority.medium,
       ),
       completed: dbTask.completed,
+      sourceTemplateId: dbTask.sourceTemplateId,
     );
   }
 
@@ -193,6 +194,7 @@ class LocalScheduleRepository implements ScheduleRepository {
       priority: Value(task.priority.name),
       completed: Value(task.completed),
       dayPlanId: Value(dayPlanId),
+      sourceTemplateId: Value(task.sourceTemplateId),
     );
   }
 }
