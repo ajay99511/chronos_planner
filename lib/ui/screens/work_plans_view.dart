@@ -138,26 +138,77 @@ class WorkPlansView extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
                         const Spacer(),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.sm + 2),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.open_in_new,
-                                  size: 14, color: AppColors.neonBlue),
-                              const SizedBox(width: 4),
-                              Text("Open Plan",
-                                  style: AppTextStyles.chip
-                                      .copyWith(color: AppColors.neonBlue)),
-                            ],
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) =>
+                                        WorkPlanDetailDialog(template: tmpl),
+                                  );
+                                },
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.05),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.sm + 2),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.open_in_new,
+                                          size: 14, color: AppColors.neonBlue),
+                                      const SizedBox(width: 4),
+                                      Text("Open",
+                                          style: AppTextStyles.chip.copyWith(
+                                              color: AppColors.neonBlue)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  final today = DateTime.now().weekday - 1;
+                                  provider.applyTemplateToDays(tmpl, [today]);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Plan applied to today"),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.neonBlue
+                                        .withValues(alpha: 0.15),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.sm + 2),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.check_circle_outline,
+                                          size: 14, color: AppColors.neonBlue),
+                                      const SizedBox(width: 4),
+                                      Text("Apply",
+                                          style: AppTextStyles.chip.copyWith(
+                                              color: AppColors.neonBlue)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         )
                       ],
                     ),
