@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/todo_provider.dart';
 import '../../data/local/app_database.dart'; // for TodoItem
+import 'todo_detail_screen.dart';
 
 class TodoListView extends StatefulWidget {
   const TodoListView({super.key});
@@ -13,92 +14,17 @@ class TodoListView extends StatefulWidget {
 }
 
 class _TodoListViewState extends State<TodoListView> {
-  void _showAddEditTaskDialog(BuildContext context, {TodoItem? todo}) {
-    final titleController = TextEditingController(text: todo?.title ?? '');
-    final descController = TextEditingController(text: todo?.description ?? '');
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: Text(todo == null ? 'New Task' : 'Edit Task',
-              style: AppTextStyles.heading3),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                style: AppTextStyles.body,
-                decoration: InputDecoration(
-                  labelText: 'Title',
-                  labelStyle: AppTextStyles.bodySmall,
-                  enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white24),
-                      borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: AppColors.neonBlue),
-                      borderRadius: BorderRadius.circular(AppRadius.sm)),
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: descController,
-                style: AppTextStyles.body,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Description (optional)',
-                  labelStyle: AppTextStyles.bodySmall,
-                  enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white24),
-                      borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: AppColors.neonBlue),
-                      borderRadius: BorderRadius.circular(AppRadius.sm)),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel',
-                  style: AppTextStyles.button
-                      .copyWith(color: AppColors.textSecondary)),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppGradients.primaryBlue,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                ),
-                onPressed: () {
-                  final title = titleController.text.trim();
-                  if (title.isNotEmpty) {
-                    final provider = context.read<TodoProvider>();
-                    if (todo == null) {
-                      provider.addTodo(title,
-                          description: descController.text.trim());
-                    } else {
-                      provider.updateTodoData(
-                          todo, title, descController.text.trim());
-                    }
-                    Navigator.pop(ctx);
-                  }
-                },
-                child: Text('Save', style: AppTextStyles.button),
-              ),
-            ),
-          ],
-        );
-      },
+  void _openTask(BuildContext context, {TodoItem? todo}) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            TodoDetailScreen(todo: todo),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOut));
+          return FadeTransition(opacity: fadeAnimation, child: child);
+        },
+      ),
     );
   }
 
@@ -119,7 +45,7 @@ class _TodoListViewState extends State<TodoListView> {
                   children: [
                     Text('Tasks', style: AppTextStyles.heading1),
                     const SizedBox(height: 4),
-                    Text('Your persistent to-do list',
+                    Text('Your workspace canvas',
                         style: AppTextStyles.bodySmall),
                   ],
                 ),
@@ -132,7 +58,7 @@ class _TodoListViewState extends State<TodoListView> {
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.add, color: Colors.white),
-                    onPressed: () => _showAddEditTaskDialog(context),
+                    onPressed: () => _openTask(context),
                   ),
                 ),
               ],
@@ -144,22 +70,37 @@ class _TodoListViewState extends State<TodoListView> {
                 final todos = provider.todos;
                 if (todos.isEmpty) {
                   return Center(
-                    child: Text('No tasks yet. Add some!',
-                        style: AppTextStyles.bodySmall.copyWith(fontSize: 16)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.layers_clear,
+                            size: 48, color: Colors.white24),
+                        const SizedBox(height: AppSpacing.md),
+                        Text('Your canvas is empty.\nCreate a new task!',
+                            textAlign: TextAlign.center,
+                            style:
+                                AppTextStyles.bodySmall.copyWith(fontSize: 16)),
+                      ],
+                    ),
                   );
                 }
 
-                return ListView.builder(
+                return GridView.builder(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 300,
+                    mainAxisSpacing: AppSpacing.md,
+                    crossAxisSpacing: AppSpacing.md,
+                    childAspectRatio: 1.1, // slightly wider than square
+                  ),
                   itemCount: todos.length,
                   itemBuilder: (context, index) {
                     final todo = todos[index];
-                    return _TodoTile(
+                    return _TodoCard(
                       todo: todo,
+                      onTap: () => _openTask(context, todo: todo),
                       onToggle: () => provider.toggleTodo(todo),
-                      onDelete: () => provider.deleteTodo(todo.id),
-                      onEdit: () => _showAddEditTaskDialog(context, todo: todo),
                     );
                   },
                 );
@@ -172,85 +113,106 @@ class _TodoListViewState extends State<TodoListView> {
   }
 }
 
-class _TodoTile extends StatelessWidget {
+class _TodoCard extends StatelessWidget {
   final TodoItem todo;
+  final VoidCallback onTap;
   final VoidCallback onToggle;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
 
-  const _TodoTile({
+  const _TodoCard({
     required this.todo,
+    required this.onTap,
     required this.onToggle,
-    required this.onDelete,
-    required this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-        leading: GestureDetector(
-          onTap: onToggle,
-          child: AnimatedContainer(
-            duration: AppAnimDurations.fast,
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: todo.completed ? AppColors.neonBlue : Colors.white38,
-                width: 2,
-              ),
-              color: todo.completed ? AppColors.neonBlue : Colors.transparent,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: Colors.white10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            child: todo.completed
-                ? const Icon(Icons.check, size: 16, color: Colors.white)
-                : null,
-          ),
+          ],
         ),
-        title: Text(
-          todo.title,
-          style: AppTextStyles.body.copyWith(
-            decoration: todo.completed ? TextDecoration.lineThrough : null,
-            color: todo.completed
-                ? AppColors.textSecondary
-                : AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: todo.description.isNotEmpty
-            ? Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Text(
-                  todo.description,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    decoration:
-                        todo.completed ? TextDecoration.lineThrough : null,
-                    color: AppColors.textSecondary,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    todo.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.heading3.copyWith(
+                      decoration:
+                          todo.completed ? TextDecoration.lineThrough : null,
+                      color: todo.completed
+                          ? AppColors.textSecondary
+                          : AppColors.textPrimary,
+                    ),
                   ),
                 ),
-              )
-            : null,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined,
-                  color: Colors.white54, size: 20),
-              onPressed: onEdit,
+                GestureDetector(
+                  onTap: onToggle,
+                  child: Container(
+                    margin: const EdgeInsets.only(left: AppSpacing.sm),
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: todo.completed
+                            ? AppColors.neonBlue
+                            : Colors.white38,
+                        width: 2,
+                      ),
+                      color: todo.completed
+                          ? AppColors.neonBlue
+                          : Colors.transparent,
+                    ),
+                    child: todo.completed
+                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        : null,
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  color: Colors.redAccent, size: 20),
-              onPressed: onDelete,
+            if (todo.description.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  todo.description,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ] else ...[
+              const Spacer(),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Text(
+                'View detailed',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.neonBlue.withValues(alpha: 0.7),
+                  fontSize: 10,
+                ),
+              ),
             ),
           ],
         ),
