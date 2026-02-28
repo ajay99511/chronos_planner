@@ -10,12 +10,20 @@ import 'daos/task_dao.dart';
 import 'daos/day_plan_dao.dart';
 import 'daos/template_dao.dart';
 import 'daos/preference_dao.dart';
+import 'daos/todo_item_dao.dart';
 
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Tasks, DayPlans, PlanTemplates, TemplateTasks, Preferences],
-  daos: [TaskDao, DayPlanDao, TemplateDao, PreferenceDao],
+  tables: [
+    Tasks,
+    DayPlans,
+    PlanTemplates,
+    TemplateTasks,
+    Preferences,
+    TodoItems
+  ],
+  daos: [TaskDao, DayPlanDao, TemplateDao, PreferenceDao, TodoItemDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase._() : super(_openConnection());
@@ -29,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +52,10 @@ class AppDatabase extends _$AppDatabase {
             // Add activeDays to plan_templates table
             await customStatement(
                 "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''");
+          }
+          if (from < 3) {
+            // Add TodoItems table
+            await m.createTable(todoItems);
           }
         },
       );

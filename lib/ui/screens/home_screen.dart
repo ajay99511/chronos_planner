@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import 'analytics_view.dart';
 import 'schedule_view.dart';
 import 'work_plans_view.dart';
+import 'todo_list_view.dart';
 
 class ChronosHome extends StatefulWidget {
   const ChronosHome({super.key});
@@ -20,6 +21,7 @@ class _ChronosHomeState extends State<ChronosHome> {
     ScheduleView(),
     WorkPlansView(),
     AnalyticsView(),
+    TodoListView(),
   ];
 
   @override
@@ -91,6 +93,8 @@ class _ChronosHomeState extends State<ChronosHome> {
                       BottomNavigationBarItem(
                           icon: Icon(Icons.pie_chart_outline),
                           label: "Insights"),
+                      BottomNavigationBarItem(
+                          icon: Icon(Icons.check_box_outlined), label: "Tasks"),
                     ],
                   ),
                 ),
@@ -160,6 +164,12 @@ class _DesktopSidebar extends StatelessWidget {
               label: "Analytics",
               isSelected: currentIndex == 2,
               onTap: () => onSelect(2)),
+          _SidebarItem(
+              index: 3,
+              icon: Icons.check_box_outlined,
+              label: "Tasks",
+              isSelected: currentIndex == 3,
+              onTap: () => onSelect(3)),
           const Spacer(),
           // Footer
           Padding(
