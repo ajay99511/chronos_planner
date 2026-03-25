@@ -4,13 +4,43 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../data/models/task_model.dart';
 import '../../providers/schedule_provider.dart';
 import '../widgets/add_task_sheet.dart';
 import '../widgets/glass_container.dart';
-import '../widgets/task_card.dart';
+import '../widgets/premium_task_card.dart';
+import '../widgets/task_detail_panel.dart';
 
-class ScheduleView extends StatelessWidget {
+class ScheduleView extends StatefulWidget {
   const ScheduleView({super.key});
+
+  @override
+  State<ScheduleView> createState() => _ScheduleViewState();
+}
+
+class _ScheduleViewState extends State<ScheduleView> {
+  ViewMode _currentViewMode = ViewMode.card;
+  Task? _selectedTask;
+
+  void _toggleViewMode() {
+    setState(() {
+      _currentViewMode = _currentViewMode == ViewMode.card
+          ? ViewMode.list
+          : ViewMode.card;
+    });
+  }
+
+  void _openTaskDetail(Task task) {
+    setState(() {
+      _selectedTask = task;
+    });
+  }
+
+  void _closeTaskDetail() {
+    setState(() {
+      _selectedTask = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -257,6 +287,19 @@ class ScheduleView extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
 
+                        // View mode toggle
+                        _ActionButton(
+                          icon: _currentViewMode == ViewMode.card
+                              ? Icons.view_list_rounded
+                              : Icons.grid_view_rounded,
+                          color: AppColors.neonPurple,
+                          onTap: _toggleViewMode,
+                          tooltip: _currentViewMode == ViewMode.card
+                              ? 'Switch to List View'
+                              : 'Switch to Card View',
+                        ),
+                        const SizedBox(width: 4),
+
                         // Focus Mode
                         if (MediaQuery.of(context).size.width <= 800) ...[
                           _ActionButton(
@@ -322,111 +365,180 @@ class ScheduleView extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // ── Task List (swipe left/right to change day) ──
+            // ── Task List with View Toggle ──
             Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0;
-                  if (velocity.abs() < 300) return; // ignore slow swipes
-                  final current = provider.selectedDayIndex;
-                  if (velocity < 0 && current < provider.weekPlan.length - 1) {
-                    // Swipe left → next day
-                    provider.selectDay(current + 1);
-                  } else if (velocity > 0 && current > 0) {
-                    // Swipe right → previous day
-                    provider.selectDay(current - 1);
-                  }
-                },
-                child: sortedTasks.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface.withValues(alpha: 0.5),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.calendar_today_outlined,
-                                  size: 48,
-                                  color: Colors.white.withValues(alpha: 0.1)),
-                            ),
-                            const SizedBox(height: 24),
-                            Text("No plans for ${dayPlan.dayOfWeek}",
-                                style: const TextStyle(
-                                    color: Colors.white60, fontSize: 16)),
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          "Go to WorkPlans to apply a template!")),
-                                );
-                              },
-                              icon: const Icon(Icons.layers_outlined, size: 16),
-                              label: const Text("Browse Templates"),
-                              style: TextButton.styleFrom(
-                                  foregroundColor: AppColors.neonBlue),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: sortedTasks.length,
-                        itemBuilder: (context, index) {
-                          final task = sortedTasks[index];
-                          return TaskCard(
-                            task: task,
-                            onToggle: () =>
-                                provider.toggleTaskComplete(task.id),
-                            onDelete: () {
-                              provider.deleteTask(task.id);
-                              ScaffoldMessenger.of(context).clearSnackBars();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Deleted "${task.title}"'),
-                                  action: SnackBarAction(
-                                    label: 'UNDO',
-                                    textColor: AppColors.neonBlue,
-                                    onPressed: () => provider.undo(),
+              child: Stack(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity.abs() < 300) return;
+                      final current = provider.selectedDayIndex;
+                      if (velocity < 0 &&
+                          current < provider.weekPlan.length - 1) {
+                        provider.selectDay(current + 1);
+                      } else if (velocity > 0 && current > 0) {
+                        provider.selectDay(current - 1);
+                      }
+                    },
+                    child: sortedTasks.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface
+                                        .withValues(alpha: 0.5),
+                                    shape: BoxShape.circle,
                                   ),
-                                  duration: const Duration(seconds: 4),
+                                  child: Icon(Icons.calendar_today_outlined,
+                                      size: 48,
+                                      color: Colors.white.withValues(alpha: 0.1)),
                                 ),
-                              );
-                            },
-                            onEdit: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => AddTaskSheet(
-                                  editingTask: task,
-                                  onAdd: (_, __) {},
-                                  onUpdate: (updatedTask) =>
-                                      provider.updateTask(task.id, updatedTask),
+                                const SizedBox(height: 24),
+                                Text(
+                                  "No plans for ${dayPlan.dayOfWeek}",
+                                  style: const TextStyle(
+                                      color: Colors.white60, fontSize: 16),
                                 ),
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              "Go to WorkPlans to apply a template!")),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.layers_outlined,
+                                      size: 16),
+                                  label: const Text("Browse Templates"),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.neonBlue),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: sortedTasks.length,
+                            itemBuilder: (context, index) {
+                              final task = sortedTasks[index];
+                              return PremiumTaskCard(
+                                task: task,
+                                viewMode: _currentViewMode,
+                                onToggle: () =>
+                                    provider.toggleTaskComplete(task.id),
+                                onDelete: () {
+                                  provider.deleteTask(task.id);
+                                  ScaffoldMessenger.of(context)
+                                      .clearSnackBars();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Deleted "${task.title}"'),
+                                      action: SnackBarAction(
+                                        label: 'UNDO',
+                                        textColor: AppColors.neonBlue,
+                                        onPressed: () => provider.undo(),
+                                      ),
+                                      duration: const Duration(seconds: 4),
+                                    ),
+                                  );
+                                },
+                                onEdit: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (_) => AddTaskSheet(
+                                      editingTask: task,
+                                      onAdd: (_, __) {},
+                                      onUpdate: (updatedTask) =>
+                                          provider.updateTask(
+                                              task.id, updatedTask),
+                                    ),
+                                  );
+                                },
+                                onDuplicate: () {
+                                  final duplicate = task.copyWith(
+                                    id: const Uuid().v4(),
+                                    completed: false,
+                                  );
+                                  provider.addTask(duplicate);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('Duplicated "${task.title}"')),
+                                  );
+                                },
+                                onTap: () => _openTaskDetail(task),
                               );
                             },
-                            onDuplicate: () {
-                              final duplicate = task.copyWith(
-                                id: const Uuid().v4(),
-                                completed: false,
-                              );
-                              provider.addTask(duplicate);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content:
-                                        Text('Duplicated "${task.title}"')),
-                              );
-                            },
+                          ),
+                  ),
+
+                  // Task Detail Panel (slide-in from right)
+                  if (_selectedTask != null) ...[
+                    // Backdrop
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: _closeTaskDetail,
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                    // Panel
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: TaskDetailPanel(
+                        task: _selectedTask!,
+                        isCompleted: _selectedTask!.completed,
+                        onToggle: () {
+                          provider.toggleTaskComplete(_selectedTask!.id);
+                          setState(() {});
+                        },
+                        onEdit: () {
+                          _closeTaskDetail();
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => AddTaskSheet(
+                              editingTask: _selectedTask!,
+                              onAdd: (_, __) {},
+                              onUpdate: (updatedTask) => provider.updateTask(
+                                  _selectedTask!.id, updatedTask),
+                            ),
                           );
                         },
+                        onDelete: () {
+                          provider.deleteTask(_selectedTask!.id);
+                          _closeTaskDetail();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('Deleted "${_selectedTask!.title}"'),
+                              action: SnackBarAction(
+                                label: 'UNDO',
+                                textColor: AppColors.neonBlue,
+                                onPressed: () => provider.undo(),
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        },
+                        onClose: _closeTaskDetail,
                       ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
