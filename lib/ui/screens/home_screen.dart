@@ -1,11 +1,14 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../core/theme/app_theme.dart';
 import 'analytics_view.dart';
 import 'schedule_view.dart';
 import 'work_plans_view.dart';
 import 'todo_list_view.dart';
+import '../widgets/focus_hud.dart';
 
 class ChronosHome extends StatefulWidget {
   const ChronosHome({super.key});
@@ -16,6 +19,7 @@ class ChronosHome extends StatefulWidget {
 
 class _ChronosHomeState extends State<ChronosHome> {
   int _currentIndex = 0;
+  bool _isFocusMode = false;
 
   final List<Widget> _screens = const [
     ScheduleView(),
@@ -24,8 +28,33 @@ class _ChronosHomeState extends State<ChronosHome> {
     TodoListView(),
   ];
 
+  Future<void> _toggleFocusMode() async {
+    setState(() {
+      _isFocusMode = !_isFocusMode;
+    });
+
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      if (_isFocusMode) {
+        await windowManager.setAlwaysOnTop(true);
+        await windowManager.setSize(const Size(320, 200));
+        await windowManager.setAlignment(Alignment.topRight);
+      } else {
+        await windowManager.setAlwaysOnTop(false);
+        await windowManager.setSize(const Size(1200, 800));
+        await windowManager.center();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isFocusMode) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: FocusHudWidget(onExit: _toggleFocusMode),
+      );
+    }
+
     final isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
@@ -36,6 +65,7 @@ class _ChronosHomeState extends State<ChronosHome> {
             _DesktopSidebar(
               currentIndex: _currentIndex,
               onSelect: (idx) => setState(() => _currentIndex = idx),
+              onToggleFocus: _toggleFocusMode,
             ),
           Expanded(
             child: SafeArea(
@@ -108,8 +138,13 @@ class _ChronosHomeState extends State<ChronosHome> {
 class _DesktopSidebar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onSelect;
+  final VoidCallback onToggleFocus;
 
-  const _DesktopSidebar({required this.currentIndex, required this.onSelect});
+  const _DesktopSidebar({
+    required this.currentIndex,
+    required this.onSelect,
+    required this.onToggleFocus,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +180,23 @@ class _DesktopSidebar extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 60),
+          const SizedBox(height: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.neonBlue.withValues(alpha: 0.1),
+                foregroundColor: AppColors.neonCyan,
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                side: BorderSide(color: AppColors.neonBlue.withValues(alpha: 0.3)),
+              ),
+              onPressed: onToggleFocus,
+              icon: const Icon(Icons.bolt, size: 18),
+              label: const Text("Enter Focus HUD"),
+            ),
+          ),
+          const SizedBox(height: 20),
           _SidebarItem(
               index: 0,
               icon: Icons.calendar_today,

@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Design system for Chronos Planner.
+/// 
+/// Centralized source of truth for all visual styling:
+/// - Color palette (backgrounds, accents, task types)
+/// - Typography scale (Inter font via Google Fonts)
+/// - Spacing system (4px base unit)
+/// - Border radius scale
+/// - Shadow presets
+/// - Animation durations
+/// - Gradient presets
+/// 
+/// Usage: Always import and use these constants instead of magic values.
+/// 
+/// Example:
+/// ```dart
+/// Container(
+///   color: AppColors.surface,
+///   padding: const EdgeInsets.all(AppSpacing.md),
+///   decoration: BoxDecoration(
+///     borderRadius: BorderRadius.circular(AppRadius.lg),
+///     boxShadow: AppShadows.medium,
+///   ),
+/// )
+/// ```
 // ─────────────────────────────────────────────────
 // COLOR PALETTE
 // ─────────────────────────────────────────────────

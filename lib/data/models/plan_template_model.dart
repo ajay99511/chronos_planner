@@ -1,5 +1,46 @@
 import 'task_model.dart';
 
+/// Reusable template for creating recurring day plans.
+/// 
+/// Templates capture "perfect day" patterns like:
+/// - "Deep Work Friday" - focused coding schedule
+/// - "Lazy Sunday" - recovery and leisure
+/// 
+/// ## Features:
+/// - **Reusable**: Apply to any day manually
+/// - **Recurring**: Auto-apply on specific weekdays (activeDays)
+/// - **Source Tracking**: Applied tasks link back via `sourceTemplateId`
+/// 
+/// ## Lifecycle:
+/// 1. Created via [WorkPlansView] or [ScheduleProvider.saveCurrentDayAsTemplate]
+/// 2. Stored in [PlanTemplates] + [TemplateTasks] tables
+/// 3. Applied via [ScheduleProvider.applyTemplate]
+/// 4. Recurring auto-apply in [_applyRecurringTemplates]
+/// 
+/// ## Recurring Logic:
+/// ```dart
+/// // Apply every Monday, Wednesday, Friday
+/// template.activeDays = [0, 2, 4]; // 0=Monday, 6=Sunday
+/// 
+/// // Auto-apply checks:
+/// // 1. Day's weekday matches activeDays
+/// // 2. Task with sourceTemplateId doesn't already exist
+/// ```
+/// 
+/// ## Usage:
+/// ```dart
+/// final template = PlanTemplate(
+///   id: uuid.v4(),
+///   name: 'Deep Work Friday',
+///   description: 'Focus heavy schedule',
+///   tasks: [/* ... */],
+///   activeDays: [4], // Fridays
+/// );
+/// 
+/// if (template.isRecurring) {
+///   // Auto-apply logic
+/// }
+/// ```
 class PlanTemplate {
   final String id;
   final String name;

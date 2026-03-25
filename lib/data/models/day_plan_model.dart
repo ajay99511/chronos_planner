@@ -1,5 +1,34 @@
 import 'task_model.dart';
 
+/// Aggregates tasks for a specific date in the weekly schedule.
+/// 
+/// Represents one day in the rolling 7-day view:
+/// - Metadata: date, day of week, display string
+/// - Tasks: mutable list of scheduled activities
+/// 
+/// ## Lifecycle:
+/// 1. Auto-created by [LocalScheduleRepository.getUpcomingDays] if missing
+/// 2. Stored in [DayPlans] table via [DayPlanDao]
+/// 3. Displayed in [ScheduleView] day selector
+/// 4. Tasks managed via [ScheduleProvider]
+/// 
+/// ## Relationships:
+/// - Has many [Task] objects
+/// - Grouped by week via `weekKey` in database
+/// 
+/// ## Usage:
+/// ```dart
+/// final dayPlan = DayPlan(
+///   id: uuid.v4(),
+///   dateStr: 'Feb 10',
+///   dayOfWeek: 'Monday',
+///   date: DateTime(2026, 2, 10),
+///   tasks: [],
+/// );
+/// 
+/// // Add task (mutable list)
+/// dayPlan.tasks.add(task);
+/// ```
 class DayPlan {
   final String id;
   final String dateStr;

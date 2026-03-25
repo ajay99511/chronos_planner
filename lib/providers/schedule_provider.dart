@@ -9,8 +9,13 @@ import '../data/repositories/template_repository.dart';
 import '../data/repositories/preference_repository.dart';
 
 /// Undo action types for the undo stack.
+/// 
+/// Tracks what was deleted for potential restoration.
 enum _UndoType { deleteTask, clearDay }
 
+/// Internal class representing an undoable action.
+/// 
+/// Stored in [_undoStack] for later reversal.
 class _UndoAction {
   final _UndoType type;
   final int dayIndex;
@@ -24,6 +29,45 @@ class _UndoAction {
 /// Sort order for task lists.
 enum SortOrder { asc, desc }
 
+/// Central state management for weekly schedule, templates, and analytics.
+/// 
+/// ## Responsibilities:
+/// - Manage rolling 7-day schedule (CRUD operations)
+/// - Handle template library and recurring schedules
+/// - Provide analytics metrics (efficiency, focus hours, distribution)
+/// - Undo/redo support for deletions
+/// - Sort order persistence
+/// 
+/// ## Architecture:
+/// - Extends [ChangeNotifier] for Flutter reactivity
+/// - Depends on repository interfaces (not concrete implementations)
+/// - Optimistic UI updates followed by persistence
+/// 
+/// ## State Flow:
+/// ```
+/// Constructor → _loadData() → Load from repos → Notify listeners
+///     ↓
+/// User action → Update state → Notify → Persist to repo
+/// ```
+/// 
+/// ## Usage:
+/// ```dart
+/// // Access in widget
+/// final provider = Provider.of<ScheduleProvider>(context);
+/// 
+/// // Read state
+/// final tasks = provider.selectedDay.tasks;
+/// final efficiency = provider.efficiency;
+/// 
+/// // Modify
+/// provider.addTask(task);
+/// provider.toggleTaskComplete(taskId);
+/// ```
+/// 
+/// ## Dependencies:
+/// - [ScheduleRepository]: Day plans + tasks
+/// - [TemplateRepository]: Plan templates
+/// - [PreferenceRepository]: Sort order persistence
 class ScheduleProvider extends ChangeNotifier {
   final ScheduleRepository _scheduleRepo;
   final TemplateRepository _templateRepo;
@@ -36,9 +80,16 @@ class ScheduleProvider extends ChangeNotifier {
   final List<_UndoAction> _undoStack = [];
   SortOrder _sortOrder = SortOrder.asc;
 
+  /// Rolling 7-day schedule starting from today.
   List<DayPlan> get weekPlan => _weekPlan;
+  
+  /// Saved plan templates.
   List<PlanTemplate> get templates => _templates;
+  
+  /// Currently selected day index (0-6).
   int get selectedDayIndex => _selectedDayIndex;
+  
+  /// Currently selected day plan (computed from [selectedDayIndex]).
   DayPlan get selectedDay => _weekPlan.isNotEmpty
       ? _weekPlan[_selectedDayIndex]
       : DayPlan(
@@ -47,8 +98,14 @@ class ScheduleProvider extends ChangeNotifier {
           dayOfWeek: '',
           date: DateTime.now(),
           tasks: []);
+  
+  /// Loading state indicator.
   bool get isLoading => _isLoading;
+  
+  /// Whether undo is available (stack not empty).
   bool get canUndo => _undoStack.isNotEmpty;
+  
+  /// Current task sort order (ascending/descending by time).
   SortOrder get sortOrder => _sortOrder;
 
   ScheduleProvider({

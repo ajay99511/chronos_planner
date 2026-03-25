@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/task_model.dart';
 import '../../providers/schedule_provider.dart';
 import '../widgets/glass_container.dart';
+import '../../core/services/intelligence_service.dart';
 
 class AnalyticsView extends StatefulWidget {
   const AnalyticsView({super.key});
@@ -18,6 +19,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
+  final _intelService = IntelligenceService();
 
   @override
   void initState() {
@@ -34,9 +36,33 @@ class _AnalyticsViewState extends State<AnalyticsView>
     super.dispose();
   }
 
+  String _getPeakHourStr(Map<int, double> peaks) {
+    if (peaks.isEmpty) return "N/A";
+    var bestHour = -1;
+    var maxScore = -1.0;
+    peaks.forEach((hour, score) {
+      if (score > maxScore) {
+        maxScore = score;
+        bestHour = hour;
+      }
+    });
+    if (bestHour == -1 || maxScore == 0) return "N/A";
+    final suffix = bestHour >= 12 ? "PM" : "AM";
+    final displayHour = bestHour == 0 ? 12 : (bestHour > 12 ? bestHour - 12 : bestHour);
+    return "$displayHour $suffix";
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScheduleProvider>(context);
+    final allHistory = provider.weekPlan.expand((d) => d.tasks).toList();
+    final energyPeaks = _intelService.getEnergyPeaks(allHistory);
+    
+    // Calculate financial totals
+    double totalEstimated = 0;
+    for (var task in allHistory) {
+      totalEstimated += task.estimatedCost;
+    }
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -55,9 +81,23 @@ class _AnalyticsViewState extends State<AnalyticsView>
               Expanded(child: _EfficiencyCard(efficiency: provider.efficiency)),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                  child: _TasksDoneCard(
-                      completed: provider.completedTasks,
-                      total: provider.totalTasks)),
+                child: GlassContainer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.attach_money,
+                            color: AppColors.health, size: 16),
+                        const SizedBox(width: 8),
+                        Text("EST. SPENDING", style: AppTextStyles.label),
+                      ]),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text("\$${totalEstimated.toInt()}",
+                          style: AppTextStyles.heading2.copyWith(fontSize: 28)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
 
@@ -91,19 +131,81 @@ class _AnalyticsViewState extends State<AnalyticsView>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        const Icon(Icons.layers_outlined,
-                            color: AppColors.personal, size: 16),
+                        const Icon(Icons.show_chart,
+                            color: AppColors.neonCyan, size: 16),
                         const SizedBox(width: 8),
-                        Text("PLANS SAVED", style: AppTextStyles.label),
+                        Text("PEAK HOUR", style: AppTextStyles.label),
                       ]),
                       const SizedBox(height: AppSpacing.sm),
-                      Text("${provider.templates.length}",
-                          style: AppTextStyles.heading2.copyWith(fontSize: 28)),
+                      Text(
+                        _getPeakHourStr(energyPeaks),
+                        style: AppTextStyles.heading2.copyWith(fontSize: 28),
+                      ),
                     ],
                   ),
                 ),
               ),
             ],
+          ),
+
+          const SizedBox(height: AppSpacing.xl),
+
+          // Energy Peaks Chart
+          GlassContainer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.bolt, color: AppColors.neonPurple, size: 18),
+                  const SizedBox(width: 8),
+                  Text("ENERGY PEAKS (SUCCESS RATE)",
+                      style: AppTextStyles.label.copyWith(color: Colors.white)),
+                ]),
+                const SizedBox(height: AppSpacing.lg),
+                SizedBox(
+                  height: 120,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(24, (index) {
+                      final score = energyPeaks[index] ?? 0.0;
+                      final isPeak = score > 0 && score == (energyPeaks.values.isEmpty ? 0.0 : energyPeaks.values.reduce(max));
+                      
+                      return Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: score),
+                              duration: const Duration(milliseconds: 1000),
+                              builder: (context, value, _) => Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                height: (value * 80) + 2, // min height 2
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: isPeak 
+                                      ? [AppColors.neonCyan, AppColors.neonBlue]
+                                      : [AppColors.neonPurple.withValues(alpha: 0.8), AppColors.neonPurple.withValues(alpha: 0.2)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: isPeak ? [BoxShadow(color: AppColors.neonCyan.withValues(alpha: 0.4), blurRadius: 4)] : [],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (index % 4 == 0)
+                              Text("${index}h", style: const TextStyle(fontSize: 8, color: Colors.grey))
+                            else
+                              const SizedBox(height: 10),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: AppSpacing.xl),

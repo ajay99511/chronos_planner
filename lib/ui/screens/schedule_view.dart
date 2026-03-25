@@ -257,6 +257,19 @@ class ScheduleView extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
 
+                        // Focus Mode
+                        if (MediaQuery.of(context).size.width <= 800) ...[
+                          _ActionButton(
+                            icon: Icons.bolt,
+                            color: AppColors.neonCyan,
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Focus Mode is best experienced on Desktop!')));
+                            },
+                            tooltip: 'Focus Mode',
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        
                         // Clear day
                         _ActionButton(
                           icon: Icons.delete_outline,

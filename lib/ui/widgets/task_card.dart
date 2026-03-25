@@ -47,11 +47,11 @@ class TaskCard extends StatelessWidget {
   IconData _getPriorityIcon(TaskPriority p) {
     switch (p) {
       case TaskPriority.low:
-        return Icons.arrow_downward;
+        return Icons.keyboard_arrow_down;
       case TaskPriority.medium:
-        return Icons.remove;
+        return Icons.horizontal_rule;
       case TaskPriority.high:
-        return Icons.arrow_upward;
+        return Icons.keyboard_arrow_up;
     }
   }
 
@@ -63,6 +63,28 @@ class TaskCard extends StatelessWidget {
         return AppColors.leisure;
       case TaskPriority.high:
         return Colors.redAccent;
+    }
+  }
+
+  IconData _getEnergyIcon(TaskEnergyLevel e) {
+    switch (e) {
+      case TaskEnergyLevel.low:
+        return Icons.battery_charging_full;
+      case TaskEnergyLevel.medium:
+        return Icons.bolt;
+      case TaskEnergyLevel.high:
+        return Icons.flash_on;
+    }
+  }
+
+  Color _getEnergyColor(TaskEnergyLevel e) {
+    switch (e) {
+      case TaskEnergyLevel.low:
+        return AppColors.health;
+      case TaskEnergyLevel.medium:
+        return AppColors.leisure;
+      case TaskEnergyLevel.high:
+        return AppColors.neonPurple;
     }
   }
 
@@ -249,7 +271,63 @@ class TaskCard extends StatelessWidget {
                                       color: AppColors.textSecondary,
                                       fontWeight: FontWeight.w500),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
+
+                                // Energy pill
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _getEnergyColor(task.energyLevel).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(_getEnergyIcon(task.energyLevel),
+                                          size: 10, color: _getEnergyColor(task.energyLevel)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        task.energyLevel
+                                            .toString()
+                                            .split('.')
+                                            .last
+                                            .toUpperCase(),
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getEnergyColor(task.energyLevel)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+
+                                // Cost pill (if applicable)
+                                if (task.estimatedCost > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.health.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.attach_money,
+                                            size: 10, color: AppColors.health),
+                                        Text(
+                                          task.estimatedCost.toStringAsFixed(0),
+                                          style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.health),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                const SizedBox(width: 4),
+
+                                // Category pill
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 6, vertical: 2),

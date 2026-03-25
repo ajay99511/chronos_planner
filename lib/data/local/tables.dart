@@ -9,6 +9,9 @@ class Tasks extends Table {
   TextColumn get endTime => text()(); // "HH:mm"
   TextColumn get type => text()(); // TaskType enum name
   TextColumn get priority => text().withDefault(const Constant('medium'))();
+  TextColumn get energyLevel => text().withDefault(const Constant('medium'))();
+  RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
+  RealColumn get actualCost => real().withDefault(const Constant(0.0))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   TextColumn get dayPlanId => text().references(DayPlans, #id)();
   TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
@@ -50,6 +53,8 @@ class TemplateTasks extends Table {
   TextColumn get endTime => text()();
   TextColumn get type => text()();
   TextColumn get priority => text().withDefault(const Constant('medium'))();
+  TextColumn get energyLevel => text().withDefault(const Constant('medium'))();
+  RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
 
   @override
   Set<Column> get primaryKey => {id};

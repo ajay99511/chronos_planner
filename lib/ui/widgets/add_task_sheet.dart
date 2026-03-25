@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/task_model.dart';
+import '../../core/services/intelligence_service.dart';
+import '../../providers/schedule_provider.dart';
 
 class AddTaskSheet extends StatefulWidget {
   final Function(Task, DateTime) onAdd;
@@ -25,12 +28,16 @@ class AddTaskSheet extends StatefulWidget {
 class _AddTaskSheetState extends State<AddTaskSheet> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _costCtrl = TextEditingController(text: "0.0");
   late DateTime _selectedDate;
   String _startTime = "09:00";
   String _endTime = "10:00";
   TaskType _selectedType = TaskType.work;
   TaskPriority _selectedPriority = TaskPriority.medium;
+  TaskEnergyLevel _selectedEnergy = TaskEnergyLevel.medium;
   String? _timeError;
+
+  final _intelService = IntelligenceService();
 
   bool get _isEditing => widget.editingTask != null;
 
@@ -44,13 +51,12 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
       final t = widget.editingTask!;
       _titleCtrl.text = t.title;
       _descCtrl.text = t.description;
+      _costCtrl.text = t.estimatedCost.toString();
       _startTime = t.startTime;
       _endTime = t.endTime;
       _selectedType = t.type;
       _selectedPriority = t.priority;
-      // Note: Task model doesn't strictly store full date,
-      // but if we were editing an existing task, we might want to know its date.
-      // For now, we assume editing keeps the same day unless changed.
+      _selectedEnergy = t.energyLevel;
     }
   }
 
@@ -58,7 +64,32 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _costCtrl.dispose();
     super.dispose();
+  }
+
+  void _suggestOptimalTime() {
+    final provider = Provider.of<ScheduleProvider>(context, listen: false);
+    // Combine all tasks from the week for a better peak analysis
+    final allHistory = provider.weekPlan.expand((d) => d.tasks).toList();
+    final peaks = _intelService.getEnergyPeaks(allHistory);
+    final suggestion = _intelService.recommendTime(_selectedEnergy, peaks);
+    
+    setState(() {
+      _startTime = suggestion;
+      // Adjust end time to be 1 hour later
+      final hour = int.parse(suggestion.split(':')[0]);
+      _endTime = "${((hour + 1) % 24).toString().padLeft(2, '0')}:00";
+      _validateTime();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Optimal time for $_selectedEnergy energy: $suggestion"),
+        backgroundColor: AppColors.neonBlue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _pickDate() async {
@@ -415,6 +446,101 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
               }).toList(),
             ),
 
+            const SizedBox(height: 16),
+
+            // Energy Level Selector
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("ENERGY LEVEL",
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: _suggestOptimalTime,
+                  icon: const Icon(Icons.auto_awesome, size: 14),
+                  label: const Text("Suggest Time", style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.neonCyan,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: TaskEnergyLevel.values.map((e) {
+                final isSelected = _selectedEnergy == e;
+                Color color;
+                switch (e) {
+                  case TaskEnergyLevel.low:
+                    color = AppColors.health;
+                    break;
+                  case TaskEnergyLevel.medium:
+                    color = AppColors.leisure;
+                    break;
+                  case TaskEnergyLevel.high:
+                    color = AppColors.neonPurple;
+                    break;
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(
+                      e.toString().split('.').last.toUpperCase(),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : Colors.grey),
+                    ),
+                    selected: isSelected,
+                    onSelected: (val) => setState(() => _selectedEnergy = e),
+                    selectedColor: color,
+                    backgroundColor: AppColors.background,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                            color: isSelected
+                                ? Colors.transparent
+                                : Colors.white10)),
+                    showCheckmark: false,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Estimated Cost
+            const Text("ESTIMATED COST",
+                style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: _costCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  prefixText: "\$ ",
+                  prefixStyle: TextStyle(color: AppColors.health),
+                  border: InputBorder.none,
+                  hintText: "0.00",
+                  hintStyle: TextStyle(color: Colors.white12),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 24),
 
             // Submit button
@@ -427,6 +553,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                   return;
                 }
 
+                final cost = double.tryParse(_costCtrl.text) ?? 0.0;
+
                 if (_isEditing) {
                   final updated = widget.editingTask!.copyWith(
                     title: _titleCtrl.text,
@@ -434,6 +562,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                     endTime: _endTime,
                     type: _selectedType,
                     priority: _selectedPriority,
+                    energyLevel: _selectedEnergy,
+                    estimatedCost: cost,
                     description: _descCtrl.text,
                   );
                   widget.onUpdate?.call(updated);
@@ -446,6 +576,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                       endTime: _endTime,
                       type: _selectedType,
                       priority: _selectedPriority,
+                      energyLevel: _selectedEnergy,
+                      estimatedCost: cost,
                       description: _descCtrl.text,
                     ),
                     _selectedDate,
