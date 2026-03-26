@@ -18,6 +18,13 @@ class TodoItemDao extends DatabaseAccessor<AppDatabase>
         ]))
       .watch();
 
+  Stream<List<TodoItem>> watchByType(String type) => (select(todoItems)
+        ..where((t) => t.itemType.equals(type))
+        ..orderBy([
+          (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+        ]))
+      .watch();
+
   Future<int> insertTodo(Insertable<TodoItem> todo) =>
       into(todoItems).insert(todo);
 
@@ -27,3 +34,4 @@ class TodoItemDao extends DatabaseAccessor<AppDatabase>
   Future<int> deleteTodoById(String id) =>
       (delete(todoItems)..where((t) => t.id.equals(id))).go();
 }
+

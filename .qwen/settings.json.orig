@@ -3,6 +3,5 @@
     "allow": [
       "Bash(flutter *)"
     ]
-  },
-  "$version": 3
+  }
 }

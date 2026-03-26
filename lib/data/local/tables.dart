@@ -69,13 +69,27 @@ class Preferences extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-/// Standalone tasks not connected to calendar
+/// Standalone tasks not connected to calendar.
+/// Supports three item types: note, timer, list.
 class TodoItems extends Table {
   TextColumn get id => text()();
   TextColumn get title => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().withDefault(const Constant(''))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Discriminator: 'note', 'timer', or 'list'
+  TextColumn get itemType => text().withDefault(const Constant('note'))();
+
+  /// Timer-only: duration in minutes
+  IntColumn get durationMinutes => integer().withDefault(const Constant(0))();
+
+  /// List-only: JSON-encoded array of checklist items
+  /// e.g. [{"text":"Buy milk","done":false},{"text":"Walk dog","done":true}]
+  TextColumn get checklistJson => text().withDefault(const Constant(''))();
+
+  /// Timer-only: path to local audio file played on completion
+  TextColumn get audioFilePath => text().withDefault(const Constant(''))();
 
   @override
   Set<Column> get primaryKey => {id};

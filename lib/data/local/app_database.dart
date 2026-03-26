@@ -21,11 +21,12 @@ part 'app_database.g.dart';
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
 /// 
-/// ## Schema Version: 4
+/// ## Schema Version: 5
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
 /// - **v3→v4**: Added energy/cost fields to tasks and template tasks
+/// - **v4→v5**: Added itemType/durationMinutes/checklistJson/audioFilePath to TodoItems
 /// 
 /// ## Tables:
 /// | Table | Purpose |
@@ -81,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   /// Migration strategy for schema upgrades.
   /// 
@@ -119,6 +120,17 @@ class AppDatabase extends _$AppDatabase {
                 "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'");
             await customStatement(
                 "ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0");
+          }
+          if (from < 5) {
+            // Add itemType, durationMinutes, checklistJson, audioFilePath to todo_items
+            await customStatement(
+                "ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
+            await customStatement(
+                "ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0");
+            await customStatement(
+                "ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
+            await customStatement(
+                "ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
           }
         },
       );

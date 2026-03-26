@@ -22,6 +22,11 @@ class LocalTodoRepository implements TodoRepository {
   }
 
   @override
+  Stream<List<TodoItem>> watchByType(String type) {
+    return _todoItemDao.watchByType(type);
+  }
+
+  @override
   Future<TodoItem> addTodo(String title, {String description = ''}) async {
     final newId = _uuid.v4();
     final companion = TodoItemsCompanion.insert(
@@ -29,9 +34,46 @@ class LocalTodoRepository implements TodoRepository {
       title: title,
       description: Value(description),
       createdAt: Value(DateTime.now()),
+      itemType: const Value('note'),
     );
     await _todoItemDao.insertTodo(companion);
-    // Fetch the inserted entity
+    final items = await _todoItemDao.getAllTodos();
+    return items.firstWhere((item) => item.id == newId);
+  }
+
+  @override
+  Future<TodoItem> addTimer(String title,
+      {String description = '',
+      int durationMinutes = 25,
+      String audioFilePath = ''}) async {
+    final newId = _uuid.v4();
+    final companion = TodoItemsCompanion.insert(
+      id: newId,
+      title: title,
+      description: Value(description),
+      createdAt: Value(DateTime.now()),
+      itemType: const Value('timer'),
+      durationMinutes: Value(durationMinutes),
+      audioFilePath: Value(audioFilePath),
+    );
+    await _todoItemDao.insertTodo(companion);
+    final items = await _todoItemDao.getAllTodos();
+    return items.firstWhere((item) => item.id == newId);
+  }
+
+  @override
+  Future<TodoItem> addList(String title,
+      {String description = '', String checklistJson = '[]'}) async {
+    final newId = _uuid.v4();
+    final companion = TodoItemsCompanion.insert(
+      id: newId,
+      title: title,
+      description: Value(description),
+      createdAt: Value(DateTime.now()),
+      itemType: const Value('list'),
+      checklistJson: Value(checklistJson),
+    );
+    await _todoItemDao.insertTodo(companion);
     final items = await _todoItemDao.getAllTodos();
     return items.firstWhere((item) => item.id == newId);
   }
@@ -46,3 +88,4 @@ class LocalTodoRepository implements TodoRepository {
     await _todoItemDao.deleteTodoById(id);
   }
 }
+

@@ -362,6 +362,30 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('medium'));
+  static const VerificationMeta _energyLevelMeta =
+      const VerificationMeta('energyLevel');
+  @override
+  late final GeneratedColumn<String> energyLevel = GeneratedColumn<String>(
+      'energy_level', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('medium'));
+  static const VerificationMeta _estimatedCostMeta =
+      const VerificationMeta('estimatedCost');
+  @override
+  late final GeneratedColumn<double> estimatedCost = GeneratedColumn<double>(
+      'estimated_cost', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _actualCostMeta =
+      const VerificationMeta('actualCost');
+  @override
+  late final GeneratedColumn<double> actualCost = GeneratedColumn<double>(
+      'actual_cost', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
   static const VerificationMeta _completedMeta =
       const VerificationMeta('completed');
   @override
@@ -398,6 +422,9 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         endTime,
         type,
         priority,
+        energyLevel,
+        estimatedCost,
+        actualCost,
         completed,
         dayPlanId,
         sourceTemplateId
@@ -451,6 +478,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       context.handle(_priorityMeta,
           priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta));
     }
+    if (data.containsKey('energy_level')) {
+      context.handle(
+          _energyLevelMeta,
+          energyLevel.isAcceptableOrUnknown(
+              data['energy_level']!, _energyLevelMeta));
+    }
+    if (data.containsKey('estimated_cost')) {
+      context.handle(
+          _estimatedCostMeta,
+          estimatedCost.isAcceptableOrUnknown(
+              data['estimated_cost']!, _estimatedCostMeta));
+    }
+    if (data.containsKey('actual_cost')) {
+      context.handle(
+          _actualCostMeta,
+          actualCost.isAcceptableOrUnknown(
+              data['actual_cost']!, _actualCostMeta));
+    }
     if (data.containsKey('completed')) {
       context.handle(_completedMeta,
           completed.isAcceptableOrUnknown(data['completed']!, _completedMeta));
@@ -492,6 +537,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
       priority: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}priority'])!,
+      energyLevel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}energy_level'])!,
+      estimatedCost: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}estimated_cost'])!,
+      actualCost: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}actual_cost'])!,
       completed: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}completed'])!,
       dayPlanId: attachedDatabase.typeMapping
@@ -515,6 +566,9 @@ class Task extends DataClass implements Insertable<Task> {
   final String endTime;
   final String type;
   final String priority;
+  final String energyLevel;
+  final double estimatedCost;
+  final double actualCost;
   final bool completed;
   final String dayPlanId;
   final String sourceTemplateId;
@@ -526,6 +580,9 @@ class Task extends DataClass implements Insertable<Task> {
       required this.endTime,
       required this.type,
       required this.priority,
+      required this.energyLevel,
+      required this.estimatedCost,
+      required this.actualCost,
       required this.completed,
       required this.dayPlanId,
       required this.sourceTemplateId});
@@ -539,6 +596,9 @@ class Task extends DataClass implements Insertable<Task> {
     map['end_time'] = Variable<String>(endTime);
     map['type'] = Variable<String>(type);
     map['priority'] = Variable<String>(priority);
+    map['energy_level'] = Variable<String>(energyLevel);
+    map['estimated_cost'] = Variable<double>(estimatedCost);
+    map['actual_cost'] = Variable<double>(actualCost);
     map['completed'] = Variable<bool>(completed);
     map['day_plan_id'] = Variable<String>(dayPlanId);
     map['source_template_id'] = Variable<String>(sourceTemplateId);
@@ -554,6 +614,9 @@ class Task extends DataClass implements Insertable<Task> {
       endTime: Value(endTime),
       type: Value(type),
       priority: Value(priority),
+      energyLevel: Value(energyLevel),
+      estimatedCost: Value(estimatedCost),
+      actualCost: Value(actualCost),
       completed: Value(completed),
       dayPlanId: Value(dayPlanId),
       sourceTemplateId: Value(sourceTemplateId),
@@ -571,6 +634,9 @@ class Task extends DataClass implements Insertable<Task> {
       endTime: serializer.fromJson<String>(json['endTime']),
       type: serializer.fromJson<String>(json['type']),
       priority: serializer.fromJson<String>(json['priority']),
+      energyLevel: serializer.fromJson<String>(json['energyLevel']),
+      estimatedCost: serializer.fromJson<double>(json['estimatedCost']),
+      actualCost: serializer.fromJson<double>(json['actualCost']),
       completed: serializer.fromJson<bool>(json['completed']),
       dayPlanId: serializer.fromJson<String>(json['dayPlanId']),
       sourceTemplateId: serializer.fromJson<String>(json['sourceTemplateId']),
@@ -587,6 +653,9 @@ class Task extends DataClass implements Insertable<Task> {
       'endTime': serializer.toJson<String>(endTime),
       'type': serializer.toJson<String>(type),
       'priority': serializer.toJson<String>(priority),
+      'energyLevel': serializer.toJson<String>(energyLevel),
+      'estimatedCost': serializer.toJson<double>(estimatedCost),
+      'actualCost': serializer.toJson<double>(actualCost),
       'completed': serializer.toJson<bool>(completed),
       'dayPlanId': serializer.toJson<String>(dayPlanId),
       'sourceTemplateId': serializer.toJson<String>(sourceTemplateId),
@@ -601,6 +670,9 @@ class Task extends DataClass implements Insertable<Task> {
           String? endTime,
           String? type,
           String? priority,
+          String? energyLevel,
+          double? estimatedCost,
+          double? actualCost,
           bool? completed,
           String? dayPlanId,
           String? sourceTemplateId}) =>
@@ -612,6 +684,9 @@ class Task extends DataClass implements Insertable<Task> {
         endTime: endTime ?? this.endTime,
         type: type ?? this.type,
         priority: priority ?? this.priority,
+        energyLevel: energyLevel ?? this.energyLevel,
+        estimatedCost: estimatedCost ?? this.estimatedCost,
+        actualCost: actualCost ?? this.actualCost,
         completed: completed ?? this.completed,
         dayPlanId: dayPlanId ?? this.dayPlanId,
         sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
@@ -626,6 +701,13 @@ class Task extends DataClass implements Insertable<Task> {
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       type: data.type.present ? data.type.value : this.type,
       priority: data.priority.present ? data.priority.value : this.priority,
+      energyLevel:
+          data.energyLevel.present ? data.energyLevel.value : this.energyLevel,
+      estimatedCost: data.estimatedCost.present
+          ? data.estimatedCost.value
+          : this.estimatedCost,
+      actualCost:
+          data.actualCost.present ? data.actualCost.value : this.actualCost,
       completed: data.completed.present ? data.completed.value : this.completed,
       dayPlanId: data.dayPlanId.present ? data.dayPlanId.value : this.dayPlanId,
       sourceTemplateId: data.sourceTemplateId.present
@@ -644,6 +726,9 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('endTime: $endTime, ')
           ..write('type: $type, ')
           ..write('priority: $priority, ')
+          ..write('energyLevel: $energyLevel, ')
+          ..write('estimatedCost: $estimatedCost, ')
+          ..write('actualCost: $actualCost, ')
           ..write('completed: $completed, ')
           ..write('dayPlanId: $dayPlanId, ')
           ..write('sourceTemplateId: $sourceTemplateId')
@@ -652,8 +737,20 @@ class Task extends DataClass implements Insertable<Task> {
   }
 
   @override
-  int get hashCode => Object.hash(id, title, description, startTime, endTime,
-      type, priority, completed, dayPlanId, sourceTemplateId);
+  int get hashCode => Object.hash(
+      id,
+      title,
+      description,
+      startTime,
+      endTime,
+      type,
+      priority,
+      energyLevel,
+      estimatedCost,
+      actualCost,
+      completed,
+      dayPlanId,
+      sourceTemplateId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -665,6 +762,9 @@ class Task extends DataClass implements Insertable<Task> {
           other.endTime == this.endTime &&
           other.type == this.type &&
           other.priority == this.priority &&
+          other.energyLevel == this.energyLevel &&
+          other.estimatedCost == this.estimatedCost &&
+          other.actualCost == this.actualCost &&
           other.completed == this.completed &&
           other.dayPlanId == this.dayPlanId &&
           other.sourceTemplateId == this.sourceTemplateId);
@@ -678,6 +778,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<String> endTime;
   final Value<String> type;
   final Value<String> priority;
+  final Value<String> energyLevel;
+  final Value<double> estimatedCost;
+  final Value<double> actualCost;
   final Value<bool> completed;
   final Value<String> dayPlanId;
   final Value<String> sourceTemplateId;
@@ -690,6 +793,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.endTime = const Value.absent(),
     this.type = const Value.absent(),
     this.priority = const Value.absent(),
+    this.energyLevel = const Value.absent(),
+    this.estimatedCost = const Value.absent(),
+    this.actualCost = const Value.absent(),
     this.completed = const Value.absent(),
     this.dayPlanId = const Value.absent(),
     this.sourceTemplateId = const Value.absent(),
@@ -703,6 +809,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     required String endTime,
     required String type,
     this.priority = const Value.absent(),
+    this.energyLevel = const Value.absent(),
+    this.estimatedCost = const Value.absent(),
+    this.actualCost = const Value.absent(),
     this.completed = const Value.absent(),
     required String dayPlanId,
     this.sourceTemplateId = const Value.absent(),
@@ -721,6 +830,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? endTime,
     Expression<String>? type,
     Expression<String>? priority,
+    Expression<String>? energyLevel,
+    Expression<double>? estimatedCost,
+    Expression<double>? actualCost,
     Expression<bool>? completed,
     Expression<String>? dayPlanId,
     Expression<String>? sourceTemplateId,
@@ -734,6 +846,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (endTime != null) 'end_time': endTime,
       if (type != null) 'type': type,
       if (priority != null) 'priority': priority,
+      if (energyLevel != null) 'energy_level': energyLevel,
+      if (estimatedCost != null) 'estimated_cost': estimatedCost,
+      if (actualCost != null) 'actual_cost': actualCost,
       if (completed != null) 'completed': completed,
       if (dayPlanId != null) 'day_plan_id': dayPlanId,
       if (sourceTemplateId != null) 'source_template_id': sourceTemplateId,
@@ -749,6 +864,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<String>? endTime,
       Value<String>? type,
       Value<String>? priority,
+      Value<String>? energyLevel,
+      Value<double>? estimatedCost,
+      Value<double>? actualCost,
       Value<bool>? completed,
       Value<String>? dayPlanId,
       Value<String>? sourceTemplateId,
@@ -761,6 +879,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       endTime: endTime ?? this.endTime,
       type: type ?? this.type,
       priority: priority ?? this.priority,
+      energyLevel: energyLevel ?? this.energyLevel,
+      estimatedCost: estimatedCost ?? this.estimatedCost,
+      actualCost: actualCost ?? this.actualCost,
       completed: completed ?? this.completed,
       dayPlanId: dayPlanId ?? this.dayPlanId,
       sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
@@ -792,6 +913,15 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (priority.present) {
       map['priority'] = Variable<String>(priority.value);
     }
+    if (energyLevel.present) {
+      map['energy_level'] = Variable<String>(energyLevel.value);
+    }
+    if (estimatedCost.present) {
+      map['estimated_cost'] = Variable<double>(estimatedCost.value);
+    }
+    if (actualCost.present) {
+      map['actual_cost'] = Variable<double>(actualCost.value);
+    }
     if (completed.present) {
       map['completed'] = Variable<bool>(completed.value);
     }
@@ -817,6 +947,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('endTime: $endTime, ')
           ..write('type: $type, ')
           ..write('priority: $priority, ')
+          ..write('energyLevel: $energyLevel, ')
+          ..write('estimatedCost: $estimatedCost, ')
+          ..write('actualCost: $actualCost, ')
           ..write('completed: $completed, ')
           ..write('dayPlanId: $dayPlanId, ')
           ..write('sourceTemplateId: $sourceTemplateId, ')
@@ -1164,9 +1297,35 @@ class $TemplateTasksTable extends TemplateTasks
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('medium'));
+  static const VerificationMeta _energyLevelMeta =
+      const VerificationMeta('energyLevel');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, templateId, title, description, startTime, endTime, type, priority];
+  late final GeneratedColumn<String> energyLevel = GeneratedColumn<String>(
+      'energy_level', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('medium'));
+  static const VerificationMeta _estimatedCostMeta =
+      const VerificationMeta('estimatedCost');
+  @override
+  late final GeneratedColumn<double> estimatedCost = GeneratedColumn<double>(
+      'estimated_cost', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        templateId,
+        title,
+        description,
+        startTime,
+        endTime,
+        type,
+        priority,
+        energyLevel,
+        estimatedCost
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1224,6 +1383,18 @@ class $TemplateTasksTable extends TemplateTasks
       context.handle(_priorityMeta,
           priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta));
     }
+    if (data.containsKey('energy_level')) {
+      context.handle(
+          _energyLevelMeta,
+          energyLevel.isAcceptableOrUnknown(
+              data['energy_level']!, _energyLevelMeta));
+    }
+    if (data.containsKey('estimated_cost')) {
+      context.handle(
+          _estimatedCostMeta,
+          estimatedCost.isAcceptableOrUnknown(
+              data['estimated_cost']!, _estimatedCostMeta));
+    }
     return context;
   }
 
@@ -1249,6 +1420,10 @@ class $TemplateTasksTable extends TemplateTasks
           .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
       priority: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}priority'])!,
+      energyLevel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}energy_level'])!,
+      estimatedCost: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}estimated_cost'])!,
     );
   }
 
@@ -1267,6 +1442,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
   final String endTime;
   final String type;
   final String priority;
+  final String energyLevel;
+  final double estimatedCost;
   const TemplateTask(
       {required this.id,
       required this.templateId,
@@ -1275,7 +1452,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       required this.startTime,
       required this.endTime,
       required this.type,
-      required this.priority});
+      required this.priority,
+      required this.energyLevel,
+      required this.estimatedCost});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1287,6 +1466,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
     map['end_time'] = Variable<String>(endTime);
     map['type'] = Variable<String>(type);
     map['priority'] = Variable<String>(priority);
+    map['energy_level'] = Variable<String>(energyLevel);
+    map['estimated_cost'] = Variable<double>(estimatedCost);
     return map;
   }
 
@@ -1300,6 +1481,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       endTime: Value(endTime),
       type: Value(type),
       priority: Value(priority),
+      energyLevel: Value(energyLevel),
+      estimatedCost: Value(estimatedCost),
     );
   }
 
@@ -1315,6 +1498,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       endTime: serializer.fromJson<String>(json['endTime']),
       type: serializer.fromJson<String>(json['type']),
       priority: serializer.fromJson<String>(json['priority']),
+      energyLevel: serializer.fromJson<String>(json['energyLevel']),
+      estimatedCost: serializer.fromJson<double>(json['estimatedCost']),
     );
   }
   @override
@@ -1329,6 +1514,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       'endTime': serializer.toJson<String>(endTime),
       'type': serializer.toJson<String>(type),
       'priority': serializer.toJson<String>(priority),
+      'energyLevel': serializer.toJson<String>(energyLevel),
+      'estimatedCost': serializer.toJson<double>(estimatedCost),
     };
   }
 
@@ -1340,7 +1527,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           String? startTime,
           String? endTime,
           String? type,
-          String? priority}) =>
+          String? priority,
+          String? energyLevel,
+          double? estimatedCost}) =>
       TemplateTask(
         id: id ?? this.id,
         templateId: templateId ?? this.templateId,
@@ -1350,6 +1539,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
         endTime: endTime ?? this.endTime,
         type: type ?? this.type,
         priority: priority ?? this.priority,
+        energyLevel: energyLevel ?? this.energyLevel,
+        estimatedCost: estimatedCost ?? this.estimatedCost,
       );
   TemplateTask copyWithCompanion(TemplateTasksCompanion data) {
     return TemplateTask(
@@ -1363,6 +1554,11 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       type: data.type.present ? data.type.value : this.type,
       priority: data.priority.present ? data.priority.value : this.priority,
+      energyLevel:
+          data.energyLevel.present ? data.energyLevel.value : this.energyLevel,
+      estimatedCost: data.estimatedCost.present
+          ? data.estimatedCost.value
+          : this.estimatedCost,
     );
   }
 
@@ -1376,14 +1572,16 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
           ..write('type: $type, ')
-          ..write('priority: $priority')
+          ..write('priority: $priority, ')
+          ..write('energyLevel: $energyLevel, ')
+          ..write('estimatedCost: $estimatedCost')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, templateId, title, description, startTime, endTime, type, priority);
+  int get hashCode => Object.hash(id, templateId, title, description, startTime,
+      endTime, type, priority, energyLevel, estimatedCost);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1395,7 +1593,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
           other.type == this.type &&
-          other.priority == this.priority);
+          other.priority == this.priority &&
+          other.energyLevel == this.energyLevel &&
+          other.estimatedCost == this.estimatedCost);
 }
 
 class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
@@ -1407,6 +1607,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
   final Value<String> endTime;
   final Value<String> type;
   final Value<String> priority;
+  final Value<String> energyLevel;
+  final Value<double> estimatedCost;
   final Value<int> rowid;
   const TemplateTasksCompanion({
     this.id = const Value.absent(),
@@ -1417,6 +1619,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     this.endTime = const Value.absent(),
     this.type = const Value.absent(),
     this.priority = const Value.absent(),
+    this.energyLevel = const Value.absent(),
+    this.estimatedCost = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TemplateTasksCompanion.insert({
@@ -1428,6 +1632,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     required String endTime,
     required String type,
     this.priority = const Value.absent(),
+    this.energyLevel = const Value.absent(),
+    this.estimatedCost = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         templateId = Value(templateId),
@@ -1444,6 +1650,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     Expression<String>? endTime,
     Expression<String>? type,
     Expression<String>? priority,
+    Expression<String>? energyLevel,
+    Expression<double>? estimatedCost,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1455,6 +1663,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       if (endTime != null) 'end_time': endTime,
       if (type != null) 'type': type,
       if (priority != null) 'priority': priority,
+      if (energyLevel != null) 'energy_level': energyLevel,
+      if (estimatedCost != null) 'estimated_cost': estimatedCost,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1468,6 +1678,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       Value<String>? endTime,
       Value<String>? type,
       Value<String>? priority,
+      Value<String>? energyLevel,
+      Value<double>? estimatedCost,
       Value<int>? rowid}) {
     return TemplateTasksCompanion(
       id: id ?? this.id,
@@ -1478,6 +1690,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       endTime: endTime ?? this.endTime,
       type: type ?? this.type,
       priority: priority ?? this.priority,
+      energyLevel: energyLevel ?? this.energyLevel,
+      estimatedCost: estimatedCost ?? this.estimatedCost,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1509,6 +1723,12 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     if (priority.present) {
       map['priority'] = Variable<String>(priority.value);
     }
+    if (energyLevel.present) {
+      map['energy_level'] = Variable<String>(energyLevel.value);
+    }
+    if (estimatedCost.present) {
+      map['estimated_cost'] = Variable<double>(estimatedCost.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1526,6 +1746,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
           ..write('endTime: $endTime, ')
           ..write('type: $type, ')
           ..write('priority: $priority, ')
+          ..write('energyLevel: $energyLevel, ')
+          ..write('estimatedCost: $estimatedCost, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1767,9 +1989,50 @@ class $TodoItemsTable extends TodoItems
       type: DriftSqlType.dateTime,
       requiredDuringInsert: false,
       defaultValue: currentDateAndTime);
+  static const VerificationMeta _itemTypeMeta =
+      const VerificationMeta('itemType');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, title, description, completed, createdAt];
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+      'item_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('note'));
+  static const VerificationMeta _durationMinutesMeta =
+      const VerificationMeta('durationMinutes');
+  @override
+  late final GeneratedColumn<int> durationMinutes = GeneratedColumn<int>(
+      'duration_minutes', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _checklistJsonMeta =
+      const VerificationMeta('checklistJson');
+  @override
+  late final GeneratedColumn<String> checklistJson = GeneratedColumn<String>(
+      'checklist_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _audioFilePathMeta =
+      const VerificationMeta('audioFilePath');
+  @override
+  late final GeneratedColumn<String> audioFilePath = GeneratedColumn<String>(
+      'audio_file_path', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        description,
+        completed,
+        createdAt,
+        itemType,
+        durationMinutes,
+        checklistJson,
+        audioFilePath
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1805,6 +2068,28 @@ class $TodoItemsTable extends TodoItems
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
+    if (data.containsKey('item_type')) {
+      context.handle(_itemTypeMeta,
+          itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta));
+    }
+    if (data.containsKey('duration_minutes')) {
+      context.handle(
+          _durationMinutesMeta,
+          durationMinutes.isAcceptableOrUnknown(
+              data['duration_minutes']!, _durationMinutesMeta));
+    }
+    if (data.containsKey('checklist_json')) {
+      context.handle(
+          _checklistJsonMeta,
+          checklistJson.isAcceptableOrUnknown(
+              data['checklist_json']!, _checklistJsonMeta));
+    }
+    if (data.containsKey('audio_file_path')) {
+      context.handle(
+          _audioFilePathMeta,
+          audioFilePath.isAcceptableOrUnknown(
+              data['audio_file_path']!, _audioFilePathMeta));
+    }
     return context;
   }
 
@@ -1824,6 +2109,14 @@ class $TodoItemsTable extends TodoItems
           .read(DriftSqlType.bool, data['${effectivePrefix}completed'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      itemType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}item_type'])!,
+      durationMinutes: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}duration_minutes'])!,
+      checklistJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}checklist_json'])!,
+      audioFilePath: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}audio_file_path'])!,
     );
   }
 
@@ -1839,12 +2132,29 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final String description;
   final bool completed;
   final DateTime createdAt;
+
+  /// Discriminator: 'note', 'timer', or 'list'
+  final String itemType;
+
+  /// Timer-only: duration in minutes
+  final int durationMinutes;
+
+  /// List-only: JSON-encoded array of checklist items
+  /// e.g. [{"text":"Buy milk","done":false},{"text":"Walk dog","done":true}]
+  final String checklistJson;
+
+  /// Timer-only: path to local audio file played on completion
+  final String audioFilePath;
   const TodoItem(
       {required this.id,
       required this.title,
       required this.description,
       required this.completed,
-      required this.createdAt});
+      required this.createdAt,
+      required this.itemType,
+      required this.durationMinutes,
+      required this.checklistJson,
+      required this.audioFilePath});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1853,6 +2163,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
     map['description'] = Variable<String>(description);
     map['completed'] = Variable<bool>(completed);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['item_type'] = Variable<String>(itemType);
+    map['duration_minutes'] = Variable<int>(durationMinutes);
+    map['checklist_json'] = Variable<String>(checklistJson);
+    map['audio_file_path'] = Variable<String>(audioFilePath);
     return map;
   }
 
@@ -1863,6 +2177,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       description: Value(description),
       completed: Value(completed),
       createdAt: Value(createdAt),
+      itemType: Value(itemType),
+      durationMinutes: Value(durationMinutes),
+      checklistJson: Value(checklistJson),
+      audioFilePath: Value(audioFilePath),
     );
   }
 
@@ -1875,6 +2193,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       description: serializer.fromJson<String>(json['description']),
       completed: serializer.fromJson<bool>(json['completed']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      durationMinutes: serializer.fromJson<int>(json['durationMinutes']),
+      checklistJson: serializer.fromJson<String>(json['checklistJson']),
+      audioFilePath: serializer.fromJson<String>(json['audioFilePath']),
     );
   }
   @override
@@ -1886,6 +2208,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       'description': serializer.toJson<String>(description),
       'completed': serializer.toJson<bool>(completed),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'itemType': serializer.toJson<String>(itemType),
+      'durationMinutes': serializer.toJson<int>(durationMinutes),
+      'checklistJson': serializer.toJson<String>(checklistJson),
+      'audioFilePath': serializer.toJson<String>(audioFilePath),
     };
   }
 
@@ -1894,13 +2220,21 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           String? title,
           String? description,
           bool? completed,
-          DateTime? createdAt}) =>
+          DateTime? createdAt,
+          String? itemType,
+          int? durationMinutes,
+          String? checklistJson,
+          String? audioFilePath}) =>
       TodoItem(
         id: id ?? this.id,
         title: title ?? this.title,
         description: description ?? this.description,
         completed: completed ?? this.completed,
         createdAt: createdAt ?? this.createdAt,
+        itemType: itemType ?? this.itemType,
+        durationMinutes: durationMinutes ?? this.durationMinutes,
+        checklistJson: checklistJson ?? this.checklistJson,
+        audioFilePath: audioFilePath ?? this.audioFilePath,
       );
   TodoItem copyWithCompanion(TodoItemsCompanion data) {
     return TodoItem(
@@ -1910,6 +2244,16 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           data.description.present ? data.description.value : this.description,
       completed: data.completed.present ? data.completed.value : this.completed,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      itemType: data.itemType.present ? data.itemType.value : this.itemType,
+      durationMinutes: data.durationMinutes.present
+          ? data.durationMinutes.value
+          : this.durationMinutes,
+      checklistJson: data.checklistJson.present
+          ? data.checklistJson.value
+          : this.checklistJson,
+      audioFilePath: data.audioFilePath.present
+          ? data.audioFilePath.value
+          : this.audioFilePath,
     );
   }
 
@@ -1920,13 +2264,18 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('completed: $completed, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('itemType: $itemType, ')
+          ..write('durationMinutes: $durationMinutes, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('audioFilePath: $audioFilePath')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, title, description, completed, createdAt);
+  int get hashCode => Object.hash(id, title, description, completed, createdAt,
+      itemType, durationMinutes, checklistJson, audioFilePath);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1935,7 +2284,11 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           other.title == this.title &&
           other.description == this.description &&
           other.completed == this.completed &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.itemType == this.itemType &&
+          other.durationMinutes == this.durationMinutes &&
+          other.checklistJson == this.checklistJson &&
+          other.audioFilePath == this.audioFilePath);
 }
 
 class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
@@ -1944,6 +2297,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
   final Value<String> description;
   final Value<bool> completed;
   final Value<DateTime> createdAt;
+  final Value<String> itemType;
+  final Value<int> durationMinutes;
+  final Value<String> checklistJson;
+  final Value<String> audioFilePath;
   final Value<int> rowid;
   const TodoItemsCompanion({
     this.id = const Value.absent(),
@@ -1951,6 +2308,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.description = const Value.absent(),
     this.completed = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.durationMinutes = const Value.absent(),
+    this.checklistJson = const Value.absent(),
+    this.audioFilePath = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TodoItemsCompanion.insert({
@@ -1959,6 +2320,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.description = const Value.absent(),
     this.completed = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.durationMinutes = const Value.absent(),
+    this.checklistJson = const Value.absent(),
+    this.audioFilePath = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title);
@@ -1968,6 +2333,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     Expression<String>? description,
     Expression<bool>? completed,
     Expression<DateTime>? createdAt,
+    Expression<String>? itemType,
+    Expression<int>? durationMinutes,
+    Expression<String>? checklistJson,
+    Expression<String>? audioFilePath,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1976,6 +2345,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       if (description != null) 'description': description,
       if (completed != null) 'completed': completed,
       if (createdAt != null) 'created_at': createdAt,
+      if (itemType != null) 'item_type': itemType,
+      if (durationMinutes != null) 'duration_minutes': durationMinutes,
+      if (checklistJson != null) 'checklist_json': checklistJson,
+      if (audioFilePath != null) 'audio_file_path': audioFilePath,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1986,6 +2359,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       Value<String>? description,
       Value<bool>? completed,
       Value<DateTime>? createdAt,
+      Value<String>? itemType,
+      Value<int>? durationMinutes,
+      Value<String>? checklistJson,
+      Value<String>? audioFilePath,
       Value<int>? rowid}) {
     return TodoItemsCompanion(
       id: id ?? this.id,
@@ -1993,6 +2370,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       description: description ?? this.description,
       completed: completed ?? this.completed,
       createdAt: createdAt ?? this.createdAt,
+      itemType: itemType ?? this.itemType,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      checklistJson: checklistJson ?? this.checklistJson,
+      audioFilePath: audioFilePath ?? this.audioFilePath,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2015,6 +2396,18 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
+    }
+    if (durationMinutes.present) {
+      map['duration_minutes'] = Variable<int>(durationMinutes.value);
+    }
+    if (checklistJson.present) {
+      map['checklist_json'] = Variable<String>(checklistJson.value);
+    }
+    if (audioFilePath.present) {
+      map['audio_file_path'] = Variable<String>(audioFilePath.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2029,6 +2422,10 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
           ..write('description: $description, ')
           ..write('completed: $completed, ')
           ..write('createdAt: $createdAt, ')
+          ..write('itemType: $itemType, ')
+          ..write('durationMinutes: $durationMinutes, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('audioFilePath: $audioFilePath, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2313,6 +2710,9 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   required String endTime,
   required String type,
   Value<String> priority,
+  Value<String> energyLevel,
+  Value<double> estimatedCost,
+  Value<double> actualCost,
   Value<bool> completed,
   required String dayPlanId,
   Value<String> sourceTemplateId,
@@ -2326,6 +2726,9 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<String> endTime,
   Value<String> type,
   Value<String> priority,
+  Value<String> energyLevel,
+  Value<double> estimatedCost,
+  Value<double> actualCost,
   Value<bool> completed,
   Value<String> dayPlanId,
   Value<String> sourceTemplateId,
@@ -2379,6 +2782,15 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get priority => $composableBuilder(
       column: $table.priority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get actualCost => $composableBuilder(
+      column: $table.actualCost, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get completed => $composableBuilder(
       column: $table.completed, builder: (column) => ColumnFilters(column));
@@ -2438,6 +2850,16 @@ class $$TasksTableOrderingComposer
   ColumnOrderings<String> get priority => $composableBuilder(
       column: $table.priority, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get actualCost => $composableBuilder(
+      column: $table.actualCost, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get completed => $composableBuilder(
       column: $table.completed, builder: (column) => ColumnOrderings(column));
 
@@ -2496,6 +2918,15 @@ class $$TasksTableAnnotationComposer
   GeneratedColumn<String> get priority =>
       $composableBuilder(column: $table.priority, builder: (column) => column);
 
+  GeneratedColumn<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => column);
+
+  GeneratedColumn<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost, builder: (column) => column);
+
+  GeneratedColumn<double> get actualCost => $composableBuilder(
+      column: $table.actualCost, builder: (column) => column);
+
   GeneratedColumn<bool> get completed =>
       $composableBuilder(column: $table.completed, builder: (column) => column);
 
@@ -2553,6 +2984,9 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String> endTime = const Value.absent(),
             Value<String> type = const Value.absent(),
             Value<String> priority = const Value.absent(),
+            Value<String> energyLevel = const Value.absent(),
+            Value<double> estimatedCost = const Value.absent(),
+            Value<double> actualCost = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<String> dayPlanId = const Value.absent(),
             Value<String> sourceTemplateId = const Value.absent(),
@@ -2566,6 +3000,9 @@ class $$TasksTableTableManager extends RootTableManager<
             endTime: endTime,
             type: type,
             priority: priority,
+            energyLevel: energyLevel,
+            estimatedCost: estimatedCost,
+            actualCost: actualCost,
             completed: completed,
             dayPlanId: dayPlanId,
             sourceTemplateId: sourceTemplateId,
@@ -2579,6 +3016,9 @@ class $$TasksTableTableManager extends RootTableManager<
             required String endTime,
             required String type,
             Value<String> priority = const Value.absent(),
+            Value<String> energyLevel = const Value.absent(),
+            Value<double> estimatedCost = const Value.absent(),
+            Value<double> actualCost = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             required String dayPlanId,
             Value<String> sourceTemplateId = const Value.absent(),
@@ -2592,6 +3032,9 @@ class $$TasksTableTableManager extends RootTableManager<
             endTime: endTime,
             type: type,
             priority: priority,
+            energyLevel: energyLevel,
+            estimatedCost: estimatedCost,
+            actualCost: actualCost,
             completed: completed,
             dayPlanId: dayPlanId,
             sourceTemplateId: sourceTemplateId,
@@ -2903,6 +3346,8 @@ typedef $$TemplateTasksTableCreateCompanionBuilder = TemplateTasksCompanion
   required String endTime,
   required String type,
   Value<String> priority,
+  Value<String> energyLevel,
+  Value<double> estimatedCost,
   Value<int> rowid,
 });
 typedef $$TemplateTasksTableUpdateCompanionBuilder = TemplateTasksCompanion
@@ -2915,6 +3360,8 @@ typedef $$TemplateTasksTableUpdateCompanionBuilder = TemplateTasksCompanion
   Value<String> endTime,
   Value<String> type,
   Value<String> priority,
+  Value<String> energyLevel,
+  Value<double> estimatedCost,
   Value<int> rowid,
 });
 
@@ -2969,6 +3416,12 @@ class $$TemplateTasksTableFilterComposer
   ColumnFilters<String> get priority => $composableBuilder(
       column: $table.priority, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost, builder: (column) => ColumnFilters(column));
+
   $$PlanTemplatesTableFilterComposer get templateId {
     final $$PlanTemplatesTableFilterComposer composer = $composerBuilder(
         composer: this,
@@ -3020,6 +3473,13 @@ class $$TemplateTasksTableOrderingComposer
   ColumnOrderings<String> get priority => $composableBuilder(
       column: $table.priority, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost,
+      builder: (column) => ColumnOrderings(column));
+
   $$PlanTemplatesTableOrderingComposer get templateId {
     final $$PlanTemplatesTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -3070,6 +3530,12 @@ class $$TemplateTasksTableAnnotationComposer
 
   GeneratedColumn<String> get priority =>
       $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get energyLevel => $composableBuilder(
+      column: $table.energyLevel, builder: (column) => column);
+
+  GeneratedColumn<double> get estimatedCost => $composableBuilder(
+      column: $table.estimatedCost, builder: (column) => column);
 
   $$PlanTemplatesTableAnnotationComposer get templateId {
     final $$PlanTemplatesTableAnnotationComposer composer = $composerBuilder(
@@ -3123,6 +3589,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             Value<String> endTime = const Value.absent(),
             Value<String> type = const Value.absent(),
             Value<String> priority = const Value.absent(),
+            Value<String> energyLevel = const Value.absent(),
+            Value<double> estimatedCost = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TemplateTasksCompanion(
@@ -3134,6 +3602,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             endTime: endTime,
             type: type,
             priority: priority,
+            energyLevel: energyLevel,
+            estimatedCost: estimatedCost,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3145,6 +3615,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             required String endTime,
             required String type,
             Value<String> priority = const Value.absent(),
+            Value<String> energyLevel = const Value.absent(),
+            Value<double> estimatedCost = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TemplateTasksCompanion.insert(
@@ -3156,6 +3628,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             endTime: endTime,
             type: type,
             priority: priority,
+            energyLevel: energyLevel,
+            estimatedCost: estimatedCost,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -3342,6 +3816,10 @@ typedef $$TodoItemsTableCreateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> description,
   Value<bool> completed,
   Value<DateTime> createdAt,
+  Value<String> itemType,
+  Value<int> durationMinutes,
+  Value<String> checklistJson,
+  Value<String> audioFilePath,
   Value<int> rowid,
 });
 typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
@@ -3350,6 +3828,10 @@ typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> description,
   Value<bool> completed,
   Value<DateTime> createdAt,
+  Value<String> itemType,
+  Value<int> durationMinutes,
+  Value<String> checklistJson,
+  Value<String> audioFilePath,
   Value<int> rowid,
 });
 
@@ -3376,6 +3858,19 @@ class $$TodoItemsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get itemType => $composableBuilder(
+      column: $table.itemType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get durationMinutes => $composableBuilder(
+      column: $table.durationMinutes,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get audioFilePath => $composableBuilder(
+      column: $table.audioFilePath, builder: (column) => ColumnFilters(column));
 }
 
 class $$TodoItemsTableOrderingComposer
@@ -3401,6 +3896,21 @@ class $$TodoItemsTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get itemType => $composableBuilder(
+      column: $table.itemType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get durationMinutes => $composableBuilder(
+      column: $table.durationMinutes,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get audioFilePath => $composableBuilder(
+      column: $table.audioFilePath,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$TodoItemsTableAnnotationComposer
@@ -3426,6 +3936,18 @@ class $$TodoItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get itemType =>
+      $composableBuilder(column: $table.itemType, builder: (column) => column);
+
+  GeneratedColumn<int> get durationMinutes => $composableBuilder(
+      column: $table.durationMinutes, builder: (column) => column);
+
+  GeneratedColumn<String> get checklistJson => $composableBuilder(
+      column: $table.checklistJson, builder: (column) => column);
+
+  GeneratedColumn<String> get audioFilePath => $composableBuilder(
+      column: $table.audioFilePath, builder: (column) => column);
 }
 
 class $$TodoItemsTableTableManager extends RootTableManager<
@@ -3456,6 +3978,10 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> description = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<String> itemType = const Value.absent(),
+            Value<int> durationMinutes = const Value.absent(),
+            Value<String> checklistJson = const Value.absent(),
+            Value<String> audioFilePath = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion(
@@ -3464,6 +3990,10 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             description: description,
             completed: completed,
             createdAt: createdAt,
+            itemType: itemType,
+            durationMinutes: durationMinutes,
+            checklistJson: checklistJson,
+            audioFilePath: audioFilePath,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3472,6 +4002,10 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> description = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<String> itemType = const Value.absent(),
+            Value<int> durationMinutes = const Value.absent(),
+            Value<String> checklistJson = const Value.absent(),
+            Value<String> audioFilePath = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion.insert(
@@ -3480,6 +4014,10 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             description: description,
             completed: completed,
             createdAt: createdAt,
+            itemType: itemType,
+            durationMinutes: durationMinutes,
+            checklistJson: checklistJson,
+            audioFilePath: audioFilePath,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
