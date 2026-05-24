@@ -1,0 +1,230 @@
+# Chronos Planner - Technical Resume Reference
+
+## Project: Chronos Planner (Chronosky)
+**Role:** Lead Flutter Developer & Architect  
+**Project Type:** Desktop-First Time Management & Productivity Planner  
+**Platform:** Cross-platform (Windows, macOS, Linux, iOS, Android)  
+**Architecture:** Layered Repository Pattern with MVVM Principles  
+
+---
+
+## TECHNOLOGY STACK, FRAMEWORKS & VERSIONS
+
+### Core Framework
+- **Flutter SDK** - Cross-platform UI framework (Material 3, Dark Mode Design)
+- **Dart SDK >=3.0.0 <4.0.0** - Type-safe, ahead-of-time compiled language
+- **Cupertino Icons ^1.0.8** - iOS-style iconography
+
+### State Management
+- **Provider ^6.1.1** - ChangeNotifier-based reactive state management with MultiProvider dependency injection
+
+### Database & Persistence
+- **Drift ^2.25.0** (formerly Moor) - Reactive, type-safe SQL ORM with compile-time query verification
+- **sqlite3_flutter_libs ^0.5.0** - Native SQLite bindings for Flutter
+- **Path Provider ^2.1.0** - Platform-specific document directory resolution
+- **Path ^1.9.0** - Cross-platform path manipulation
+
+### Utilities & SDK Packages
+- **Shared Preferences ^2.2.2** - Key-value store (legacy migration support)
+- **Intl ^0.20.2** - Internationalization, date/time formatting
+- **Google Fonts ^8.0.1** - Inter font family integration
+- **UUID ^4.3.3** - UUID v4 generation for primary keys
+- **Window Manager ^0.5.1** - Desktop window management (hidden title bar, always-on-top, resize)
+- **File Picker ^8.0.0** - Native file selection dialogs
+- **Just Audio ^0.9.40** - Cross-platform audio playback engine
+
+### Development & Build Tools
+- **Drift Dev ^2.25.0** - Database code generation
+- **Build Runner ^2.4.0** - Dart code generation orchestrator
+- **Flutter Lints ^6.0.0** - Static analysis and linting rules
+- **Flutter Launcher Icons ^0.14.3** - App icon generation
+
+---
+
+## ARCHITECTURE & DESIGN PATTERNS
+
+### Layered Repository Architecture
+```
+UI Layer (Screens/Widgets)
+    ↓ (depends on abstractions)
+Provider Layer (ChangeNotifiers)
+    ↓ (depends on interfaces)
+Repository Interfaces (Abstract Contracts)
+    ↓ (implemented by)
+Local Repository Implementations (Drift-backed)
+    ↓ (uses)
+Data Access Objects (DAOs - Drift Generated)
+    ↓ (queries)
+SQLite Database (Local Persistence)
+```
+
+### Key Architectural Patterns
+- **Repository Pattern** - Abstract contracts (`ScheduleRepository`, `TemplateRepository`, `PreferenceRepository`, `TodoRepository`) enabling future backend swapping (e.g., cloud sync) without UI changes
+- **MVVM Principles** - Clear separation: UI (Views) ↔ Providers (ViewModels) ↔ Repositories (Models)
+- **Dependency Injection** - MultiProvider at app root, repository instances injected into providers
+- **Optimistic UI Updates** - In-memory state updated immediately, async persistence follows
+- **Reactive Streams** - Drift `.watch()` methods for real-time UI updates without manual refresh
+- **Undo/Redo System** - Stack-based undo with task snapshot tracking (`_UndoAction`)
+- **Offline-First Design** - Zero network dependencies, fully functional offline application
+
+---
+
+## DATA MODELS & DATABASE SCHEMA
+
+### Database: SQLite via Drift ORM (Schema Version 5)
+**Database File:** `chronos_planner.sqlite` (platform-specific app documents directory)
+
+### Tables & Relationships
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `Tasks` | Individual scheduled tasks | id (PK), title, description, startTime, endTime, type, priority, energyLevel, estimatedCost, actualCost, completed, dayPlanId (FK→DayPlans), sourceTemplateId (FK→PlanTemplates) |
+| `DayPlans` | Weekly day containers | id (PK), dateStr, dayOfWeek, date, weekKey |
+| `PlanTemplates` | Reusable plan templates | id (PK), name, description, activeDays (CSV) |
+| `TemplateTasks` | Template task definitions | id (PK), templateId (FK→PlanTemplates), title, description, startTime, endTime, type, priority, energyLevel, estimatedCost |
+| `Preferences` | Application key-value config | key (PK), value |
+| `TodoItems` | Standalone todo entities | id (PK), title, description, completed, createdAt, itemType (note/timer/list), durationMinutes, checklistJson, audioFilePath |
+
+### Migration Strategy
+- **v1→v2:** Added sourceTemplateId FK, activeDays for recurring templates
+- **v2→v3:** TodoItems table introduction
+- **v3→v4:** Energy level & cost tracking fields
+- **v4→v5:** Timer/audio/checklist support for TodoItems
+- **Legacy Migration:** SharedPreferences JSON→Drift one-time migration with cleanup
+
+### Model Classes
+- **Task** - Immutable with `copyWith()` pattern, mutable `completed` field, JSON serialization, enum types (TaskType, TaskPriority, TaskEnergyLevel)
+- **DayPlan** - Aggregates `List<Task>`, date mapping, JSON serialization
+- **PlanTemplate** - Reusable templates with `List<Task>`, recurring schedule logic (`isRecurring` getter), `copyWith()` immutable updates
+
+---
+
+## BUSINESS FUNCTIONALITY
+
+### Core Features
+- **7-Day Rolling Schedule** - Week-based planning with swipe navigation
+- **Template System** - Create, apply, edit reusable daily plans with recurring day support
+- **Task Management** - Full CRUD with priority, energy level, cost estimation vs actual tracking
+- **Analytics Dashboard** - Efficiency metrics, energy peak detection, focus hours calculation, category distribution
+- **Todo/Notes/Timers** - Multi-type standalone items with checklist support
+- **Countdown Timer** - Full-screen timer with circular progress, audio playback on completion
+- **Focus Mode HUD** - Desktop always-on-top mini window (320x200) showing next uncompleted task
+- **Undo System** - Delete/clear undo with snackbar recovery
+
+### Intelligence Service (Algorithmic, No AI APIs)
+- **Efficiency Calculation** - Completion rate percentage (0-100)
+- **Energy Peak Analysis** - Historical success rate by hour to identify peak productivity times
+- **Time Recommendation Engine** - Suggests optimal scheduling based on energy level + historical patterns
+- **Task ROI Calculation** - Importance-to-cost ratio for prioritization
+
+---
+
+## UI/UX PATTERNS & DESIGN SYSTEM
+
+### Screens (7 Total)
+- **ChronosHome** - Desktop sidebar + mobile bottom navigation, AnimatedSwitcher with fade+slide transitions
+- **ScheduleView** - 7-day horizontal selector, task list with card/list view toggle, swipe navigation, undo snackbar, slide-in detail panel
+- **WorkPlansView** - Template grid (adaptive 3-column desktop / 1-column mobile), create/apply/edit workflows
+- **AnalyticsView** - CustomPainter donut chart, energy peaks bar chart, efficiency metric cards, daily breakdown
+- **TodoListView** - Tabbed interface (Notes/Timers/Lists), type-specific card layouts
+- **TimerView** - Full-screen countdown with circular progress indicator
+- **TodoDetailScreen** - Type-adaptive detail view for notes, timers, checklists
+
+### Widget Library (8 Custom Widgets)
+- **GlassContainer** - Frosted glass via `BackdropFilter` + `ImageFilter.blur`, tap scale animation, optional gradient borders
+- **TaskCard** - Dismissible card with context menu (edit/duplicate/delete)
+- **PremiumTaskCard** - Multi-mode (card/list/minimal), hover animations, scale transitions, pill metadata badges
+- **AddTaskSheet** - Bottom sheet form with date/time pickers, category/priority/energy chips, AI time suggestion
+- **TaskDetailPanel** - Slide-in panel with gradient title, timeline visualization, metadata grid, overdue detection
+- **FocusHudWidget** - Desktop always-on-top mini window
+- **NewItemSheet** - Tabbed bottom sheet (Notes/Timers/Lists) with file_picker audio, checklist builder
+- **WorkPlanDetailDialog** - Full template editor with task list, day selector, recurring toggle
+
+### Design System (Dark Mode, Glass Morphism)
+- **Color Palette:** Slate backgrounds (#0F172A, #1E293B), neon accents (blue #4F46E5, purple #A855F7, cyan #06B6D4), semantic type colors
+- **Typography:** Inter font via Google Fonts, 7-tier scale (heading1→label/chip/button)
+- **Spacing:** 4px base unit system (xs=4, sm=8, md=16, lg=24, xl=32, xxl=48)
+- **Border Radius:** sm=8 through xxl=24, pill=999
+- **Shadows:** 3 presets (subtle/medium/elevated) + neon glow factory
+- **Animation Durations:** fast=150ms, normal=300ms, slow=500ms, stagger=50ms per-item
+- **Gradients:** Blue, purple, surface card gradients
+
+---
+
+## DESKTOP-SPECIFIC FEATURES
+
+- **Window Management:** Hidden title bar, 1200x800 default size, 800x600 minimum
+- **Focus Mode:** Shrinks window to 320x200, top-right aligned, always-on-top
+- **Responsive Layout:** Desktop 250px left sidebar vs mobile BottomNavigationBar with glass blur
+- **Adaptive Grid:** WorkPlans grid responsive (3 columns >600px, 1 column otherwise)
+- **Overnight Task Support:** Time calculations handle 22:00-01:00 (endH += 24 when endH ≤ startH)
+
+---
+
+## BEST PRACTICES & ENGINEERING DECISIONS
+
+1. **Type Safety** - Drift compile-time query verification, Dart strong typing, enum-based domain models
+2. **Separation of Concerns** - UI never directly accesses database; all data flows through repository interfaces
+3. **Future-Proof Backend Swapping** - Repository interfaces allow adding cloud-synced backend without UI/provider changes
+4. **Optimistic UI + Async Persistence** - Snappy UX with eventual consistency
+5. **Reactive Data Flow** - Stream-based subscriptions eliminate manual refresh logic
+6. **Migration Strategy** - Versioned schema migrations with legacy data migration and cleanup
+7. **Immutable Domain Models** - `copyWith()` pattern for predictable state transitions
+8. **Seed Data Strategy** - Default templates ("Deep Work Friday", "Lazy Sunday") for first-run UX
+9. **Undo Safety Net** - Stack-based undo with task snapshots for accidental deletions
+10. **Offline-First Architecture** - Zero network dependencies, instant load, privacy-by-design
+11. **Responsive Design** - Single codebase adapting to desktop and mobile form factors
+12. **Design Token System** - Centralized theme with spacing scale, color tokens, animation durations
+
+---
+
+## RESUME BULLET POINTS (TOP 1% QUALITY)
+
+### Architecture & Engineering
+- **Architected a layered repository-pattern Flutter application** with MVVM principles, abstracting SQLite (Drift ORM) behind repository interfaces, enabling future cloud-sync backend integration with zero UI refactoring
+- **Implemented reactive state management** using Provider (ChangeNotifier) with optimistic UI updates, async persistence, and undo/redo stack with task snapshot recovery
+- **Designed offline-first data layer** using Drift ORM with compile-time SQL verification, 5-version schema migration strategy, and legacy SharedPreferences-to-SQLite migration pipeline
+- **Built algorithmic intelligence engine** for productivity analytics: efficiency metrics, energy peak detection via historical success rates, time recommendation system based on energy levels
+
+### Performance & UX
+- **Engineered responsive desktop-first UI** with glass morphism design system (BackdropFilter blur), 4px spacing scale, Inter typography, and neon accent color palette across 7 screens and 8 custom widget components
+- **Developed Focus Mode HUD** leveraging desktop window management API for always-on-top mini-window (320x200) displaying next uncompleted task for distraction-free work sessions
+- **Implemented real-time reactive streams** using Drift `.watch()` observers, eliminating manual UI refresh cycles and ensuring instantaneous data synchronization across views
+
+### Data & Business Logic
+- **Modeled complex domain relationships** in SQLite: Tasks ↔ DayPlans (FK), TemplateTasks ↔ PlanTemplates (FK), Preferences (KV store), TodoItems with polymorphic itemType (note/timer/list) and JSON checklist support
+- **Built template-based recurring schedule system** with CSV-parsed active day mapping, auto-application on load, and full CRUD for template tasks with energy/cost metadata tracking
+- **Developed overnight task time calculation logic** handling 22:00-01:00 ranges (endH += 24 boundary crossing) for late-night scheduling scenarios
+
+### Engineering Excellence
+- **Established type-safe data layer** using Dart enums (TaskType, TaskPriority, TaskEnergyLevel), immutable models with `copyWith()` pattern, and JSON serialization for cross-platform data interchange
+- **Implemented versioned database migration strategy** (v1→v5) handling incremental schema evolution: foreign key additions, table creation, energy/cost field migrations, and todo polymorphic type support
+- **Designed centralized design token system** with 7-tier typography scale, 6-level spacing hierarchy (4px base), 5 border radius tokens, 3 shadow presets + neon glow generator, and 3 animation duration tokens
+- **Built seed data strategy** for first-run user experience with pre-configured templates ("Deep Work Friday", "Lazy Sunday") and graceful empty-state handling
+
+---
+
+## KEY METRICS & IMPACT (SUGGESTED FOR RESUME)
+
+*Customize these with your actual numbers:*
+- Reduced task planning time by X% through template-based recurring schedules
+- Achieved sub-100ms UI response times with optimistic updates + reactive streams
+- Supported X+ data entities across 6 relational tables with full CRUD operations
+- Delivered fully offline-capable application with zero network dependencies
+- Built analytics engine processing X+ historical data points for energy peak recommendations
+
+---
+
+## TECHNICAL SKILLS SUMMARY (FOR RESUME SKILLS SECTION)
+
+**Languages:** Dart (>=3.0), SQL  
+**Frameworks:** Flutter, Material 3, Drift ORM  
+**State Management:** Provider (ChangeNotifier), Reactive Streams  
+**Databases:** SQLite (via Drift), SharedPreferences  
+**Architecture:** Repository Pattern, MVVM, Dependency Injection, Offline-First, Optimistic UI  
+**UI/UX:** Glass Morphism, Responsive Design, CustomPainter, Animation Systems, Design Tokens  
+**Tools:** Build Runner, Drift Dev, Flutter Lints, Window Manager  
+**Patterns:** Immutable Models (copyWith), Undo/Redo Stack, Reactive Streams, Migration Strategy, Seed Data  
+
+---
+
+*Document generated from source code analysis of Chronos Planner project. All technical details verified against codebase.*

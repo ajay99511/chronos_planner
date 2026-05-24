@@ -39,6 +39,20 @@ class _TodoListViewState extends State<TodoListView> {
 
   void _openTimer(TodoItem item) {
     Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            TodoDetailScreen(todo: item),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOut));
+          return FadeTransition(opacity: fadeAnimation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _startTimer(TodoItem item) {
+    Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => TimerView(timer: item)),
     );
   }
@@ -223,6 +237,7 @@ class _TodoListViewState extends State<TodoListView> {
         return _TimerCard(
           timer: timer,
           onTap: () => _openTimer(timer),
+          onStart: () => _startTimer(timer),
           onDelete: () =>
               context.read<TodoProvider>().deleteTodo(timer.id),
         );
@@ -245,6 +260,7 @@ class _TodoListViewState extends State<TodoListView> {
         return _ListCard(
           listItem: list,
           onTap: () => _openListDetail(list),
+          onDelete: () => context.read<TodoProvider>().deleteTodo(list.id),
         );
       },
     );
@@ -360,15 +376,37 @@ class _NoteCard extends StatelessWidget {
               const Spacer(),
             ],
             const SizedBox(height: AppSpacing.sm),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(
-                'View detailed',
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.neonBlue.withValues(alpha: 0.7),
-                  fontSize: 10,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppColors.surface,
+                        title: Text('Delete Note', style: AppTextStyles.heading3),
+                        content: Text('Are you sure?', style: AppTextStyles.body),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
+                        ],
+                      ),
+                    );
+                    if (confirm == true && context.mounted) {
+                      context.read<TodoProvider>().deleteTodo(todo.id);
+                    }
+                  },
+                  child: const Icon(Icons.delete_outline, size: 14, color: Colors.white24),
                 ),
-              ),
+                Text(
+                  'View details',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.neonBlue.withValues(alpha: 0.7),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -383,11 +421,13 @@ class _NoteCard extends StatelessWidget {
 class _TimerCard extends StatelessWidget {
   final TodoItem timer;
   final VoidCallback onTap;
+  final VoidCallback onStart;
   final VoidCallback onDelete;
 
   const _TimerCard({
     required this.timer,
     required this.onTap,
+    required this.onStart,
     required this.onDelete,
   });
 
@@ -455,18 +495,40 @@ class _TimerCard extends StatelessWidget {
                 ],
               ),
             ),
+            // Actions
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: AppColors.surface,
+                    title: Text('Delete Timer', style: AppTextStyles.heading3),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
+                    ],
+                  ),
+                );
+                if (confirm == true && context.mounted) onDelete();
+              },
+            ),
+            const SizedBox(width: 4),
             // Start button
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.neonBlue.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: Border.all(
-                    color: AppColors.neonBlue.withValues(alpha: 0.3)),
+            GestureDetector(
+              onTap: onStart,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.neonBlue.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  border: Border.all(
+                      color: AppColors.neonBlue.withValues(alpha: 0.3)),
+                ),
+                child: Text('Start',
+                    style: AppTextStyles.chip.copyWith(color: AppColors.neonBlue)),
               ),
-              child: Text('Start',
-                  style: AppTextStyles.chip.copyWith(color: AppColors.neonBlue)),
             ),
           ],
         ),
@@ -481,10 +543,12 @@ class _TimerCard extends StatelessWidget {
 class _ListCard extends StatelessWidget {
   final TodoItem listItem;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _ListCard({
     required this.listItem,
     required this.onTap,
+    required this.onDelete,
   });
 
   @override
@@ -554,6 +618,23 @@ class _ListCard extends StatelessWidget {
                         ),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppColors.surface,
+                        title: Text('Delete List', style: AppTextStyles.heading3),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
+                        ],
+                      ),
+                    );
+                    if (confirm == true && context.mounted) onDelete();
+                  },
                 ),
               ],
             ),

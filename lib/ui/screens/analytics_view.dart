@@ -421,42 +421,6 @@ class _EfficiencyCard extends StatelessWidget {
   }
 }
 
-// ─── Tasks Done Card ─────────────────────────────
-class _TasksDoneCard extends StatelessWidget {
-  final int completed;
-  final int total;
-  const _TasksDoneCard({required this.completed, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.check_circle_outline,
-                color: AppColors.health, size: 16),
-            const SizedBox(width: 8),
-            Text("TASKS DONE", style: AppTextStyles.label),
-          ]),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text("$completed",
-                  style: AppTextStyles.heading2.copyWith(fontSize: 32)),
-              Text(" / $total",
-                  style: const TextStyle(fontSize: 16, color: Colors.grey)),
-            ],
-          ),
-          const SizedBox(height: 14),
-        ],
-      ),
-    );
-  }
-}
-
 // ─── Donut Chart Painter ────────────────────────
 class _DonutChartPainter extends CustomPainter {
   final Map<TaskType, double> distribution;

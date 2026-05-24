@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/todo_provider.dart';
 import '../../data/local/app_database.dart';
@@ -24,8 +25,14 @@ class TodoDetailScreen extends StatefulWidget {
 class _TodoDetailScreenState extends State<TodoDetailScreen> {
   late TextEditingController _titleController;
   late TextEditingController _descController;
+  late TextEditingController _durationController;
+  late TextEditingController _checklistEntryController;
   bool _isEditing = false;
   late bool _completed;
+
+  // Timer state
+  String? _audioFilePath;
+  String? _audioFileName;
 
   // List checklist state
   List<Map<String, dynamic>> _checklist = [];
@@ -36,8 +43,13 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
     _titleController = TextEditingController(text: widget.todo?.title ?? '');
     _descController =
         TextEditingController(text: widget.todo?.description ?? '');
+    _durationController = TextEditingController(
+        text: (widget.todo?.durationMinutes ?? 25).toString());
+    _checklistEntryController = TextEditingController();
     _completed = widget.todo?.completed ?? false;
     _isEditing = widget.todo == null;
+    _audioFilePath = widget.todo?.audioFilePath;
+    _audioFileName = _audioFilePath?.split('/').last.split('\\').last;
 
     // Parse checklist for list items
     if (widget.todo != null && widget.todo!.itemType == 'list') {
@@ -60,6 +72,8 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
+    _durationController.dispose();
+    _checklistEntryController.dispose();
     super.dispose();
   }
 
@@ -73,12 +87,73 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
     }
 
     final provider = context.read<TodoProvider>();
+    final description = _descController.text.trim();
+
     if (widget.todo == null) {
-      provider.addNote(title, description: _descController.text.trim());
+      // For now, only handles Note creation from here, 
+      // though NewItemSheet is the primary way.
+      provider.addNote(title, description: description);
     } else {
-      provider.updateTodoData(widget.todo!, title, _descController.text.trim());
+      final itemType = widget.todo!.itemType;
+      TodoItem updated = widget.todo!.copyWith(
+        title: title,
+        description: description,
+      );
+
+      if (itemType == 'timer') {
+        final duration = int.tryParse(_durationController.text.trim()) ?? 25;
+        updated = updated.copyWith(
+          durationMinutes: duration,
+          audioFilePath: _audioFilePath ?? '',
+        );
+      } else if (itemType == 'list') {
+        updated = updated.copyWith(
+          checklistJson: jsonEncode(_checklist),
+        );
+      }
+
+      provider.updateTodo(updated);
     }
-    Navigator.pop(context);
+    setState(() => _isEditing = false);
+    if (widget.todo == null) {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _pickAudioFile() async {
+    // Re-using file picker logic from NewItemSheet would be ideal, 
+    // but for now we'll implement it here for simplicity.
+    // In a real app, this should be in a service.
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        allowMultiple: false,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _audioFilePath = result.files.single.path;
+          _audioFileName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+    }
+  }
+
+  void _addChecklistItem() {
+    final text = _checklistEntryController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _checklist.add({'text': text, 'done': false});
+        _checklistEntryController.clear();
+      });
+    }
+  }
+
+  void _removeChecklistItem(int index) {
+    setState(() {
+      _checklist.removeAt(index);
+    });
   }
 
   Future<void> _delete() async {
@@ -141,7 +216,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (widget.todo != null && !_isEditing && itemType == 'note')
+          if (widget.todo != null && !_isEditing)
             IconButton(
               icon: const Icon(Icons.edit_outlined, color: Colors.white70),
               onPressed: () => setState(() => _isEditing = true),
@@ -272,62 +347,128 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
                 const SizedBox(height: AppSpacing.xl),
                 const Divider(color: Colors.white10),
                 const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    const Icon(Icons.timer,
-                        color: AppColors.neonCyan, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${widget.todo!.durationMinutes} minutes',
-                      style: AppTextStyles.heading3
-                          .copyWith(color: AppColors.neonCyan, fontSize: 18),
+                if (_isEditing) ...[
+                  Text('Duration (minutes)', style: AppTextStyles.subtitle),
+                  const SizedBox(height: AppSpacing.sm),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: Colors.white10),
                     ),
-                  ],
-                ),
-                if (widget.todo!.audioFilePath.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.md),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: TextField(
+                      controller: _durationController,
+                      keyboardType: TextInputType.number,
+                      style: AppTextStyles.body,
+                      decoration:
+                          const InputDecoration(border: InputBorder.none),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('Background Audio', style: AppTextStyles.subtitle),
+                  const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      const Icon(Icons.music_note,
-                          color: AppColors.textSecondary, size: 18),
+                      GestureDetector(
+                        onTap: _pickAudioFile,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.music_note,
+                                  size: 18, color: AppColors.textSecondary),
+                              const SizedBox(width: 8),
+                              Text('Select Audio',
+                                  style: AppTextStyles.body
+                                      .copyWith(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          _audioFileName ?? 'No file selected',
+                          style: AppTextStyles.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_audioFilePath != null && _audioFilePath!.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.close,
+                              size: 18, color: Colors.redAccent),
+                          onPressed: () => setState(() {
+                            _audioFilePath = '';
+                            _audioFileName = null;
+                          }),
+                        ),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.timer,
+                          color: AppColors.neonCyan, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        widget.todo!.audioFilePath
-                            .split('/')
-                            .last
-                            .split('\\')
-                            .last,
-                        style: AppTextStyles.body
-                            .copyWith(color: AppColors.textSecondary),
+                        '${widget.todo!.durationMinutes} minutes',
+                        style: AppTextStyles.heading3
+                            .copyWith(color: AppColors.neonCyan, fontSize: 18),
                       ),
                     ],
                   ),
-                ],
-                const SizedBox(height: AppSpacing.xl),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.neonBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.md)),
+                  if (widget.todo!.audioFilePath.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        const Icon(Icons.music_note,
+                            color: AppColors.textSecondary, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.todo!.audioFilePath
+                              .split('/')
+                              .last
+                              .split('\\')
+                              .last,
+                          style: AppTextStyles.body
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) =>
-                                TimerView(timer: widget.todo!)),
-                      );
-                    },
-                    icon: const Icon(Icons.play_arrow),
-                    label: Text('Start Timer',
-                        style: AppTextStyles.button),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.neonBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md)),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => TimerView(timer: widget.todo!)),
+                        );
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('Start Timer', style: AppTextStyles.button),
+                    ),
                   ),
-                ),
+                ],
               ],
 
               // ── List-specific section ──
@@ -339,63 +480,118 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
                     style: AppTextStyles.subtitle
                         .copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: AppSpacing.md),
-                if (_checklist.isEmpty)
-                  Text('No items in this list.',
-                      style: AppTextStyles.body
-                          .copyWith(color: Colors.white24))
-                else
+                if (_isEditing) ...[
                   ..._checklist.asMap().entries.map((entry) {
-                    final item = entry.value;
-                    final isDone = item['done'] == true;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: GestureDetector(
-                        onTap: () => _toggleChecklistItem(entry.key),
-                        child: Row(
-                          children: [
-                            AnimatedContainer(
-                              duration: AppAnimDurations.fast,
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                borderRadius:
-                                    BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: isDone
-                                      ? AppColors.health
-                                      : Colors.white38,
-                                  width: 2,
-                                ),
-                                color: isDone
-                                    ? AppColors.health
-                                    : Colors.transparent,
-                              ),
-                              child: isDone
-                                  ? const Icon(Icons.check,
-                                      size: 16,
-                                      color: Colors.white)
-                                  : null,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                item['text'] ?? '',
-                                style: AppTextStyles.body.copyWith(
-                                  fontSize: 16,
-                                  decoration: isDone
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  color: isDone
-                                      ? AppColors.textSecondary
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_box_outline_blank,
+                              size: 20, color: Colors.white24),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(entry.value['text'] ?? '',
+                                style: AppTextStyles.body),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline,
+                                color: Colors.redAccent, size: 20),
+                            onPressed: () => _removeChecklistItem(entry.key),
+                          ),
+                        ],
                       ),
                     );
                   }),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md),
+                          child: TextField(
+                            controller: _checklistEntryController,
+                            style: AppTextStyles.body,
+                            decoration: InputDecoration(
+                              hintText: 'Add item...',
+                              hintStyle: AppTextStyles.body
+                                  .copyWith(color: Colors.white24),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (_) => _addChecklistItem(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline,
+                            color: AppColors.neonBlue),
+                        onPressed: _addChecklistItem,
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  if (_checklist.isEmpty)
+                    Text('No items in this list.',
+                        style: AppTextStyles.body
+                            .copyWith(color: Colors.white24))
+                  else
+                    ..._checklist.asMap().entries.map((entry) {
+                      final item = entry.value;
+                      final isDone = item['done'] == true;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: GestureDetector(
+                          onTap: () => _toggleChecklistItem(entry.key),
+                          child: Row(
+                            children: [
+                              AnimatedContainer(
+                                duration: AppAnimDurations.fast,
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                    BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: isDone
+                                        ? AppColors.health
+                                        : Colors.white38,
+                                    width: 2,
+                                  ),
+                                  color: isDone
+                                      ? AppColors.health
+                                      : Colors.transparent,
+                                ),
+                                child: isDone
+                                    ? const Icon(Icons.check,
+                                        size: 16, color: Colors.white)
+                                    : null,
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Text(
+                                  item['text'] ?? '',
+                                  style: AppTextStyles.body.copyWith(
+                                    fontSize: 16,
+                                    decoration: isDone
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                    color: isDone
+                                        ? AppColors.textSecondary
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                ],
               ],
             ],
           ),
@@ -403,14 +599,11 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
       ),
       floatingActionButton: _isEditing
           ? null
-          : (widget.todo?.itemType == 'note'
-              ? FloatingActionButton(
-                  onPressed: () => setState(() => _isEditing = true),
-                  backgroundColor: AppColors.surface,
-                  child:
-                      const Icon(Icons.edit, color: AppColors.neonBlue),
-                )
-              : null),
+          : FloatingActionButton(
+              onPressed: () => setState(() => _isEditing = true),
+              backgroundColor: AppColors.surface,
+              child: const Icon(Icons.edit, color: AppColors.neonBlue),
+            ),
     );
   }
 }

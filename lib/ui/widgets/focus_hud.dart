@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/schedule_provider.dart';
 import '../../data/models/task_model.dart';
-import 'dart:io';
 
 class FocusHudWidget extends StatelessWidget {
   final VoidCallback onExit;
