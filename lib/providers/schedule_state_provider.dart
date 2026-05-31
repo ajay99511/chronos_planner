@@ -67,6 +67,7 @@ class ScheduleStateProvider extends ChangeNotifier {
     if (_isLoading) return _loadingCompleter?.future;
     
     _isLoading = true;
+    _errorMessage = null; // Clear previous error so retry can succeed
     _loadingCompleter = Completer<void>();
     notifyListeners();
 
@@ -74,13 +75,20 @@ class ScheduleStateProvider extends ChangeNotifier {
       _logger.info('Loading schedule data...');
       
       final weekResult = await _scheduleRepo.getUpcomingDays(7);
-      final templateResult = await _templateRepo.getAllTemplates();
-      final prefResult = await _prefRepo.get('sort_order');
 
       weekResult.fold(
         onSuccess: (data) => _weekPlan = data,
-        onFailure: (f) => _errorMessage = f.message,
+        onFailure: (f) {
+          _errorMessage = '${f.message}\n${f.originalError ?? ""}';
+          _logger.error('Failed to load week plan: ${f.message}', f.originalError);
+        },
       );
+
+      // If week data failed, bail out early — schedule is unusable
+      if (_errorMessage != null) return;
+
+      final templateResult = await _templateRepo.getAllTemplates();
+      final prefResult = await _prefRepo.get('sort_order');
 
       templateResult.fold(
         onSuccess: (data) {
@@ -98,12 +106,18 @@ class ScheduleStateProvider extends ChangeNotifier {
       );
 
       _selectedDayIndex = 0;
-      await _applyRecurringTemplates();
+
+      // Apply recurring templates — non-fatal if it fails
+      try {
+        await _applyRecurringTemplates();
+      } catch (e) {
+        _logger.warning('Failed to apply recurring templates: $e');
+      }
       
       _logger.info('Schedule data loaded successfully');
-    } catch (e) {
-      _logger.error('Unexpected error loading data', e);
-      _errorMessage = 'An unexpected error occurred';
+    } catch (e, stackTrace) {
+      _logger.error('Unexpected error loading data: $e\n$stackTrace');
+      _errorMessage = 'Unexpected error: ${e.runtimeType}';
     } finally {
       _isLoading = false;
       _loadingCompleter?.complete();

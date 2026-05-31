@@ -5,6 +5,8 @@ import 'package:drift/native.dart';
 import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 
 import 'package:chronosky/data/local/tables.dart';
 import 'package:chronosky/data/local/daos/task_dao.dart';
@@ -82,7 +84,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -91,33 +93,92 @@ class AppDatabase extends _$AppDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            await customStatement(
-                "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''",);
-            await customStatement(
-                "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''",);
+            final taskCols = await customSelect('PRAGMA table_info(tasks)').get();
+            final taskColNames = taskCols.map((c) => c.read<String>('name')).toSet();
+            if (!taskColNames.contains('source_template_id')) {
+              await customStatement(
+                  "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''",);
+            }
+            
+            final tmplCols = await customSelect('PRAGMA table_info(plan_templates)').get();
+            final tmplColNames = tmplCols.map((c) => c.read<String>('name')).toSet();
+            if (!tmplColNames.contains('active_days')) {
+              await customStatement(
+                  "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''",);
+            }
           }
           if (from < 3) {
-            await m.createTable(todoItems);
+            // Use customStatement to check existence before creating
+            final existing = await customSelect(
+              "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='todo_items'",
+            ).get();
+            if ((existing.first.read<int>('cnt')) == 0) {
+              await m.createTable(todoItems);
+            }
           }
           if (from < 4) {
-            await customStatement(
-                "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
-            await customStatement(
-                'ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
-            await customStatement(
-                'ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0',);
+            // Check existing columns before adding to handle partially-migrated DBs
+            final taskCols = await customSelect('PRAGMA table_info(tasks)').get();
+            final taskColNames = taskCols.map((c) => c.read<String>('name')).toSet();
+            
+            if (!taskColNames.contains('energy_level')) {
+              await customStatement(
+                  "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
+            }
+            if (!taskColNames.contains('estimated_cost')) {
+              await customStatement(
+                  'ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
+            }
+            if (!taskColNames.contains('actual_cost')) {
+              await customStatement(
+                  'ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0',);
+            }
 
-            await customStatement(
-                "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
-            await customStatement(
-                'ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
+            final tmplCols = await customSelect('PRAGMA table_info(template_tasks)').get();
+            final tmplColNames = tmplCols.map((c) => c.read<String>('name')).toSet();
+            
+            if (!tmplColNames.contains('energy_level')) {
+              await customStatement(
+                  "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
+            }
+            if (!tmplColNames.contains('estimated_cost')) {
+              await customStatement(
+                  'ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
+            }
           }
           if (from < 5) {
-            await transaction(() async {
-              // 1. Create junction table
-              await m.createTable(templateActiveDays);
+            // Helper to check if a table exists
+            Future<bool> tableExists(String name) async {
+              final result = await customSelect(
+                "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?",
+                variables: [Variable.withString(name)],
+              ).get();
+              return (result.first.read<int>('cnt')) > 0;
+            }
 
-              // 2. Migrate data from PlanTemplates.active_days to TemplateActiveDays
+            // Helper to check if a column exists in a table
+            Future<Set<String>> getColumnNames(String tableName) async {
+              final cols = await customSelect('PRAGMA table_info($tableName)').get();
+              return cols.map((c) => c.read<String>('name')).toSet();
+            }
+
+            // Helper to check if an index exists
+            Future<bool> indexExists(String name) async {
+              final result = await customSelect(
+                "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='index' AND name=?",
+                variables: [Variable.withString(name)],
+              ).get();
+              return (result.first.read<int>('cnt')) > 0;
+            }
+
+            // 1. Create junction table (if not already created by a previous failed attempt)
+            if (!await tableExists('template_active_days')) {
+              await m.createTable(templateActiveDays);
+            }
+
+            // 2. Migrate active_days data from plan_templates (if column still exists)
+            final ptCols = await getColumnNames('plan_templates');
+            if (ptCols.contains('active_days')) {
               final templates = await customSelect('SELECT id, active_days FROM plan_templates').get();
               for (final row in templates) {
                 final id = row.read<String>('id');
@@ -129,8 +190,9 @@ class AppDatabase extends _$AppDatabase {
                       .whereType<int>()
                       .where((d) => d >= 0 && d <= 6);
                   for (final dayIndex in indices) {
+                    // Use INSERT OR IGNORE to handle duplicates from retries
                     await customStatement(
-                      'INSERT INTO template_active_days (template_id, day_index) VALUES (?, ?)',
+                      'INSERT OR IGNORE INTO template_active_days (template_id, day_index) VALUES (?, ?)',
                       [id, dayIndex],
                     );
                   }
@@ -140,40 +202,72 @@ class AppDatabase extends _$AppDatabase {
               // 3. Drop active_days from PlanTemplates
               // ignore: experimental_member_use
               await m.alterTable(TableMigration(planTemplates));
+            }
 
-              // 4. Remove date_str and day_of_week from DayPlans
+            // 4. Remove date_str and day_of_week from DayPlans (if they still exist)
+            final dpCols = await getColumnNames('day_plans');
+            if (dpCols.contains('date_str') || dpCols.contains('day_of_week')) {
               // ignore: experimental_member_use
               await m.alterTable(TableMigration(dayPlans));
+            }
 
-              // 5. Recreate tasks and template_tasks with ON DELETE CASCADE
-              // ignore: experimental_member_use
-              await m.alterTable(TableMigration(tasks));
-              // ignore: experimental_member_use
-              await m.alterTable(TableMigration(templateTasks));
-              
-              // 6. Create indexes
+            // 5. Recreate tasks and template_tasks with ON DELETE CASCADE
+            // (alterTable is safe to re-run — it creates new, copies, drops old, renames)
+            // ignore: experimental_member_use
+            await m.alterTable(TableMigration(tasks));
+            // ignore: experimental_member_use
+            await m.alterTable(TableMigration(templateTasks));
+
+            // 6. Create indexes (only if they don't already exist)
+            if (!await indexExists('idx_tasks_day_plan_id')) {
               await m.createIndex(idxTasksDayPlanId);
+            }
+            if (!await indexExists('idx_template_tasks_template_id')) {
               await m.createIndex(idxTemplateTasksTemplateId);
+            }
+            if (!await indexExists('idx_day_plans_week_key')) {
               await m.createIndex(idxDayPlansWeekKey);
+            }
+            if (!await indexExists('idx_day_plans_date')) {
               await m.createIndex(idxDayPlansDate);
-              
-              // 7. Ensure TodoItems has all v5 columns
-              final columns = await customSelect('PRAGMA table_info(todo_items)').get();
-              final columnNames = columns.map((c) => c.read<String>('name')).toSet();
-              
-              if (!columnNames.contains('item_type')) {
-                await customStatement("ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
-              }
-              if (!columnNames.contains('duration_minutes')) {
-                await customStatement('ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0');
-              }
-              if (!columnNames.contains('checklist_json')) {
-                await customStatement("ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
-              }
-              if (!columnNames.contains('audio_file_path')) {
-                await customStatement("ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
-              }
-            });
+            }
+
+            // 7. Ensure TodoItems has all v5 columns
+            final todoColNames = await getColumnNames('todo_items');
+
+            if (!todoColNames.contains('item_type')) {
+              await customStatement("ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
+            }
+            if (!todoColNames.contains('duration_minutes')) {
+              await customStatement('ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0');
+            }
+            if (!todoColNames.contains('checklist_json')) {
+              await customStatement("ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
+            }
+            if (!todoColNames.contains('audio_file_path')) {
+              await customStatement("ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
+            }
+          }
+          if (from < 6) {
+            // Forcefully clean up any legacy columns that survived v5 due to partial migrations or skipped version bumps
+            Future<Set<String>> getColumnNames(String tableName) async {
+              final cols = await customSelect('PRAGMA table_info($tableName)').get();
+              return cols.map((c) => c.read<String>('name')).toSet();
+            }
+
+            // Clean day_plans
+            final dpCols = await getColumnNames('day_plans');
+            if (dpCols.contains('date_str') || dpCols.contains('day_of_week')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(dayPlans));
+            }
+
+            // Clean plan_templates
+            final ptCols = await getColumnNames('plan_templates');
+            if (ptCols.contains('active_days')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(planTemplates));
+            }
           }
         },
       );
@@ -183,6 +277,17 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'chronos_planner.sqlite'));
+
+    if (Platform.isAndroid) {
+      // Work around limitations on old Android versions
+      await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
+      
+      // SQLite needs a place to store temporary files for large transactions/migrations
+      // The default /tmp is not accessible on Android due to sandboxing.
+      final cachebase = (await getTemporaryDirectory()).path;
+      sqlite3.tempDirectory = cachebase;
+    }
+
     return NativeDatabase.createInBackground(file);
   });
 }
