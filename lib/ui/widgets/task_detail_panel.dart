@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
-import '../../data/models/task_model.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/data/models/task_model.dart';
 
 /// Premium task detail panel widget.
 ///
@@ -481,7 +481,7 @@ class TaskDetailPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.notes_rounded,
                 size: 18,
                 color: AppColors.neonPurple,
@@ -617,7 +617,7 @@ class TaskDetailPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.info_outline_rounded,
                 size: 18,
                 color: AppColors.neonBlue,

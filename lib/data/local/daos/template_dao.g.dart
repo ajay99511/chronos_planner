@@ -6,6 +6,8 @@ part of 'template_dao.dart';
 mixin _$TemplateDaoMixin on DatabaseAccessor<AppDatabase> {
   $PlanTemplatesTable get planTemplates => attachedDatabase.planTemplates;
   $TemplateTasksTable get templateTasks => attachedDatabase.templateTasks;
+  $TemplateActiveDaysTable get templateActiveDays =>
+      attachedDatabase.templateActiveDays;
   TemplateDaoManager get managers => TemplateDaoManager(this);
 }
 
@@ -16,4 +18,7 @@ class TemplateDaoManager {
       $$PlanTemplatesTableTableManager(_db.attachedDatabase, _db.planTemplates);
   $$TemplateTasksTableTableManager get templateTasks =>
       $$TemplateTasksTableTableManager(_db.attachedDatabase, _db.templateTasks);
+  $$TemplateActiveDaysTableTableManager get templateActiveDays =>
+      $$TemplateActiveDaysTableTableManager(
+          _db.attachedDatabase, _db.templateActiveDays);
 }

@@ -49,19 +49,19 @@ class AppColors {
   // Accent Gradients (start, end)
   static const List<Color> gradientBlue = [
     Color(0xFF4F46E5),
-    Color(0xFF6366F1)
+    Color(0xFF6366F1),
   ];
   static const List<Color> gradientPurple = [
     Color(0xFF7C3AED),
-    Color(0xFFA855F7)
+    Color(0xFFA855F7),
   ];
   static const List<Color> gradientCyan = [
     Color(0xFF0891B2),
-    Color(0xFF06B6D4)
+    Color(0xFF06B6D4),
   ];
   static const List<Color> gradientSunrise = [
     Color(0xFFF59E0B),
-    Color(0xFFF97316)
+    Color(0xFFF97316),
   ];
 }
 

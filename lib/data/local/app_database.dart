@@ -2,15 +2,16 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-import 'tables.dart';
-import 'daos/task_dao.dart';
-import 'daos/day_plan_dao.dart';
-import 'daos/template_dao.dart';
-import 'daos/preference_dao.dart';
-import 'daos/todo_item_dao.dart';
+import 'package:chronosky/data/local/tables.dart';
+import 'package:chronosky/data/local/daos/task_dao.dart';
+import 'package:chronosky/data/local/daos/day_plan_dao.dart';
+import 'package:chronosky/data/local/daos/template_dao.dart';
+import 'package:chronosky/data/local/daos/preference_dao.dart';
+import 'package:chronosky/data/local/daos/todo_item_dao.dart';
 
 part 'app_database.g.dart';
 
@@ -59,23 +60,22 @@ part 'app_database.g.dart';
     Tasks,
     DayPlans,
     PlanTemplates,
+    TemplateActiveDays,
     TemplateTasks,
     Preferences,
-    TodoItems
+    TodoItems,
   ],
   daos: [TaskDao, DayPlanDao, TemplateDao, PreferenceDao, TodoItemDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase._() : super(_openConnection());
 
+  @visibleForTesting
+  AppDatabase.forTesting(DatabaseConnection super.connection);
+
   static AppDatabase? _instance;
 
   /// Singleton accessor. Lazily initializes on first access.
-  /// 
-  /// Thread-safe via Dart's single-threaded execution model.
-  /// 
-  /// **Important**: Call this at least once before accessing any DAOs
-  /// to ensure the database is initialized.
   static AppDatabase get instance {
     _instance ??= AppDatabase._();
     return _instance!;
@@ -84,10 +84,6 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 5;
 
-  /// Migration strategy for schema upgrades.
-  /// 
-  /// Runs automatically when database version changes.
-  /// Each `if (from < N)` block handles upgrade from version N-1 to N.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
@@ -95,42 +91,89 @@ class AppDatabase extends _$AppDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            // Add sourceTemplateId to tasks table
             await customStatement(
-                "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''");
-            // Add activeDays to plan_templates table
+                "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''",);
             await customStatement(
-                "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''");
+                "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''",);
           }
           if (from < 3) {
-            // Add TodoItems table
             await m.createTable(todoItems);
           }
           if (from < 4) {
-            // Add energy_level, estimated_cost, actual_cost to tasks
             await customStatement(
-                "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'");
+                "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
             await customStatement(
-                "ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0");
+                'ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
             await customStatement(
-                "ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0");
+                'ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0',);
 
-            // Add energy_level, estimated_cost to template_tasks
             await customStatement(
-                "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'");
+                "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
             await customStatement(
-                "ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0");
+                'ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
           }
           if (from < 5) {
-            // Add itemType, durationMinutes, checklistJson, audioFilePath to todo_items
-            await customStatement(
-                "ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
-            await customStatement(
-                "ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0");
-            await customStatement(
-                "ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
-            await customStatement(
-                "ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
+            await transaction(() async {
+              // 1. Create junction table
+              await m.createTable(templateActiveDays);
+
+              // 2. Migrate data from PlanTemplates.active_days to TemplateActiveDays
+              final templates = await customSelect('SELECT id, active_days FROM plan_templates').get();
+              for (final row in templates) {
+                final id = row.read<String>('id');
+                final activeDaysStr = row.read<String>('active_days');
+                if (activeDaysStr.isNotEmpty) {
+                  final indices = activeDaysStr
+                      .split(',')
+                      .map((e) => int.tryParse(e.trim()))
+                      .whereType<int>()
+                      .where((d) => d >= 0 && d <= 6);
+                  for (final dayIndex in indices) {
+                    await customStatement(
+                      'INSERT INTO template_active_days (template_id, day_index) VALUES (?, ?)',
+                      [id, dayIndex],
+                    );
+                  }
+                }
+              }
+
+              // 3. Drop active_days from PlanTemplates
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(planTemplates));
+
+              // 4. Remove date_str and day_of_week from DayPlans
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(dayPlans));
+
+              // 5. Recreate tasks and template_tasks with ON DELETE CASCADE
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(tasks));
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(templateTasks));
+              
+              // 6. Create indexes
+              await m.createIndex(idxTasksDayPlanId);
+              await m.createIndex(idxTemplateTasksTemplateId);
+              await m.createIndex(idxDayPlansWeekKey);
+              await m.createIndex(idxDayPlansDate);
+              
+              // 7. Ensure TodoItems has all v5 columns
+              final columns = await customSelect('PRAGMA table_info(todo_items)').get();
+              final columnNames = columns.map((c) => c.read<String>('name')).toSet();
+              
+              if (!columnNames.contains('item_type')) {
+                await customStatement("ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
+              }
+              if (!columnNames.contains('duration_minutes')) {
+                await customStatement('ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0');
+              }
+              if (!columnNames.contains('checklist_json')) {
+                await customStatement("ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
+              }
+              if (!columnNames.contains('audio_file_path')) {
+                await customStatement("ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
+              }
+            });
           }
         },
       );

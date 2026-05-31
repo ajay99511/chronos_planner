@@ -1,64 +1,16 @@
+import 'package:flutter/foundation.dart';
+
 /// Categorization of tasks by life domain.
-/// 
-/// Used for:
-/// - Visual color coding in [TaskCard]
-/// - Time distribution analytics in [AnalyticsView]
-/// - Filtering and grouping (future feature)
 enum TaskType { work, personal, health, leisure }
 
 /// Task importance level.
-/// 
-/// Affects:
-/// - Priority indicator icon in [TaskCard]
-/// - ROI calculation in [IntelligenceService]
-/// - Sort ordering (optional)
 enum TaskPriority { low, medium, high }
 
 /// Mental/physical energy required for the task.
-/// 
-/// Used for:
-/// - Optimal time recommendations in [IntelligenceService.recommendTime]
-/// - Energy peaks analysis in [AnalyticsView]
-/// - Visual pill indicator in [TaskCard]
 enum TaskEnergyLevel { low, medium, high }
 
 /// Core domain model representing a scheduled task.
-/// 
-/// A task is a time-blocked activity with:
-/// - Time range (start/end in "HH:mm" format)
-/// - Category (type), importance (priority), energy required
-/// - Optional cost tracking (estimated/actual)
-/// - Completion status
-/// - Source template tracking (for recurring templates)
-/// 
-/// ## Lifecycle:
-/// 1. Created via [AddTaskSheet] or from template
-/// 2. Stored in [Tasks] table via [TaskDao]
-/// 3. Displayed in [TaskCard]
-/// 4. Toggled/deleted via [ScheduleProvider]
-/// 
-/// ## Relationships:
-/// - Belongs to a [DayPlan] via `dayPlanId`
-/// - Optionally linked to [PlanTemplate] via `sourceTemplateId`
-/// 
-/// ## Serialization:
-/// - JSON via [toJson]/[fromJson] for SharedPreferences migration
-/// - Drift via [TasksCompanion] for database operations
-/// 
-/// Usage:
-/// ```dart
-/// final task = Task(
-///   id: uuid.v4(),
-///   title: 'Deep Work',
-///   startTime: '09:00',
-///   endTime: '12:00',
-///   type: TaskType.work,
-///   priority: TaskPriority.high,
-/// );
-/// 
-/// // Immutable update
-/// final updated = task.copyWith(completed: true);
-/// ```
+@immutable
 class Task {
   final String id;
   final String title;
@@ -71,7 +23,7 @@ class Task {
   final double actualCost;
   final String description;
   final String sourceTemplateId;
-  bool completed;
+  final bool completed;
 
   Task({
     required this.id,
@@ -86,7 +38,14 @@ class Task {
     this.description = '',
     this.sourceTemplateId = '',
     this.completed = false,
-  });
+  }) {
+    assert(title.isNotEmpty && title.length <= 200, 'Title must be 1-200 characters');
+    final timeRegex = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+    assert(timeRegex.hasMatch(startTime), 'Invalid startTime format: $startTime');
+    assert(timeRegex.hasMatch(endTime), 'Invalid endTime format: $endTime');
+    assert(estimatedCost >= 0.0 && estimatedCost.isFinite, 'estimatedCost must be >= 0.0 and finite');
+    assert(actualCost >= 0.0 && actualCost.isFinite, 'actualCost must be >= 0.0 and finite');
+  }
 
   Task copyWith({
     String? id,
@@ -123,9 +82,9 @@ class Task {
         'title': title,
         'startTime': startTime,
         'endTime': endTime,
-        'type': type.toString(),
-        'priority': priority.toString(),
-        'energyLevel': energyLevel.toString(),
+        'type': type.name,
+        'priority': priority.name,
+        'energyLevel': energyLevel.name,
         'estimatedCost': estimatedCost,
         'actualCost': actualCost,
         'description': description,
@@ -135,27 +94,60 @@ class Task {
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
-      id: json['id'],
-      title: json['title'],
-      startTime: json['startTime'],
-      endTime: json['endTime'],
+      id: json['id'] as String,
+      title: json['title'] as String,
+      startTime: json['startTime'] as String,
+      endTime: json['endTime'] as String,
       type: TaskType.values.firstWhere(
-        (e) => e.toString() == json['type'],
+        (e) => e.name == json['type'],
         orElse: () => TaskType.work,
       ),
       priority: TaskPriority.values.firstWhere(
-        (e) => e.toString() == json['priority'],
+        (e) => e.name == json['priority'],
         orElse: () => TaskPriority.medium,
       ),
       energyLevel: TaskEnergyLevel.values.firstWhere(
-        (e) => e.toString() == (json['energyLevel'] ?? 'TaskEnergyLevel.medium'),
+        (e) => e.name == (json['energyLevel'] ?? 'medium'),
         orElse: () => TaskEnergyLevel.medium,
       ),
-      estimatedCost: (json['estimatedCost'] ?? 0.0).toDouble(),
-      actualCost: (json['actualCost'] ?? 0.0).toDouble(),
-      description: json['description'] ?? '',
-      sourceTemplateId: json['sourceTemplateId'] ?? '',
-      completed: json['completed'] ?? false,
+      estimatedCost: ((json['estimatedCost'] as num?) ?? 0.0).toDouble(),
+      actualCost: ((json['actualCost'] as num?) ?? 0.0).toDouble(),
+      description: (json['description'] ?? '') as String,
+      sourceTemplateId: (json['sourceTemplateId'] ?? '') as String,
+      completed: (json['completed'] ?? false) as bool,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Task &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          startTime == other.startTime &&
+          endTime == other.endTime &&
+          type == other.type &&
+          priority == other.priority &&
+          energyLevel == other.energyLevel &&
+          estimatedCost == other.estimatedCost &&
+          actualCost == other.actualCost &&
+          description == other.description &&
+          sourceTemplateId == other.sourceTemplateId &&
+          completed == other.completed;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      startTime.hashCode ^
+      endTime.hashCode ^
+      type.hashCode ^
+      priority.hashCode ^
+      energyLevel.hashCode ^
+      estimatedCost.hashCode ^
+      actualCost.hashCode ^
+      description.hashCode ^
+      sourceTemplateId.hashCode ^
+      completed.hashCode;
 }

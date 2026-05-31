@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
-import '../app_database.dart';
-import '../tables.dart';
+import 'package:chronosky/data/local/app_database.dart';
+import 'package:chronosky/data/local/tables.dart';
 
 part 'task_dao.g.dart';
 

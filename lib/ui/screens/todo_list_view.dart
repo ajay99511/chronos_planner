@@ -1,13 +1,14 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/app_theme.dart';
-import '../../providers/todo_provider.dart';
-import '../../data/local/app_database.dart';
-import 'todo_detail_screen.dart';
-import 'timer_view.dart';
-import '../widgets/new_item_sheet.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/providers/todo_provider.dart';
+import 'package:chronosky/data/models/todo_item_model.dart' as domain;
+import 'package:chronosky/ui/screens/todo_detail_screen.dart';
+import 'package:chronosky/ui/screens/timer_view.dart';
+import 'package:chronosky/ui/widgets/new_item_sheet.dart';
+import 'package:chronosky/ui/widgets/glass_container.dart';
+import 'package:chronosky/ui/widgets/neo_button.dart';
 
 class TodoListView extends StatefulWidget {
   const TodoListView({super.key});
@@ -23,49 +24,13 @@ class _TodoListViewState extends State<TodoListView> {
     NewItemSheet.show(context, initialTab: _selectedTab);
   }
 
-  void _openNote(TodoItem item) {
+  void _openDetail(domain.TodoItem item) {
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             TodoDetailScreen(todo: item),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOut));
-          return FadeTransition(opacity: fadeAnimation, child: child);
-        },
-      ),
-    );
-  }
-
-  void _openTimer(TodoItem item) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            TodoDetailScreen(todo: item),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOut));
-          return FadeTransition(opacity: fadeAnimation, child: child);
-        },
-      ),
-    );
-  }
-
-  void _startTimer(TodoItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TimerView(timer: item)),
-    );
-  }
-
-  void _openListDetail(TodoItem item) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            TodoDetailScreen(todo: item),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOut));
-          return FadeTransition(opacity: fadeAnimation, child: child);
+          return FadeTransition(opacity: animation, child: child);
         },
       ),
     );
@@ -86,36 +51,35 @@ class _TodoListViewState extends State<TodoListView> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Tasks', style: AppTextStyles.heading1),
+                    Text('Workspace', style: AppTextStyles.heading1),
                     const SizedBox(height: 4),
-                    Text('Your workspace canvas',
-                        style: AppTextStyles.bodySmall),
+                    Text('Notes, Timers, and Checklists',
+                        style: AppTextStyles.bodySmall,),
                   ],
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: AppGradients.primaryBlue,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    boxShadow:
-                        AppShadows.neonGlow(AppColors.neonBlue, intensity: 0.3),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    onPressed: _openNewItemSheet,
-                  ),
+                NeoButton(
+                  width: 48,
+                  height: 48,
+                  onPressed: _openNewItemSheet,
+                  child: const Icon(Icons.add_rounded, color: Colors.white),
                 ),
               ],
             ),
           ),
 
-          // Tab selector
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: _buildTabSelector(),
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Content
+          if (context.watch<TodoProvider>().errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Text(context.watch<TodoProvider>().errorMessage!,
+                  style: const TextStyle(color: Colors.redAccent),),
+            ),
+
           Expanded(
             child: Consumer<TodoProvider>(
               builder: (context, provider, _) {
@@ -139,18 +103,15 @@ class _TodoListViewState extends State<TodoListView> {
 
   Widget _buildTabSelector() {
     const tabs = [
-      (icon: Icons.description_outlined, label: 'Notes'),
-      (icon: Icons.timer_outlined, label: 'Timers'),
-      (icon: Icons.checklist_outlined, label: 'Lists'),
+      (icon: Icons.description_rounded, label: 'Notes'),
+      (icon: Icons.timer_rounded, label: 'Timers'),
+      (icon: Icons.checklist_rounded, label: 'Lists'),
     ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: Colors.white10),
-      ),
+    return GlassContainer(
       padding: const EdgeInsets.all(4),
+      borderRadius: AppRadius.pill,
+      animateScale: false,
       child: Row(
         children: List.generate(tabs.length, (i) {
           final isSelected = _selectedTab == i;
@@ -159,10 +120,11 @@ class _TodoListViewState extends State<TodoListView> {
               onTap: () => setState(() => _selectedTab = i),
               child: AnimatedContainer(
                 duration: AppAnimDurations.fast,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color:
-                      isSelected ? AppColors.surfaceLight : Colors.transparent,
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
                 child: Row(
@@ -170,18 +132,17 @@ class _TodoListViewState extends State<TodoListView> {
                   children: [
                     Icon(tabs[i].icon,
                         size: 16,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textSecondary),
-                    const SizedBox(width: 6),
+                        color:
+                            isSelected ? Colors.white : AppColors.textSecondary,),
+                    const SizedBox(width: 8),
                     Text(
                       tabs[i].label,
-                      style: AppTextStyles.body.copyWith(
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textSecondary,
+                      style: TextStyle(
+                        color:
+                            isSelected ? Colors.white : AppColors.textSecondary,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -194,75 +155,89 @@ class _TodoListViewState extends State<TodoListView> {
     );
   }
 
-  // ── Notes List ──
-  Widget _buildNotesList(List<TodoItem> notes) {
-    if (notes.isEmpty) {
-      return _buildEmptyState(
-          Icons.description_outlined, 'No notes found.\nCreate a new one!');
-    }
+  Widget _buildNotesList(List<domain.TodoItem> notes) {
     return GridView.builder(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 300,
         mainAxisSpacing: AppSpacing.md,
         crossAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.1,
+        childAspectRatio: 1.2, // Slightly wider than square for better text fit
       ),
-      itemCount: notes.length,
+      itemCount: notes.length + 1, // +1 for the Create card
       itemBuilder: (context, index) {
-        final note = notes[index];
-        return _NoteCard(
-          todo: note,
-          onTap: () => _openNote(note),
-          onToggle: () =>
-              context.read<TodoProvider>().toggleTodo(note),
-        );
+        if (index == 0) {
+          return _buildCreateNoteCard();
+        }
+        final note = notes[index - 1];
+        return _NoteCard(note: note, onTap: () => _openDetail(note));
       },
     );
   }
 
-  // ── Timers List ──
-  Widget _buildTimersList(List<TodoItem> timers) {
+  Widget _buildCreateNoteCard() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppGradients.primaryBlue,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonBlue.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          onTap: () => NewItemSheet.show(context, initialTab: 0),
+          child: const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_circle_outline_rounded,
+                    color: Colors.white, size: 32,),
+                SizedBox(height: 12),
+                Text(
+                  'Capture Idea',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimersList(List<domain.TodoItem> timers) {
     if (timers.isEmpty) {
-      return _buildEmptyState(
-          Icons.timer_outlined, 'No timers found.\nCreate a new one!');
+      return _buildEmptyState(Icons.timer_outlined, 'No timers yet');
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       itemCount: timers.length,
-      itemBuilder: (context, index) {
-        final timer = timers[index];
-        return _TimerCard(
-          timer: timer,
-          onTap: () => _openTimer(timer),
-          onStart: () => _startTimer(timer),
-          onDelete: () =>
-              context.read<TodoProvider>().deleteTodo(timer.id),
-        );
-      },
+      itemBuilder: (context, index) =>
+          _TimerCard(timer: timers[index], onTap: () => _openDetail(timers[index])),
     );
   }
 
-  // ── Checklists (Lists) ──
-  Widget _buildChecklistsList(List<TodoItem> lists) {
+  Widget _buildChecklistsList(List<domain.TodoItem> lists) {
     if (lists.isEmpty) {
-      return _buildEmptyState(
-          Icons.checklist_outlined, 'No lists found.\nCreate a new one!');
+      return _buildEmptyState(Icons.checklist_outlined, 'No lists yet');
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       itemCount: lists.length,
-      itemBuilder: (context, index) {
-        final list = lists[index];
-        return _ListCard(
-          listItem: list,
-          onTap: () => _openListDetail(list),
-          onDelete: () => context.read<TodoProvider>().deleteTodo(list.id),
-        );
-      },
+      itemBuilder: (context, index) =>
+          _ListCard(list: lists[index], onTap: () => _openDetail(lists[index])),
     );
   }
 
@@ -271,264 +246,89 @@ class _TodoListViewState extends State<TodoListView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 48, color: Colors.white24),
-          const SizedBox(height: AppSpacing.md),
-          Text(text,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodySmall.copyWith(fontSize: 16)),
+          Icon(icon, size: 48, color: Colors.white10),
+          const SizedBox(height: 16),
+          Text(text, style: const TextStyle(color: Colors.white30)),
         ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────
-// Note Card (matches existing design)
-// ─────────────────────────────────────────────────
 class _NoteCard extends StatelessWidget {
-  final TodoItem todo;
+  final domain.TodoItem note;
   final VoidCallback onTap;
-  final VoidCallback onToggle;
-
-  const _NoteCard({
-    required this.todo,
-    required this.onTap,
-    required this.onToggle,
-  });
+  const _NoteCard({required this.note, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return GlassContainer(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: Colors.white10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    todo.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.heading3.copyWith(
-                      decoration:
-                          todo.completed ? TextDecoration.lineThrough : null,
-                      color: todo.completed
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: onToggle,
-                  child: Container(
-                    margin: const EdgeInsets.only(left: AppSpacing.sm),
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: todo.completed
-                            ? AppColors.neonBlue
-                            : Colors.white38,
-                        width: 2,
-                      ),
-                      color: todo.completed
-                          ? AppColors.neonBlue
-                          : Colors.transparent,
-                    ),
-                    child: todo.completed
-                        ? const Icon(Icons.check, size: 14, color: Colors.white)
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-            if (todo.description.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  todo.description,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            note.title,
+            style: AppTextStyles.heading3.copyWith(fontSize: 16),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Text(
+              note.description,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.4,
               ),
-            ] else ...[
-              const Spacer(),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: AppColors.surface,
-                        title: Text('Delete Note', style: AppTextStyles.heading3),
-                        content: Text('Are you sure?', style: AppTextStyles.body),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
-                        ],
-                      ),
-                    );
-                    if (confirm == true && context.mounted) {
-                      context.read<TodoProvider>().deleteTodo(todo.id);
-                    }
-                  },
-                  child: const Icon(Icons.delete_outline, size: 14, color: Colors.white24),
-                ),
-                Text(
-                  'View details',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.neonBlue.withValues(alpha: 0.7),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Saved just now', // Simplified for now
+            style: AppTextStyles.label.copyWith(fontSize: 9, color: Colors.white12),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────
-// Timer Card
-// ─────────────────────────────────────────────────
 class _TimerCard extends StatelessWidget {
-  final TodoItem timer;
+  final domain.TodoItem timer;
   final VoidCallback onTap;
-  final VoidCallback onStart;
-  final VoidCallback onDelete;
-
-  const _TimerCard({
-    required this.timer,
-    required this.onTap,
-    required this.onStart,
-    required this.onDelete,
-  });
+  const _TimerCard({required this.timer, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: Colors.white10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassContainer(
+        onTap: onTap,
         child: Row(
           children: [
-            // Timer icon with glow
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: AppGradients.primaryBlue,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                boxShadow:
-                    AppShadows.neonGlow(AppColors.neonBlue, intensity: 0.15),
-              ),
-              child: const Icon(Icons.timer, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: AppSpacing.md),
+            const Icon(Icons.timer_rounded, color: AppColors.neonBlue),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(timer.title,
-                      style: AppTextStyles.heading3.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text('${timer.durationMinutes} min',
-                          style: AppTextStyles.bodySmall.copyWith(
-                              color: AppColors.neonCyan)),
-                      if (timer.audioFilePath.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        const Icon(Icons.music_note,
-                            size: 12, color: AppColors.textSecondary),
-                        const SizedBox(width: 2),
-                        Flexible(
-                          child: Text(
-                            timer.audioFilePath.split('/').last.split('\\').last,
-                            style: AppTextStyles.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                      style: const TextStyle(fontWeight: FontWeight.bold),),
+                  Text('${timer.durationMinutes} minutes',
+                      style: AppTextStyles.bodySmall,),
                 ],
               ),
             ),
-            // Actions
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: AppColors.surface,
-                    title: Text('Delete Timer', style: AppTextStyles.heading3),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
-                    ],
-                  ),
-                );
-                if (confirm == true && context.mounted) onDelete();
-              },
-            ),
-            const SizedBox(width: 4),
-            // Start button
-            GestureDetector(
-              onTap: onStart,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.neonBlue.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
-                      color: AppColors.neonBlue.withValues(alpha: 0.3)),
-                ),
-                child: Text('Start',
-                    style: AppTextStyles.chip.copyWith(color: AppColors.neonBlue)),
-              ),
+            NeoButton(
+              height: 32,
+              width: 80,
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => TimerView(timer: timer)),),
+              child: const Text('START', style: TextStyle(fontSize: 10)),
             ),
           ],
         ),
@@ -537,152 +337,34 @@ class _TimerCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────
-// List Card
-// ─────────────────────────────────────────────────
 class _ListCard extends StatelessWidget {
-  final TodoItem listItem;
+  final domain.TodoItem list;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  const _ListCard({
-    required this.listItem,
-    required this.onTap,
-    required this.onDelete,
-  });
+  const _ListCard({required this.list, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> checklist = [];
-    if (listItem.checklistJson.isNotEmpty) {
-      try {
-        checklist =
-            List<Map<String, dynamic>>.from(jsonDecode(listItem.checklistJson));
-      } catch (_) {}
-    }
-    final doneCount = checklist.where((c) => c['done'] == true).length;
-    final totalCount = checklist.length;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: Colors.white10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final done = list.checklist.where((i) => i.done).length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassContainer(
+        onTap: onTap,
+        child: Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: AppGradients.purple,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                  child: const Icon(Icons.checklist,
-                      color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(listItem.title,
-                          style:
-                              AppTextStyles.heading3.copyWith(fontSize: 16)),
-                      if (totalCount > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '$doneCount / $totalCount completed',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: doneCount == totalCount && totalCount > 0
-                                  ? AppColors.health
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: AppColors.surface,
-                        title: Text('Delete List', style: AppTextStyles.heading3),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
-                        ],
-                      ),
-                    );
-                    if (confirm == true && context.mounted) onDelete();
-                  },
-                ),
-              ],
+            const Icon(Icons.checklist_rounded, color: AppColors.neonPurple),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(list.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold),),
+                  Text('$done / ${list.checklist.length} items completed',
+                      style: AppTextStyles.bodySmall,),
+                ],
+              ),
             ),
-            if (checklist.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.md),
-              // Show first 3 items preview
-              ...checklist.take(3).map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          item['done'] == true
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 16,
-                          color: item['done'] == true
-                              ? AppColors.health
-                              : AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item['text'] ?? '',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              decoration: item['done'] == true
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              color: item['done'] == true
-                                  ? AppColors.textSecondary
-                                  : AppColors.textPrimary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
-              if (checklist.length > 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '+${checklist.length - 3} more items',
-                    style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.neonBlue),
-                  ),
-                ),
-            ],
+            const Icon(Icons.chevron_right_rounded, color: Colors.white24),
           ],
         ),
       ),

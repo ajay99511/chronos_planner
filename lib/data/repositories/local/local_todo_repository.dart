@@ -1,91 +1,128 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
-import 'package:uuid/uuid.dart';
 
-import '../todo_repository.dart';
-import '../../local/app_database.dart';
-import '../../local/daos/todo_item_dao.dart';
+import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/models/todo_item_model.dart' as domain;
+import 'package:chronosky/data/local/app_database.dart';
+import 'package:chronosky/data/local/daos/todo_item_dao.dart';
+import 'package:chronosky/data/repositories/todo_repository.dart';
 
+/// Drift-backed implementation of [TodoRepository].
 class LocalTodoRepository implements TodoRepository {
   final TodoItemDao _todoItemDao;
-  final _uuid = const Uuid();
 
   LocalTodoRepository(this._todoItemDao);
 
-  @override
-  Future<List<TodoItem>> loadTodos() {
-    return _todoItemDao.getAllTodos();
+  Future<Result<T>> _wrap<T>(Future<T> Function() action) async {
+    try {
+      final value = await action();
+      return Success(value);
+    } on DriftWrappedException catch (e) {
+      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+    } on Exception catch (e) {
+      return Failure(UnknownFailure('Unexpected error', e.toString()));
+    }
   }
 
   @override
-  Stream<List<TodoItem>> watchTodos() {
-    return _todoItemDao.watchAllTodos();
+  Future<Result<List<domain.TodoItem>>> loadTodos() {
+    return _wrap(() async {
+      final dbItems = await _todoItemDao.getAllTodos();
+      return dbItems.map(_dbTodoToModel).toList();
+    });
   }
 
   @override
-  Stream<List<TodoItem>> watchByType(String type) {
-    return _todoItemDao.watchByType(type);
+  Stream<List<domain.TodoItem>> watchTodos() {
+    return _todoItemDao.watchAllTodos().map((list) => list.map(_dbTodoToModel).toList());
   }
 
   @override
-  Future<TodoItem> addTodo(String title, {String description = ''}) async {
-    final newId = _uuid.v4();
-    final companion = TodoItemsCompanion.insert(
-      id: newId,
-      title: title,
-      description: Value(description),
-      createdAt: Value(DateTime.now()),
-      itemType: const Value('note'),
+  Stream<List<domain.TodoItem>> watchByType(domain.TodoItemType type) {
+    return _todoItemDao.watchByType(type.name).map((list) => list.map(_dbTodoToModel).toList());
+  }
+
+  @override
+  Future<Result<void>> addTodo(domain.TodoItem todo) {
+    return _wrap(() async {
+      // Validate title 1-200 chars as per Task 5.4
+      if (todo.title.isEmpty || todo.title.length > 200) {
+        throw Exception('Invalid title length');
+      }
+
+      await _todoItemDao.insertTodo(_modelTodoToCompanion(todo));
+    });
+  }
+
+  @override
+  Future<Result<void>> updateTodo(domain.TodoItem todo) {
+    return _wrap(() async {
+      await _todoItemDao.db.update(_todoItemDao.todoItems).replace(_modelTodoToDataClass(todo));
+    });
+  }
+
+  @override
+  Future<Result<void>> deleteTodo(String id) {
+    return _wrap(() async {
+      await _todoItemDao.deleteTodoById(id);
+    });
+  }
+
+  // ── Mappers ───────────────────────────────────
+
+  domain.TodoItem _dbTodoToModel(TodoItem dbTodo) {
+    List<dynamic> decodedChecklist = [];
+    if (dbTodo.checklistJson.isNotEmpty) {
+      try {
+        decodedChecklist = jsonDecode(dbTodo.checklistJson) as List<dynamic>;
+      } catch (e) {
+        // Fallback to empty if corrupted
+        decodedChecklist = [];
+      }
+    }
+    return domain.TodoItem(
+      id: dbTodo.id,
+      title: dbTodo.title,
+      description: dbTodo.description,
+      completed: dbTodo.completed,
+      createdAt: dbTodo.createdAt,
+      itemType: domain.TodoItemType.values.firstWhere(
+        (e) => e.name == dbTodo.itemType,
+        orElse: () => domain.TodoItemType.note,
+      ),
+      durationMinutes: dbTodo.durationMinutes,
+      checklist: decodedChecklist
+          .map((i) => domain.ChecklistItem.fromJson(i as Map<String, dynamic>))
+          .toList(),
+      audioFilePath: dbTodo.audioFilePath,
     );
-    await _todoItemDao.insertTodo(companion);
-    final items = await _todoItemDao.getAllTodos();
-    return items.firstWhere((item) => item.id == newId);
   }
 
-  @override
-  Future<TodoItem> addTimer(String title,
-      {String description = '',
-      int durationMinutes = 25,
-      String audioFilePath = ''}) async {
-    final newId = _uuid.v4();
-    final companion = TodoItemsCompanion.insert(
-      id: newId,
-      title: title,
-      description: Value(description),
-      createdAt: Value(DateTime.now()),
-      itemType: const Value('timer'),
-      durationMinutes: Value(durationMinutes),
-      audioFilePath: Value(audioFilePath),
+  TodoItemsCompanion _modelTodoToCompanion(domain.TodoItem todo) {
+    return TodoItemsCompanion.insert(
+      id: todo.id,
+      title: todo.title,
+      description: Value(todo.description),
+      completed: Value(todo.completed),
+      createdAt: Value(todo.createdAt),
+      itemType: Value(todo.itemType.name),
+      durationMinutes: Value(todo.durationMinutes),
+      checklistJson: Value(jsonEncode(todo.checklist.map((i) => i.toJson()).toList())),
+      audioFilePath: Value(todo.audioFilePath),
     );
-    await _todoItemDao.insertTodo(companion);
-    final items = await _todoItemDao.getAllTodos();
-    return items.firstWhere((item) => item.id == newId);
   }
 
-  @override
-  Future<TodoItem> addList(String title,
-      {String description = '', String checklistJson = '[]'}) async {
-    final newId = _uuid.v4();
-    final companion = TodoItemsCompanion.insert(
-      id: newId,
-      title: title,
-      description: Value(description),
-      createdAt: Value(DateTime.now()),
-      itemType: const Value('list'),
-      checklistJson: Value(checklistJson),
+  TodoItem _modelTodoToDataClass(domain.TodoItem todo) {
+    return TodoItem(
+      id: todo.id,
+      title: todo.title,
+      description: todo.description,
+      completed: todo.completed,
+      createdAt: todo.createdAt,
+      itemType: todo.itemType.name,
+      durationMinutes: todo.durationMinutes,
+      checklistJson: jsonEncode(todo.checklist.map((i) => i.toJson()).toList()),
+      audioFilePath: todo.audioFilePath,
     );
-    await _todoItemDao.insertTodo(companion);
-    final items = await _todoItemDao.getAllTodos();
-    return items.firstWhere((item) => item.id == newId);
-  }
-
-  @override
-  Future<bool> updateTodo(TodoItem todo) {
-    return _todoItemDao.updateTodo(todo);
-  }
-
-  @override
-  Future<void> deleteTodo(String id) async {
-    await _todoItemDao.deleteTodoById(id);
   }
 }
-

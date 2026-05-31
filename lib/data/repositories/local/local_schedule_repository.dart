@@ -1,13 +1,14 @@
+import 'dart:io';
 import 'package:drift/drift.dart';
-import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../models/day_plan_model.dart' as model;
-import '../../models/task_model.dart' as model;
-import '../../local/app_database.dart';
-import '../../local/daos/day_plan_dao.dart';
-import '../../local/daos/task_dao.dart';
-import '../schedule_repository.dart';
+import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/models/day_plan_model.dart' as domain;
+import 'package:chronosky/data/models/task_model.dart' as domain;
+import 'package:chronosky/data/local/app_database.dart';
+import 'package:chronosky/data/local/daos/day_plan_dao.dart';
+import 'package:chronosky/data/local/daos/task_dao.dart';
+import 'package:chronosky/data/repositories/schedule_repository.dart';
 
 /// Drift-backed implementation of [ScheduleRepository].
 class LocalScheduleRepository implements ScheduleRepository {
@@ -24,166 +25,180 @@ class LocalScheduleRepository implements ScheduleRepository {
     return '${monday.year}-W${weekNumber.toString().padLeft(2, '0')}';
   }
 
-  @override
-  Future<List<model.DayPlan>> getUpcomingDays(int count) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    // 1. Fetch existing day plans from DB
-    final dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
-
-    final List<model.DayPlan> fullList = [];
-    final List<DayPlansCompanion> newDays = [];
-
-    // 2. Iterate through the requested range, matching or creating days
-    for (int i = 0; i < count; i++) {
-      final date = today.add(Duration(days: i));
-
-      // Find existing plan for this date
-      final existing = dbPlans.cast<DayPlan?>().firstWhere(
-            (p) =>
-                p!.date.year == date.year &&
-                p.date.month == date.month &&
-                p.date.day == date.day,
-            orElse: () => null,
-          );
-
-      if (existing != null) {
-        // Load tasks for existing day
-        final dbTasks = await _taskDao.getTasksForDay(existing.id);
-        fullList.add(model.DayPlan(
-          id: existing.id,
-          dateStr: existing.dateStr,
-          dayOfWeek: existing.dayOfWeek,
-          date: existing.date,
-          tasks: dbTasks.map(_dbTaskToModel).toList()
-            ..sort((a, b) => a.startTime.compareTo(b.startTime)),
-        ));
-      } else {
-        // Create new day plan
-        final id = const Uuid().v4();
-        final weekKey = _calculateWeekKey(date);
-
-        // Prepare for DB insertion
-        newDays.add(DayPlansCompanion(
-          id: Value(id),
-          dateStr: Value(DateFormat('MMM d').format(date)),
-          dayOfWeek: Value(DateFormat('EEEE').format(date)),
-          date: Value(date),
-          weekKey: Value(weekKey),
-        ));
-
-        // Add empty model to return list
-        fullList.add(model.DayPlan(
-          id: id,
-          dateStr: DateFormat('MMM d').format(date),
-          dayOfWeek: DateFormat('EEEE').format(date),
-          date: date,
-          tasks: [],
-        ));
+  Future<T> _retry<T>(Future<T> Function() action) async {
+    int attempts = 0;
+    int delay = 200;
+    while (true) {
+      try {
+        return await action();
+      } on FileSystemException {
+        attempts++;
+        if (attempts >= 3) rethrow;
+        await Future.delayed(Duration(milliseconds: delay));
+        delay *= 2;
       }
     }
+  }
 
-    // 3. Batch insert new days if any
-    if (newDays.isNotEmpty) {
-      await _dayPlanDao.insertDayPlans(newDays);
+  Future<Result<T>> _wrap<T>(Future<T> Function() action) async {
+    try {
+      final value = await _retry(action);
+      return Success(value);
+    } on DriftWrappedException catch (e) {
+      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+    } on Exception catch (e) {
+      return Failure(UnknownFailure('Unexpected error', e.toString()));
     }
-
-    return fullList;
   }
 
   @override
-  Future<void> addTaskToDate(DateTime date, model.Task task) async {
-    // Normalize date to midnight
-    final targetDate = DateTime(date.year, date.month, date.day);
+  Future<Result<List<domain.DayPlan>>> getUpcomingDays(int count) async {
+    return _wrap(() async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
 
-    // Check if day plan exists using the DAO helper
-    String? dayPlanId = await _dayPlanDao.getDayPlanId(targetDate);
+      final dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
+      final List<domain.DayPlan> fullList = [];
+      final List<DayPlansCompanion> newDays = [];
 
-    if (dayPlanId == null) {
-      // Create it if missing
-      dayPlanId = const Uuid().v4();
-      final weekKey = _calculateWeekKey(targetDate);
+      for (int i = 0; i < count; i++) {
+        final date = today.add(Duration(days: i));
+        final existing = dbPlans.cast<DayPlan?>().firstWhere(
+              (p) =>
+                  p!.date.year == date.year &&
+                  p.date.month == date.month &&
+                  p.date.day == date.day,
+              orElse: () => null,
+            );
 
-      await _dayPlanDao.insertDayPlan(DayPlansCompanion(
-        id: Value(dayPlanId),
-        dateStr: Value(DateFormat('MMM d').format(targetDate)),
-        dayOfWeek: Value(DateFormat('EEEE').format(targetDate)),
-        date: Value(targetDate),
-        weekKey: Value(weekKey),
-      ));
-    }
+        if (existing != null) {
+          final dbTasks = await _taskDao.getTasksForDay(existing.id);
+          fullList.add(domain.DayPlan(
+            id: existing.id,
+            date: existing.date,
+            tasks: dbTasks.map(_dbTaskToModel).toList()
+              ..sort((a, b) => a.startTime.compareTo(b.startTime)),
+          ),);
+        } else {
+          final id = const Uuid().v4();
+          final weekKey = _calculateWeekKey(date);
 
-    // Add task
-    await addTask(dayPlanId, task);
+          newDays.add(DayPlansCompanion(
+            id: Value(id),
+            date: Value(date),
+            weekKey: Value(weekKey),
+          ),);
+
+          fullList.add(domain.DayPlan(
+            id: id,
+            date: date,
+            tasks: [],
+          ),);
+        }
+      }
+
+      if (newDays.isNotEmpty) {
+        await _dayPlanDao.insertDayPlans(newDays);
+      }
+
+      return fullList;
+    });
   }
 
   @override
-  Future<void> saveDayPlan(model.DayPlan dayPlan) async {
-    // Delete existing tasks for this day, then re-insert
-    await _taskDao.deleteTasksForDay(dayPlan.id);
-    if (dayPlan.tasks.isNotEmpty) {
-      await _taskDao.insertTasks(
-        dayPlan.tasks.map((t) => _modelTaskToCompanion(t, dayPlan.id)).toList(),
+  Future<Result<void>> addTaskToDate(DateTime date, domain.Task task) async {
+    return _wrap(() async {
+      final targetDate = DateTime(date.year, date.month, date.day);
+      String? dayPlanId = await _dayPlanDao.getDayPlanId(targetDate);
+
+      if (dayPlanId == null) {
+        dayPlanId = const Uuid().v4();
+        final weekKey = _calculateWeekKey(targetDate);
+
+        await _dayPlanDao.insertDayPlan(DayPlansCompanion(
+          id: Value(dayPlanId),
+          date: Value(targetDate),
+          weekKey: Value(weekKey),
+        ),);
+      }
+
+      await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
+    });
+  }
+
+  @override
+  Future<Result<void>> saveDayPlan(domain.DayPlan dayPlan) async {
+    return _wrap(() async {
+      await _taskDao.deleteTasksForDay(dayPlan.id);
+      if (dayPlan.tasks.isNotEmpty) {
+        await _taskDao.insertTasks(
+          dayPlan.tasks.map((t) => _modelTaskToCompanion(t, dayPlan.id)).toList(),
+        );
+      }
+    });
+  }
+
+  @override
+  Future<Result<void>> addTask(String dayPlanId, domain.Task task) {
+    return _wrap(() async {
+      await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
+    });
+  }
+
+  @override
+  Future<Result<void>> updateTask(
+      String dayPlanId, String taskId, domain.Task updatedTask,) {
+    return _wrap(() async {
+      await _taskDao.updateTask(
+        taskId,
+        _modelTaskToCompanion(updatedTask, dayPlanId),
       );
-    }
+    });
   }
 
   @override
-  Future<void> addTask(String dayPlanId, model.Task task) {
-    return _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
+  Future<Result<void>> deleteTask(String dayPlanId, String taskId) {
+    return _wrap(() async {
+      await _taskDao.deleteTaskById(taskId);
+    });
   }
 
   @override
-  Future<void> updateTask(
-      String dayPlanId, String taskId, model.Task updatedTask) {
-    return _taskDao.updateTask(
-      taskId,
-      TasksCompanion(
-        title: Value(updatedTask.title),
-        description: Value(updatedTask.description),
-        startTime: Value(updatedTask.startTime),
-        endTime: Value(updatedTask.endTime),
-        type: Value(updatedTask.type.name),
-        priority: Value(updatedTask.priority.name),
-        completed: Value(updatedTask.completed),
-      ),
-    );
-  }
-
-  @override
-  Future<void> deleteTask(String dayPlanId, String taskId) {
-    return _taskDao.deleteTaskById(taskId);
-  }
-
-  @override
-  Future<void> clearDay(String dayPlanId) {
-    return _taskDao.deleteTasksForDay(dayPlanId);
+  Future<Result<void>> clearDay(String dayPlanId) {
+    return _wrap(() async {
+      await _taskDao.deleteTasksForDay(dayPlanId);
+    });
   }
 
   // ── Mappers ───────────────────────────────────
 
-  model.Task _dbTaskToModel(Task dbTask) {
-    return model.Task(
+  domain.Task _dbTaskToModel(Task dbTask) {
+    return domain.Task(
       id: dbTask.id,
       title: dbTask.title,
       description: dbTask.description,
       startTime: dbTask.startTime,
       endTime: dbTask.endTime,
-      type: model.TaskType.values.firstWhere(
+      type: domain.TaskType.values.firstWhere(
         (e) => e.name == dbTask.type,
-        orElse: () => model.TaskType.work,
+        orElse: () => domain.TaskType.work,
       ),
-      priority: model.TaskPriority.values.firstWhere(
+      priority: domain.TaskPriority.values.firstWhere(
         (e) => e.name == dbTask.priority,
-        orElse: () => model.TaskPriority.medium,
+        orElse: () => domain.TaskPriority.medium,
       ),
+      energyLevel: domain.TaskEnergyLevel.values.firstWhere(
+        (e) => e.name == dbTask.energyLevel,
+        orElse: () => domain.TaskEnergyLevel.medium,
+      ),
+      estimatedCost: dbTask.estimatedCost,
+      actualCost: dbTask.actualCost,
       completed: dbTask.completed,
       sourceTemplateId: dbTask.sourceTemplateId,
     );
   }
 
-  TasksCompanion _modelTaskToCompanion(model.Task task, String dayPlanId) {
+  TasksCompanion _modelTaskToCompanion(domain.Task task, String dayPlanId) {
     return TasksCompanion(
       id: Value(task.id),
       title: Value(task.title),
@@ -192,6 +207,9 @@ class LocalScheduleRepository implements ScheduleRepository {
       endTime: Value(task.endTime),
       type: Value(task.type.name),
       priority: Value(task.priority.name),
+      energyLevel: Value(task.energyLevel.name),
+      estimatedCost: Value(task.estimatedCost),
+      actualCost: Value(task.actualCost),
       completed: Value(task.completed),
       dayPlanId: Value(dayPlanId),
       sourceTemplateId: Value(task.sourceTemplateId),

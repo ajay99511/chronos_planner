@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../../core/theme/app_theme.dart';
-import 'analytics_view.dart';
-import 'schedule_view.dart';
-import 'work_plans_view.dart';
-import 'todo_list_view.dart';
-import '../widgets/focus_hud.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/screens/analytics_view.dart';
+import 'package:chronosky/ui/screens/schedule_view.dart';
+import 'package:chronosky/ui/screens/work_plans_view.dart';
+import 'package:chronosky/ui/screens/todo_list_view.dart';
+import 'package:chronosky/ui/widgets/focus_hud.dart';
 
 class ChronosHome extends StatefulWidget {
   const ChronosHome({super.key});
@@ -79,7 +79,7 @@ class _ChronosHomeState extends State<ChronosHome> {
                         begin: const Offset(0.02, 0),
                         end: Offset.zero,
                       ).animate(CurvedAnimation(
-                          parent: animation, curve: Curves.easeOutCubic)),
+                          parent: animation, curve: Curves.easeOutCubic,),),
                       child: child,
                     ),
                   );
@@ -117,14 +117,14 @@ class _ChronosHomeState extends State<ChronosHome> {
                     unselectedFontSize: 12,
                     items: const [
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.calendar_today), label: "Schedule"),
+                          icon: Icon(Icons.calendar_today), label: 'Schedule',),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.layers_outlined), label: "Plans"),
+                          icon: Icon(Icons.layers_outlined), label: 'Plans',),
                       BottomNavigationBarItem(
                           icon: Icon(Icons.pie_chart_outline),
-                          label: "Insights"),
+                          label: 'Insights',),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.check_box_outlined), label: "Tasks"),
+                          icon: Icon(Icons.check_box_outlined), label: 'Tasks',),
                     ],
                   ),
                 ),
@@ -169,11 +169,11 @@ class _DesktopSidebar extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: const Icon(Icons.access_time_filled,
-                      color: Colors.white, size: 20),
+                      color: Colors.white, size: 20,),
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  "CHRONOS",
+                  'CHRONOS',
                   style: AppTextStyles.heading3
                       .copyWith(letterSpacing: 1.2, fontSize: 18),
                 ),
@@ -193,40 +193,40 @@ class _DesktopSidebar extends StatelessWidget {
               ),
               onPressed: onToggleFocus,
               icon: const Icon(Icons.bolt, size: 18),
-              label: const Text("Enter Focus HUD"),
+              label: const Text('Enter Focus HUD'),
             ),
           ),
           const SizedBox(height: 20),
           _SidebarItem(
               index: 0,
               icon: Icons.calendar_today,
-              label: "Schedule",
+              label: 'Schedule',
               isSelected: currentIndex == 0,
-              onTap: () => onSelect(0)),
+              onTap: () => onSelect(0),),
           _SidebarItem(
               index: 1,
               icon: Icons.layers_outlined,
-              label: "WorkPlans",
+              label: 'WorkPlans',
               isSelected: currentIndex == 1,
-              onTap: () => onSelect(1)),
+              onTap: () => onSelect(1),),
           _SidebarItem(
               index: 2,
               icon: Icons.pie_chart_outline,
-              label: "Analytics",
+              label: 'Analytics',
               isSelected: currentIndex == 2,
-              onTap: () => onSelect(2)),
+              onTap: () => onSelect(2),),
           _SidebarItem(
               index: 3,
               icon: Icons.check_box_outlined,
-              label: "Tasks",
+              label: 'Tasks',
               isSelected: currentIndex == 3,
-              onTap: () => onSelect(3)),
+              onTap: () => onSelect(3),),
           const Spacer(),
           // Footer
           Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Text(
-              "Chronos v1.0",
+              'Chronos v1.0',
               style: AppTextStyles.bodySmall.copyWith(color: Colors.white24),
             ),
           ),
@@ -295,7 +295,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                   color: isActive
                       ? AppColors.neonBlue
                       : (_isHovered ? Colors.white70 : Colors.grey),
-                  size: 20),
+                  size: 20,),
               const SizedBox(width: 12),
               Text(
                 widget.label,

@@ -1,45 +1,68 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
-import '../data/local/app_database.dart';
-import '../data/repositories/todo_repository.dart';
+import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/models/todo_item_model.dart' as domain;
+import 'package:chronosky/data/repositories/todo_repository.dart';
 
 /// State management for standalone todo items (Notes, Timers, Lists).
-///
-/// Maintains separate filtered streams for each item type and exposes
-/// type-specific creation methods. Uses reactive stream-based approach.
 class TodoProvider extends ChangeNotifier {
   final TodoRepository _repository;
 
-  List<TodoItem> _notes = [];
-  List<TodoItem> _timers = [];
-  List<TodoItem> _lists = [];
+  List<domain.TodoItem> _notes = [];
+  List<domain.TodoItem> _timers = [];
+  List<domain.TodoItem> _lists = [];
+  String? _errorMessage;
 
-  List<TodoItem> get notes => _notes;
-  List<TodoItem> get timers => _timers;
-  List<TodoItem> get lists => _lists;
+  List<domain.TodoItem> get notes => _notes;
+  List<domain.TodoItem> get timers => _timers;
+  List<domain.TodoItem> get lists => _lists;
+  String? get errorMessage => _errorMessage;
 
-  StreamSubscription<List<TodoItem>>? _notesSub;
-  StreamSubscription<List<TodoItem>>? _timersSub;
-  StreamSubscription<List<TodoItem>>? _listsSub;
+  StreamSubscription<List<domain.TodoItem>>? _notesSub;
+  StreamSubscription<List<domain.TodoItem>>? _timersSub;
+  StreamSubscription<List<domain.TodoItem>>? _listsSub;
 
   TodoProvider(this._repository) {
-    _init();
+    _subscribe();
   }
 
-  void _init() {
-    _notesSub = _repository.watchByType('note').listen((items) {
-      _notes = items;
-      notifyListeners();
-    });
-    _timersSub = _repository.watchByType('timer').listen((items) {
-      _timers = items;
-      notifyListeners();
-    });
-    _listsSub = _repository.watchByType('list').listen((items) {
-      _lists = items;
-      notifyListeners();
-    });
+  void _subscribe() {
+    _notesSub?.cancel();
+    _timersSub?.cancel();
+    _listsSub?.cancel();
+
+    _notesSub = _repository.watchByType(domain.TodoItemType.note).listen(
+      (items) {
+        _notes = items;
+        notifyListeners();
+      },
+      onError: (e) => _handleStreamError('Notes', e),
+    );
+
+    _timersSub = _repository.watchByType(domain.TodoItemType.timer).listen(
+      (items) {
+        _timers = items;
+        notifyListeners();
+      },
+      onError: (e) => _handleStreamError('Timers', e),
+    );
+
+    _listsSub = _repository.watchByType(domain.TodoItemType.list).listen(
+      (items) {
+        _lists = items;
+        notifyListeners();
+      },
+      onError: (e) => _handleStreamError('Lists', e),
+    );
+  }
+
+  void _handleStreamError(String type, dynamic error) {
+    _errorMessage = 'Error loading $type: $error';
+    notifyListeners();
+    // Recovery: retry subscription after delay
+    Future.delayed(const Duration(seconds: 5), _subscribe);
   }
 
   @override
@@ -50,47 +73,60 @@ class TodoProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // ── Notes ──
-  Future<void> addNote(String title, {String description = ''}) async {
-    await _repository.addTodo(title, description: description);
+  // ── Helper ──
+  Future<void> _handleResult(Future<Result<void>> action) async {
+    final result = await action;
+    result.fold(
+      onSuccess: (_) => _errorMessage = null,
+      onFailure: (f) {
+        _errorMessage = f.message;
+        notifyListeners();
+      },
+    );
   }
 
-  // ── Timers ──
-  Future<void> addTimer(String title,
-      {String description = '',
-      int durationMinutes = 25,
-      String audioFilePath = ''}) async {
-    await _repository.addTimer(title,
-        description: description,
-        durationMinutes: durationMinutes,
-        audioFilePath: audioFilePath);
+  // ── CRUD ──
+
+  Future<void> addTodo(domain.TodoItem todo) => _handleResult(_repository.addTodo(todo));
+
+  Future<void> addNote(String title, {String description = ''}) {
+    return addTodo(domain.TodoItem(
+      id: const Uuid().v4(),
+      title: title,
+      description: description,
+      createdAt: DateTime.now(),
+      itemType: domain.TodoItemType.note,
+    ),);
   }
 
-  // ── Lists ──
-  Future<void> addList(String title,
-      {String description = '', String checklistJson = '[]'}) async {
-    await _repository.addList(title,
-        description: description, checklistJson: checklistJson);
+  Future<void> addTimer(String title, {String description = '', int durationMinutes = 25, String audioFilePath = ''}) {
+    return addTodo(domain.TodoItem(
+      id: const Uuid().v4(),
+      title: title,
+      description: description,
+      createdAt: DateTime.now(),
+      itemType: domain.TodoItemType.timer,
+      durationMinutes: durationMinutes,
+      audioFilePath: audioFilePath,
+    ),);
   }
 
-  // ── Shared ──
-  Future<void> toggleTodo(TodoItem todo) async {
-    final updated = todo.copyWith(completed: !todo.completed);
-    await _repository.updateTodo(updated);
+  Future<void> addList(String title, {String description = '', List<domain.ChecklistItem> checklist = const []}) {
+    return addTodo(domain.TodoItem(
+      id: const Uuid().v4(),
+      title: title,
+      description: description,
+      createdAt: DateTime.now(),
+      itemType: domain.TodoItemType.list,
+      checklist: checklist,
+    ),);
   }
 
-  Future<void> updateTodoData(
-      TodoItem todo, String title, String description) async {
-    final updated = todo.copyWith(title: title, description: description);
-    await _repository.updateTodo(updated);
+  Future<void> toggleTodo(domain.TodoItem todo) {
+    return _handleResult(_repository.updateTodo(todo.copyWith(completed: !todo.completed)));
   }
 
-  Future<void> updateTodo(TodoItem todo) async {
-    await _repository.updateTodo(todo);
-  }
+  Future<void> updateTodo(domain.TodoItem todo) => _handleResult(_repository.updateTodo(todo));
 
-  Future<void> deleteTodo(String id) async {
-    await _repository.deleteTodo(id);
-  }
+  Future<void> deleteTodo(String id) => _handleResult(_repository.deleteTodo(id));
 }
-

@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../../core/theme/app_theme.dart';
-import '../../providers/todo_provider.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/providers/todo_provider.dart';
+import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 
 /// Bottom sheet dialog for creating Notes, Timers, or Lists.
 ///
@@ -116,13 +116,10 @@ class _NewItemSheetState extends State<NewItemSheet> {
         );
         break;
       case 2: // List
-        final checklistJson = jsonEncode(
-          _checklistItems
-              .map((text) => {'text': text, 'done': false})
-              .toList(),
-        );
-        provider.addList(title,
-            description: desc, checklistJson: checklistJson);
+        final checklist = _checklistItems
+            .map((text) => domain.ChecklistItem(text: text))
+            .toList();
+        provider.addList(title, description: desc, checklist: checklist);
         break;
     }
     Navigator.pop(context);
@@ -162,7 +159,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: const Icon(Icons.close,
-                          color: Colors.white54, size: 24),
+                          color: Colors.white54, size: 24,),
                     ),
                   ],
                 ),
@@ -290,7 +287,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
             child: AnimatedContainer(
               duration: AppAnimDurations.fast,
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm,),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.surfaceLight : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -302,7 +299,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
                       size: 16,
                       color: isSelected
                           ? Colors.white
-                          : AppColors.textSecondary),
+                          : AppColors.textSecondary,),
                   const SizedBox(width: 6),
                   Text(
                     tabs[i].label,
@@ -327,7 +324,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
     return [
       const Divider(color: Colors.white10, height: 32),
       Text('Duration (minutes)',
-          style: AppTextStyles.subtitle),
+          style: AppTextStyles.subtitle,),
       const SizedBox(height: AppSpacing.sm),
       Container(
         decoration: BoxDecoration(
@@ -345,7 +342,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
       ),
       const SizedBox(height: AppSpacing.lg),
       Text('Background Audio (Optional)',
-          style: AppTextStyles.subtitle),
+          style: AppTextStyles.subtitle,),
       const SizedBox(height: AppSpacing.sm),
       Row(
         children: [
@@ -353,7 +350,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
             onTap: _pickAudioFile,
             child: Container(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm,),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadius.md),
@@ -363,11 +360,11 @@ class _NewItemSheetState extends State<NewItemSheet> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.music_note,
-                      size: 18, color: AppColors.textSecondary),
+                      size: 18, color: AppColors.textSecondary,),
                   const SizedBox(width: 8),
                   Text('Select Local Audio',
                       style: AppTextStyles.body
-                          .copyWith(fontWeight: FontWeight.w600)),
+                          .copyWith(fontWeight: FontWeight.w600),),
                 ],
               ),
             ),
@@ -396,7 +393,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
           child: Row(
             children: [
               const Icon(Icons.check_box_outline_blank,
-                  size: 18, color: AppColors.textSecondary),
+                  size: 18, color: AppColors.textSecondary,),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(entry.value, style: AppTextStyles.body),
@@ -404,7 +401,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
               GestureDetector(
                 onTap: () => _removeChecklistItem(entry.key),
                 child: const Icon(Icons.close,
-                    size: 16, color: Colors.white38),
+                    size: 16, color: Colors.white38,),
               ),
             ],
           ),

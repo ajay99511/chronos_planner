@@ -13,18 +13,6 @@ class $DayPlansTable extends DayPlans with TableInfo<$DayPlansTable, DayPlan> {
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _dateStrMeta =
-      const VerificationMeta('dateStr');
-  @override
-  late final GeneratedColumn<String> dateStr = GeneratedColumn<String>(
-      'date_str', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _dayOfWeekMeta =
-      const VerificationMeta('dayOfWeek');
-  @override
-  late final GeneratedColumn<String> dayOfWeek = GeneratedColumn<String>(
-      'day_of_week', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
   static const VerificationMeta _dateMeta = const VerificationMeta('date');
   @override
   late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
@@ -37,7 +25,7 @@ class $DayPlansTable extends DayPlans with TableInfo<$DayPlansTable, DayPlan> {
       'week_key', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns => [id, dateStr, dayOfWeek, date, weekKey];
+  List<GeneratedColumn> get $columns => [id, date, weekKey];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -52,20 +40,6 @@ class $DayPlansTable extends DayPlans with TableInfo<$DayPlansTable, DayPlan> {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
-    }
-    if (data.containsKey('date_str')) {
-      context.handle(_dateStrMeta,
-          dateStr.isAcceptableOrUnknown(data['date_str']!, _dateStrMeta));
-    } else if (isInserting) {
-      context.missing(_dateStrMeta);
-    }
-    if (data.containsKey('day_of_week')) {
-      context.handle(
-          _dayOfWeekMeta,
-          dayOfWeek.isAcceptableOrUnknown(
-              data['day_of_week']!, _dayOfWeekMeta));
-    } else if (isInserting) {
-      context.missing(_dayOfWeekMeta);
     }
     if (data.containsKey('date')) {
       context.handle(
@@ -90,10 +64,6 @@ class $DayPlansTable extends DayPlans with TableInfo<$DayPlansTable, DayPlan> {
     return DayPlan(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      dateStr: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}date_str'])!,
-      dayOfWeek: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}day_of_week'])!,
       date: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}date'])!,
       weekKey: attachedDatabase.typeMapping
@@ -109,22 +79,13 @@ class $DayPlansTable extends DayPlans with TableInfo<$DayPlansTable, DayPlan> {
 
 class DayPlan extends DataClass implements Insertable<DayPlan> {
   final String id;
-  final String dateStr;
-  final String dayOfWeek;
   final DateTime date;
   final String weekKey;
-  const DayPlan(
-      {required this.id,
-      required this.dateStr,
-      required this.dayOfWeek,
-      required this.date,
-      required this.weekKey});
+  const DayPlan({required this.id, required this.date, required this.weekKey});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['date_str'] = Variable<String>(dateStr);
-    map['day_of_week'] = Variable<String>(dayOfWeek);
     map['date'] = Variable<DateTime>(date);
     map['week_key'] = Variable<String>(weekKey);
     return map;
@@ -133,8 +94,6 @@ class DayPlan extends DataClass implements Insertable<DayPlan> {
   DayPlansCompanion toCompanion(bool nullToAbsent) {
     return DayPlansCompanion(
       id: Value(id),
-      dateStr: Value(dateStr),
-      dayOfWeek: Value(dayOfWeek),
       date: Value(date),
       weekKey: Value(weekKey),
     );
@@ -145,8 +104,6 @@ class DayPlan extends DataClass implements Insertable<DayPlan> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return DayPlan(
       id: serializer.fromJson<String>(json['id']),
-      dateStr: serializer.fromJson<String>(json['dateStr']),
-      dayOfWeek: serializer.fromJson<String>(json['dayOfWeek']),
       date: serializer.fromJson<DateTime>(json['date']),
       weekKey: serializer.fromJson<String>(json['weekKey']),
     );
@@ -156,31 +113,19 @@ class DayPlan extends DataClass implements Insertable<DayPlan> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'dateStr': serializer.toJson<String>(dateStr),
-      'dayOfWeek': serializer.toJson<String>(dayOfWeek),
       'date': serializer.toJson<DateTime>(date),
       'weekKey': serializer.toJson<String>(weekKey),
     };
   }
 
-  DayPlan copyWith(
-          {String? id,
-          String? dateStr,
-          String? dayOfWeek,
-          DateTime? date,
-          String? weekKey}) =>
-      DayPlan(
+  DayPlan copyWith({String? id, DateTime? date, String? weekKey}) => DayPlan(
         id: id ?? this.id,
-        dateStr: dateStr ?? this.dateStr,
-        dayOfWeek: dayOfWeek ?? this.dayOfWeek,
         date: date ?? this.date,
         weekKey: weekKey ?? this.weekKey,
       );
   DayPlan copyWithCompanion(DayPlansCompanion data) {
     return DayPlan(
       id: data.id.present ? data.id.value : this.id,
-      dateStr: data.dateStr.present ? data.dateStr.value : this.dateStr,
-      dayOfWeek: data.dayOfWeek.present ? data.dayOfWeek.value : this.dayOfWeek,
       date: data.date.present ? data.date.value : this.date,
       weekKey: data.weekKey.present ? data.weekKey.value : this.weekKey,
     );
@@ -190,8 +135,6 @@ class DayPlan extends DataClass implements Insertable<DayPlan> {
   String toString() {
     return (StringBuffer('DayPlan(')
           ..write('id: $id, ')
-          ..write('dateStr: $dateStr, ')
-          ..write('dayOfWeek: $dayOfWeek, ')
           ..write('date: $date, ')
           ..write('weekKey: $weekKey')
           ..write(')'))
@@ -199,57 +142,43 @@ class DayPlan extends DataClass implements Insertable<DayPlan> {
   }
 
   @override
-  int get hashCode => Object.hash(id, dateStr, dayOfWeek, date, weekKey);
+  int get hashCode => Object.hash(id, date, weekKey);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is DayPlan &&
           other.id == this.id &&
-          other.dateStr == this.dateStr &&
-          other.dayOfWeek == this.dayOfWeek &&
           other.date == this.date &&
           other.weekKey == this.weekKey);
 }
 
 class DayPlansCompanion extends UpdateCompanion<DayPlan> {
   final Value<String> id;
-  final Value<String> dateStr;
-  final Value<String> dayOfWeek;
   final Value<DateTime> date;
   final Value<String> weekKey;
   final Value<int> rowid;
   const DayPlansCompanion({
     this.id = const Value.absent(),
-    this.dateStr = const Value.absent(),
-    this.dayOfWeek = const Value.absent(),
     this.date = const Value.absent(),
     this.weekKey = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DayPlansCompanion.insert({
     required String id,
-    required String dateStr,
-    required String dayOfWeek,
     required DateTime date,
     required String weekKey,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
-        dateStr = Value(dateStr),
-        dayOfWeek = Value(dayOfWeek),
         date = Value(date),
         weekKey = Value(weekKey);
   static Insertable<DayPlan> custom({
     Expression<String>? id,
-    Expression<String>? dateStr,
-    Expression<String>? dayOfWeek,
     Expression<DateTime>? date,
     Expression<String>? weekKey,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (dateStr != null) 'date_str': dateStr,
-      if (dayOfWeek != null) 'day_of_week': dayOfWeek,
       if (date != null) 'date': date,
       if (weekKey != null) 'week_key': weekKey,
       if (rowid != null) 'rowid': rowid,
@@ -258,15 +187,11 @@ class DayPlansCompanion extends UpdateCompanion<DayPlan> {
 
   DayPlansCompanion copyWith(
       {Value<String>? id,
-      Value<String>? dateStr,
-      Value<String>? dayOfWeek,
       Value<DateTime>? date,
       Value<String>? weekKey,
       Value<int>? rowid}) {
     return DayPlansCompanion(
       id: id ?? this.id,
-      dateStr: dateStr ?? this.dateStr,
-      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
       date: date ?? this.date,
       weekKey: weekKey ?? this.weekKey,
       rowid: rowid ?? this.rowid,
@@ -278,12 +203,6 @@ class DayPlansCompanion extends UpdateCompanion<DayPlan> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
-    }
-    if (dateStr.present) {
-      map['date_str'] = Variable<String>(dateStr.value);
-    }
-    if (dayOfWeek.present) {
-      map['day_of_week'] = Variable<String>(dayOfWeek.value);
     }
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
@@ -301,8 +220,6 @@ class DayPlansCompanion extends UpdateCompanion<DayPlan> {
   String toString() {
     return (StringBuffer('DayPlansCompanion(')
           ..write('id: $id, ')
-          ..write('dateStr: $dateStr, ')
-          ..write('dayOfWeek: $dayOfWeek, ')
           ..write('date: $date, ')
           ..write('weekKey: $weekKey, ')
           ..write('rowid: $rowid')
@@ -403,8 +320,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       'day_plan_id', aliasedName, false,
       type: DriftSqlType.string,
       requiredDuringInsert: true,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('REFERENCES day_plans (id)'));
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES day_plans (id) ON DELETE CASCADE'));
   static const VerificationMeta _sourceTemplateIdMeta =
       const VerificationMeta('sourceTemplateId');
   @override
@@ -986,16 +903,8 @@ class $PlanTemplatesTable extends PlanTemplates
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
-  static const VerificationMeta _activeDaysMeta =
-      const VerificationMeta('activeDays');
   @override
-  late final GeneratedColumn<String> activeDays = GeneratedColumn<String>(
-      'active_days', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(''));
-  @override
-  List<GeneratedColumn> get $columns => [id, name, description, activeDays];
+  List<GeneratedColumn> get $columns => [id, name, description];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1023,12 +932,6 @@ class $PlanTemplatesTable extends PlanTemplates
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
     }
-    if (data.containsKey('active_days')) {
-      context.handle(
-          _activeDaysMeta,
-          activeDays.isAcceptableOrUnknown(
-              data['active_days']!, _activeDaysMeta));
-    }
     return context;
   }
 
@@ -1044,8 +947,6 @@ class $PlanTemplatesTable extends PlanTemplates
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
-      activeDays: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}active_days'])!,
     );
   }
 
@@ -1059,19 +960,14 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
   final String id;
   final String name;
   final String description;
-  final String activeDays;
   const PlanTemplate(
-      {required this.id,
-      required this.name,
-      required this.description,
-      required this.activeDays});
+      {required this.id, required this.name, required this.description});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['description'] = Variable<String>(description);
-    map['active_days'] = Variable<String>(activeDays);
     return map;
   }
 
@@ -1080,7 +976,6 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: Value(id),
       name: Value(name),
       description: Value(description),
-      activeDays: Value(activeDays),
     );
   }
 
@@ -1091,7 +986,6 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String>(json['description']),
-      activeDays: serializer.fromJson<String>(json['activeDays']),
     );
   }
   @override
@@ -1101,20 +995,14 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String>(description),
-      'activeDays': serializer.toJson<String>(activeDays),
     };
   }
 
-  PlanTemplate copyWith(
-          {String? id,
-          String? name,
-          String? description,
-          String? activeDays}) =>
+  PlanTemplate copyWith({String? id, String? name, String? description}) =>
       PlanTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
         description: description ?? this.description,
-        activeDays: activeDays ?? this.activeDays,
       );
   PlanTemplate copyWithCompanion(PlanTemplatesCompanion data) {
     return PlanTemplate(
@@ -1122,8 +1010,6 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
-      activeDays:
-          data.activeDays.present ? data.activeDays.value : this.activeDays,
     );
   }
 
@@ -1132,42 +1018,37 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
     return (StringBuffer('PlanTemplate(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('description: $description, ')
-          ..write('activeDays: $activeDays')
+          ..write('description: $description')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, description, activeDays);
+  int get hashCode => Object.hash(id, name, description);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlanTemplate &&
           other.id == this.id &&
           other.name == this.name &&
-          other.description == this.description &&
-          other.activeDays == this.activeDays);
+          other.description == this.description);
 }
 
 class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> description;
-  final Value<String> activeDays;
   final Value<int> rowid;
   const PlanTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
-    this.activeDays = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlanTemplatesCompanion.insert({
     required String id,
     required String name,
     this.description = const Value.absent(),
-    this.activeDays = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name);
@@ -1175,14 +1056,12 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? description,
-    Expression<String>? activeDays,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
-      if (activeDays != null) 'active_days': activeDays,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1191,13 +1070,11 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
       {Value<String>? id,
       Value<String>? name,
       Value<String>? description,
-      Value<String>? activeDays,
       Value<int>? rowid}) {
     return PlanTemplatesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      activeDays: activeDays ?? this.activeDays,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1214,9 +1091,6 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
-    if (activeDays.present) {
-      map['active_days'] = Variable<String>(activeDays.value);
-    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1229,7 +1103,206 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
-          ..write('activeDays: $activeDays, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TemplateActiveDaysTable extends TemplateActiveDays
+    with TableInfo<$TemplateActiveDaysTable, TemplateActiveDay> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TemplateActiveDaysTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _templateIdMeta =
+      const VerificationMeta('templateId');
+  @override
+  late final GeneratedColumn<String> templateId = GeneratedColumn<String>(
+      'template_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES plan_templates (id) ON DELETE CASCADE'));
+  static const VerificationMeta _dayIndexMeta =
+      const VerificationMeta('dayIndex');
+  @override
+  late final GeneratedColumn<int> dayIndex = GeneratedColumn<int>(
+      'day_index', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [templateId, dayIndex];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'template_active_days';
+  @override
+  VerificationContext validateIntegrity(Insertable<TemplateActiveDay> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('template_id')) {
+      context.handle(
+          _templateIdMeta,
+          templateId.isAcceptableOrUnknown(
+              data['template_id']!, _templateIdMeta));
+    } else if (isInserting) {
+      context.missing(_templateIdMeta);
+    }
+    if (data.containsKey('day_index')) {
+      context.handle(_dayIndexMeta,
+          dayIndex.isAcceptableOrUnknown(data['day_index']!, _dayIndexMeta));
+    } else if (isInserting) {
+      context.missing(_dayIndexMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {templateId, dayIndex};
+  @override
+  TemplateActiveDay map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TemplateActiveDay(
+      templateId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}template_id'])!,
+      dayIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}day_index'])!,
+    );
+  }
+
+  @override
+  $TemplateActiveDaysTable createAlias(String alias) {
+    return $TemplateActiveDaysTable(attachedDatabase, alias);
+  }
+}
+
+class TemplateActiveDay extends DataClass
+    implements Insertable<TemplateActiveDay> {
+  final String templateId;
+  final int dayIndex;
+  const TemplateActiveDay({required this.templateId, required this.dayIndex});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['template_id'] = Variable<String>(templateId);
+    map['day_index'] = Variable<int>(dayIndex);
+    return map;
+  }
+
+  TemplateActiveDaysCompanion toCompanion(bool nullToAbsent) {
+    return TemplateActiveDaysCompanion(
+      templateId: Value(templateId),
+      dayIndex: Value(dayIndex),
+    );
+  }
+
+  factory TemplateActiveDay.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TemplateActiveDay(
+      templateId: serializer.fromJson<String>(json['templateId']),
+      dayIndex: serializer.fromJson<int>(json['dayIndex']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'templateId': serializer.toJson<String>(templateId),
+      'dayIndex': serializer.toJson<int>(dayIndex),
+    };
+  }
+
+  TemplateActiveDay copyWith({String? templateId, int? dayIndex}) =>
+      TemplateActiveDay(
+        templateId: templateId ?? this.templateId,
+        dayIndex: dayIndex ?? this.dayIndex,
+      );
+  TemplateActiveDay copyWithCompanion(TemplateActiveDaysCompanion data) {
+    return TemplateActiveDay(
+      templateId:
+          data.templateId.present ? data.templateId.value : this.templateId,
+      dayIndex: data.dayIndex.present ? data.dayIndex.value : this.dayIndex,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateActiveDay(')
+          ..write('templateId: $templateId, ')
+          ..write('dayIndex: $dayIndex')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(templateId, dayIndex);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TemplateActiveDay &&
+          other.templateId == this.templateId &&
+          other.dayIndex == this.dayIndex);
+}
+
+class TemplateActiveDaysCompanion extends UpdateCompanion<TemplateActiveDay> {
+  final Value<String> templateId;
+  final Value<int> dayIndex;
+  final Value<int> rowid;
+  const TemplateActiveDaysCompanion({
+    this.templateId = const Value.absent(),
+    this.dayIndex = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TemplateActiveDaysCompanion.insert({
+    required String templateId,
+    required int dayIndex,
+    this.rowid = const Value.absent(),
+  })  : templateId = Value(templateId),
+        dayIndex = Value(dayIndex);
+  static Insertable<TemplateActiveDay> custom({
+    Expression<String>? templateId,
+    Expression<int>? dayIndex,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (templateId != null) 'template_id': templateId,
+      if (dayIndex != null) 'day_index': dayIndex,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TemplateActiveDaysCompanion copyWith(
+      {Value<String>? templateId, Value<int>? dayIndex, Value<int>? rowid}) {
+    return TemplateActiveDaysCompanion(
+      templateId: templateId ?? this.templateId,
+      dayIndex: dayIndex ?? this.dayIndex,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (templateId.present) {
+      map['template_id'] = Variable<String>(templateId.value);
+    }
+    if (dayIndex.present) {
+      map['day_index'] = Variable<int>(dayIndex.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateActiveDaysCompanion(')
+          ..write('templateId: $templateId, ')
+          ..write('dayIndex: $dayIndex, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1254,8 +1327,8 @@ class $TemplateTasksTable extends TemplateTasks
       'template_id', aliasedName, false,
       type: DriftSqlType.string,
       requiredDuringInsert: true,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('REFERENCES plan_templates (id)'));
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES plan_templates (id) ON DELETE CASCADE'));
   static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
@@ -2132,18 +2205,9 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final String description;
   final bool completed;
   final DateTime createdAt;
-
-  /// Discriminator: 'note', 'timer', or 'list'
   final String itemType;
-
-  /// Timer-only: duration in minutes
   final int durationMinutes;
-
-  /// List-only: JSON-encoded array of checklist items
-  /// e.g. [{"text":"Buy milk","done":false},{"text":"Walk dog","done":true}]
   final String checklistJson;
-
-  /// Timer-only: path to local audio file played on completion
   final String audioFilePath;
   const TodoItem(
       {required this.id,
@@ -2438,9 +2502,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DayPlansTable dayPlans = $DayPlansTable(this);
   late final $TasksTable tasks = $TasksTable(this);
   late final $PlanTemplatesTable planTemplates = $PlanTemplatesTable(this);
+  late final $TemplateActiveDaysTable templateActiveDays =
+      $TemplateActiveDaysTable(this);
   late final $TemplateTasksTable templateTasks = $TemplateTasksTable(this);
   late final $PreferencesTable preferences = $PreferencesTable(this);
   late final $TodoItemsTable todoItems = $TodoItemsTable(this);
+  late final Index idxTasksDayPlanId = Index('idx_tasks_day_plan_id',
+      'CREATE INDEX idx_tasks_day_plan_id ON tasks (day_plan_id)');
+  late final Index idxDayPlansWeekKey = Index('idx_day_plans_week_key',
+      'CREATE INDEX idx_day_plans_week_key ON day_plans (week_key)');
+  late final Index idxDayPlansDate = Index('idx_day_plans_date',
+      'CREATE INDEX idx_day_plans_date ON day_plans (date)');
+  late final Index idxTemplateTasksTemplateId = Index(
+      'idx_template_tasks_template_id',
+      'CREATE INDEX idx_template_tasks_template_id ON template_tasks (template_id)');
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
   late final DayPlanDao dayPlanDao = DayPlanDao(this as AppDatabase);
   late final TemplateDao templateDao = TemplateDao(this as AppDatabase);
@@ -2450,22 +2525,55 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [dayPlans, tasks, planTemplates, templateTasks, preferences, todoItems];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        dayPlans,
+        tasks,
+        planTemplates,
+        templateActiveDays,
+        templateTasks,
+        preferences,
+        todoItems,
+        idxTasksDayPlanId,
+        idxDayPlansWeekKey,
+        idxDayPlansDate,
+        idxTemplateTasksTemplateId
+      ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
+        [
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('day_plans',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('tasks', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('plan_templates',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('template_active_days', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('plan_templates',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('template_tasks', kind: UpdateKind.delete),
+            ],
+          ),
+        ],
+      );
 }
 
 typedef $$DayPlansTableCreateCompanionBuilder = DayPlansCompanion Function({
   required String id,
-  required String dateStr,
-  required String dayOfWeek,
   required DateTime date,
   required String weekKey,
   Value<int> rowid,
 });
 typedef $$DayPlansTableUpdateCompanionBuilder = DayPlansCompanion Function({
   Value<String> id,
-  Value<String> dateStr,
-  Value<String> dayOfWeek,
   Value<DateTime> date,
   Value<String> weekKey,
   Value<int> rowid,
@@ -2501,12 +2609,6 @@ class $$DayPlansTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get dateStr => $composableBuilder(
-      column: $table.dateStr, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get dayOfWeek => $composableBuilder(
-      column: $table.dayOfWeek, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnFilters(column));
@@ -2548,12 +2650,6 @@ class $$DayPlansTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get dateStr => $composableBuilder(
-      column: $table.dateStr, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get dayOfWeek => $composableBuilder(
-      column: $table.dayOfWeek, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<DateTime> get date => $composableBuilder(
       column: $table.date, builder: (column) => ColumnOrderings(column));
 
@@ -2572,12 +2668,6 @@ class $$DayPlansTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get dateStr =>
-      $composableBuilder(column: $table.dateStr, builder: (column) => column);
-
-  GeneratedColumn<String> get dayOfWeek =>
-      $composableBuilder(column: $table.dayOfWeek, builder: (column) => column);
 
   GeneratedColumn<DateTime> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
@@ -2631,32 +2721,24 @@ class $$DayPlansTableTableManager extends RootTableManager<
               $$DayPlansTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
-            Value<String> dateStr = const Value.absent(),
-            Value<String> dayOfWeek = const Value.absent(),
             Value<DateTime> date = const Value.absent(),
             Value<String> weekKey = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               DayPlansCompanion(
             id: id,
-            dateStr: dateStr,
-            dayOfWeek: dayOfWeek,
             date: date,
             weekKey: weekKey,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
-            required String dateStr,
-            required String dayOfWeek,
             required DateTime date,
             required String weekKey,
             Value<int> rowid = const Value.absent(),
           }) =>
               DayPlansCompanion.insert(
             id: id,
-            dateStr: dateStr,
-            dayOfWeek: dayOfWeek,
             date: date,
             weekKey: weekKey,
             rowid: rowid,
@@ -3098,7 +3180,6 @@ typedef $$PlanTemplatesTableCreateCompanionBuilder = PlanTemplatesCompanion
   required String id,
   required String name,
   Value<String> description,
-  Value<String> activeDays,
   Value<int> rowid,
 });
 typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
@@ -3106,7 +3187,6 @@ typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
   Value<String> id,
   Value<String> name,
   Value<String> description,
-  Value<String> activeDays,
   Value<int> rowid,
 });
 
@@ -3114,6 +3194,23 @@ final class $$PlanTemplatesTableReferences
     extends BaseReferences<_$AppDatabase, $PlanTemplatesTable, PlanTemplate> {
   $$PlanTemplatesTableReferences(
       super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$TemplateActiveDaysTable, List<TemplateActiveDay>>
+      _templateActiveDaysRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.templateActiveDays,
+              aliasName: $_aliasNameGenerator(
+                  db.planTemplates.id, db.templateActiveDays.templateId));
+
+  $$TemplateActiveDaysTableProcessedTableManager get templateActiveDaysRefs {
+    final manager = $$TemplateActiveDaysTableTableManager(
+            $_db, $_db.templateActiveDays)
+        .filter((f) => f.templateId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_templateActiveDaysRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 
   static MultiTypedResultKey<$TemplateTasksTable, List<TemplateTask>>
       _templateTasksRefsTable(_$AppDatabase db) =>
@@ -3149,8 +3246,26 @@ class $$PlanTemplatesTableFilterComposer
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get activeDays => $composableBuilder(
-      column: $table.activeDays, builder: (column) => ColumnFilters(column));
+  Expression<bool> templateActiveDaysRefs(
+      Expression<bool> Function($$TemplateActiveDaysTableFilterComposer f) f) {
+    final $$TemplateActiveDaysTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.templateActiveDays,
+        getReferencedColumn: (t) => t.templateId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$TemplateActiveDaysTableFilterComposer(
+              $db: $db,
+              $table: $db.templateActiveDays,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 
   Expression<bool> templateTasksRefs(
       Expression<bool> Function($$TemplateTasksTableFilterComposer f) f) {
@@ -3191,9 +3306,6 @@ class $$PlanTemplatesTableOrderingComposer
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get activeDays => $composableBuilder(
-      column: $table.activeDays, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlanTemplatesTableAnnotationComposer
@@ -3214,8 +3326,27 @@ class $$PlanTemplatesTableAnnotationComposer
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
 
-  GeneratedColumn<String> get activeDays => $composableBuilder(
-      column: $table.activeDays, builder: (column) => column);
+  Expression<T> templateActiveDaysRefs<T extends Object>(
+      Expression<T> Function($$TemplateActiveDaysTableAnnotationComposer a) f) {
+    final $$TemplateActiveDaysTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.templateActiveDays,
+            getReferencedColumn: (t) => t.templateId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$TemplateActiveDaysTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.templateActiveDays,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
 
   Expression<T> templateTasksRefs<T extends Object>(
       Expression<T> Function($$TemplateTasksTableAnnotationComposer a) f) {
@@ -3250,7 +3381,8 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
     $$PlanTemplatesTableUpdateCompanionBuilder,
     (PlanTemplate, $$PlanTemplatesTableReferences),
     PlanTemplate,
-    PrefetchHooks Function({bool templateTasksRefs})> {
+    PrefetchHooks Function(
+        {bool templateActiveDaysRefs, bool templateTasksRefs})> {
   $$PlanTemplatesTableTableManager(_$AppDatabase db, $PlanTemplatesTable table)
       : super(TableManagerState(
           db: db,
@@ -3265,28 +3397,24 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String> description = const Value.absent(),
-            Value<String> activeDays = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion(
             id: id,
             name: name,
             description: description,
-            activeDays: activeDays,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
             required String name,
             Value<String> description = const Value.absent(),
-            Value<String> activeDays = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion.insert(
             id: id,
             name: name,
             description: description,
-            activeDays: activeDays,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -3295,15 +3423,30 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
                     $$PlanTemplatesTableReferences(db, table, e)
                   ))
               .toList(),
-          prefetchHooksCallback: ({templateTasksRefs = false}) {
+          prefetchHooksCallback: (
+              {templateActiveDaysRefs = false, templateTasksRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
+                if (templateActiveDaysRefs) db.templateActiveDays,
                 if (templateTasksRefs) db.templateTasks
               ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
+                  if (templateActiveDaysRefs)
+                    await $_getPrefetchedData<PlanTemplate, $PlanTemplatesTable,
+                            TemplateActiveDay>(
+                        currentTable: table,
+                        referencedTable: $$PlanTemplatesTableReferences
+                            ._templateActiveDaysRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$PlanTemplatesTableReferences(db, table, p0)
+                                .templateActiveDaysRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.templateId == item.id),
+                        typedResults: items),
                   if (templateTasksRefs)
                     await $_getPrefetchedData<PlanTemplate, $PlanTemplatesTable,
                             TemplateTask>(
@@ -3335,7 +3478,242 @@ typedef $$PlanTemplatesTableProcessedTableManager = ProcessedTableManager<
     $$PlanTemplatesTableUpdateCompanionBuilder,
     (PlanTemplate, $$PlanTemplatesTableReferences),
     PlanTemplate,
-    PrefetchHooks Function({bool templateTasksRefs})>;
+    PrefetchHooks Function(
+        {bool templateActiveDaysRefs, bool templateTasksRefs})>;
+typedef $$TemplateActiveDaysTableCreateCompanionBuilder
+    = TemplateActiveDaysCompanion Function({
+  required String templateId,
+  required int dayIndex,
+  Value<int> rowid,
+});
+typedef $$TemplateActiveDaysTableUpdateCompanionBuilder
+    = TemplateActiveDaysCompanion Function({
+  Value<String> templateId,
+  Value<int> dayIndex,
+  Value<int> rowid,
+});
+
+final class $$TemplateActiveDaysTableReferences extends BaseReferences<
+    _$AppDatabase, $TemplateActiveDaysTable, TemplateActiveDay> {
+  $$TemplateActiveDaysTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $PlanTemplatesTable _templateIdTable(_$AppDatabase db) =>
+      db.planTemplates.createAlias($_aliasNameGenerator(
+          db.templateActiveDays.templateId, db.planTemplates.id));
+
+  $$PlanTemplatesTableProcessedTableManager get templateId {
+    final $_column = $_itemColumn<String>('template_id')!;
+
+    final manager = $$PlanTemplatesTableTableManager($_db, $_db.planTemplates)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_templateIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$TemplateActiveDaysTableFilterComposer
+    extends Composer<_$AppDatabase, $TemplateActiveDaysTable> {
+  $$TemplateActiveDaysTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get dayIndex => $composableBuilder(
+      column: $table.dayIndex, builder: (column) => ColumnFilters(column));
+
+  $$PlanTemplatesTableFilterComposer get templateId {
+    final $$PlanTemplatesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.templateId,
+        referencedTable: $db.planTemplates,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$PlanTemplatesTableFilterComposer(
+              $db: $db,
+              $table: $db.planTemplates,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$TemplateActiveDaysTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemplateActiveDaysTable> {
+  $$TemplateActiveDaysTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get dayIndex => $composableBuilder(
+      column: $table.dayIndex, builder: (column) => ColumnOrderings(column));
+
+  $$PlanTemplatesTableOrderingComposer get templateId {
+    final $$PlanTemplatesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.templateId,
+        referencedTable: $db.planTemplates,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$PlanTemplatesTableOrderingComposer(
+              $db: $db,
+              $table: $db.planTemplates,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$TemplateActiveDaysTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemplateActiveDaysTable> {
+  $$TemplateActiveDaysTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get dayIndex =>
+      $composableBuilder(column: $table.dayIndex, builder: (column) => column);
+
+  $$PlanTemplatesTableAnnotationComposer get templateId {
+    final $$PlanTemplatesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.templateId,
+        referencedTable: $db.planTemplates,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$PlanTemplatesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.planTemplates,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$TemplateActiveDaysTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TemplateActiveDaysTable,
+    TemplateActiveDay,
+    $$TemplateActiveDaysTableFilterComposer,
+    $$TemplateActiveDaysTableOrderingComposer,
+    $$TemplateActiveDaysTableAnnotationComposer,
+    $$TemplateActiveDaysTableCreateCompanionBuilder,
+    $$TemplateActiveDaysTableUpdateCompanionBuilder,
+    (TemplateActiveDay, $$TemplateActiveDaysTableReferences),
+    TemplateActiveDay,
+    PrefetchHooks Function({bool templateId})> {
+  $$TemplateActiveDaysTableTableManager(
+      _$AppDatabase db, $TemplateActiveDaysTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TemplateActiveDaysTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TemplateActiveDaysTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TemplateActiveDaysTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> templateId = const Value.absent(),
+            Value<int> dayIndex = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TemplateActiveDaysCompanion(
+            templateId: templateId,
+            dayIndex: dayIndex,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String templateId,
+            required int dayIndex,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TemplateActiveDaysCompanion.insert(
+            templateId: templateId,
+            dayIndex: dayIndex,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$TemplateActiveDaysTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({templateId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (templateId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.templateId,
+                    referencedTable: $$TemplateActiveDaysTableReferences
+                        ._templateIdTable(db),
+                    referencedColumn: $$TemplateActiveDaysTableReferences
+                        ._templateIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$TemplateActiveDaysTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TemplateActiveDaysTable,
+    TemplateActiveDay,
+    $$TemplateActiveDaysTableFilterComposer,
+    $$TemplateActiveDaysTableOrderingComposer,
+    $$TemplateActiveDaysTableAnnotationComposer,
+    $$TemplateActiveDaysTableCreateCompanionBuilder,
+    $$TemplateActiveDaysTableUpdateCompanionBuilder,
+    (TemplateActiveDay, $$TemplateActiveDaysTableReferences),
+    TemplateActiveDay,
+    PrefetchHooks Function({bool templateId})>;
 typedef $$TemplateTasksTableCreateCompanionBuilder = TemplateTasksCompanion
     Function({
   required String id,
@@ -4049,6 +4427,8 @@ class $AppDatabaseManager {
       $$TasksTableTableManager(_db, _db.tasks);
   $$PlanTemplatesTableTableManager get planTemplates =>
       $$PlanTemplatesTableTableManager(_db, _db.planTemplates);
+  $$TemplateActiveDaysTableTableManager get templateActiveDays =>
+      $$TemplateActiveDaysTableTableManager(_db, _db.templateActiveDays);
   $$TemplateTasksTableTableManager get templateTasks =>
       $$TemplateTasksTableTableManager(_db, _db.templateTasks);
   $$PreferencesTableTableManager get preferences =>

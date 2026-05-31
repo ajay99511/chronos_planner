@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/theme/app_theme.dart';
-import '../../data/models/plan_template_model.dart';
-import '../../providers/schedule_provider.dart';
-import '../widgets/glass_container.dart';
-import '../widgets/work_plan_detail_dialog.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/data/models/plan_template_model.dart';
+import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/ui/widgets/glass_container.dart';
+import 'package:chronosky/ui/widgets/work_plan_detail_dialog.dart';
+import 'package:chronosky/ui/widgets/neo_button.dart';
 
 class WorkPlansView extends StatelessWidget {
   const WorkPlansView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<ScheduleProvider>(context);
+    final provider = Provider.of<ScheduleStateProvider>(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -23,65 +24,23 @@ class WorkPlansView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("WorkPlans", style: AppTextStyles.heading1),
+              Text('WorkPlans', style: AppTextStyles.heading1),
               const SizedBox(height: 4),
-              Text("Library of your perfect days.",
-                  style: AppTextStyles.subtitle),
+              Text('Library of your perfect days.',
+                  style: AppTextStyles.subtitle,),
             ],
           ),
         ),
         Expanded(
           child: GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 1,
-            childAspectRatio: 1.8,
+            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : (MediaQuery.of(context).size.width > 600 ? 2 : 1),
+            childAspectRatio: 1.6,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             mainAxisSpacing: AppSpacing.md,
             crossAxisSpacing: AppSpacing.md,
             children: [
               // Create New Card
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.xxl),
-                  boxShadow:
-                      AppShadows.neonGlow(AppColors.neonBlue, intensity: 0.3),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(AppRadius.xxl),
-                    onTap: () => _showCreateTemplateDialog(context, provider),
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                                color: Colors.white24,
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.md)),
-                            child: const Icon(Icons.add, color: Colors.white),
-                          ),
-                          const Spacer(),
-                          Text("Create New Plan",
-                              style: AppTextStyles.heading3
-                                  .copyWith(fontSize: 20)),
-                          const SizedBox(height: 4),
-                          Text("Build a reusable template",
-                              style: AppTextStyles.bodySmall
-                                  .copyWith(color: Colors.white70)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              _buildCreateCard(context, provider),
 
               // Existing Templates
               ...provider.templates.asMap().entries.map((entry) {
@@ -90,7 +49,7 @@ class WorkPlansView extends StatelessWidget {
 
                 return TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: 1),
-                  duration: Duration(milliseconds: 300 + (index * 80)),
+                  duration: Duration(milliseconds: 300 + (index * 50)),
                   curve: Curves.easeOutCubic,
                   builder: (context, value, child) => Opacity(
                     opacity: value,
@@ -116,125 +75,55 @@ class WorkPlansView extends StatelessWidget {
                               child: Text(tmpl.name,
                                   style: AppTextStyles.heading3
                                       .copyWith(fontSize: 18),
-                                  overflow: TextOverflow.ellipsis),
+                                  overflow: TextOverflow.ellipsis,),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                  color: Colors.white10,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.sm)),
-                              child: Text(
-                                  "${tmpl.tasks.length} task${tmpl.tasks.length == 1 ? '' : 's'}",
-                                  style: AppTextStyles.bodySmall
-                                      .copyWith(fontWeight: FontWeight.bold)),
-                            ),
-                            if (tmpl.isRecurring) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 4),
-                                decoration: BoxDecoration(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.2),
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.sm)),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.repeat,
-                                        size: 10, color: AppColors.neonBlue),
-                                    const SizedBox(width: 3),
-                                    Text("Recurring",
-                                        style: AppTextStyles.bodySmall.copyWith(
-                                            fontSize: 10,
-                                            color: AppColors.neonBlue,
-                                            fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ],
+                            if (tmpl.isRecurring)
+                              const Icon(Icons.repeat_rounded, size: 14, color: AppColors.neonBlue),
                           ],
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${tmpl.tasks.length} tasks',
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                        ),
                         const SizedBox(height: 8),
-                        Text(tmpl.description,
-                            style: AppTextStyles.bodySmall,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
-                        const Spacer(),
+                        Expanded(
+                          child: Text(tmpl.description,
+                              style: AppTextStyles.bodySmall.copyWith(fontSize: 12, height: 1.4),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,),
+                        ),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
-                              child: GestureDetector(
-                                onTap: () {
+                              child: NeoButton(
+                                height: 32,
+                                isSecondary: true,
+                                onPressed: () {
                                   showDialog(
                                     context: context,
-                                    builder: (_) =>
-                                        WorkPlanDetailDialog(template: tmpl),
+                                    builder: (_) => WorkPlanDetailDialog(template: tmpl),
                                   );
                                 },
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.05),
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.sm + 2),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(Icons.open_in_new,
-                                          size: 14, color: AppColors.neonBlue),
-                                      const SizedBox(width: 4),
-                                      Text("Open",
-                                          style: AppTextStyles.chip.copyWith(
-                                              color: AppColors.neonBlue)),
-                                    ],
-                                  ),
-                                ),
+                                child: const Text('OPEN', style: TextStyle(fontSize: 10)),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  final today = DateTime.now().weekday - 1;
-                                  provider.applyTemplateToDays(tmpl, [today]);
+                              child: NeoButton(
+                                height: 32,
+                                onPressed: () {
+                                  provider.applyTemplate(tmpl);
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("Plan applied to today"),
-                                    ),
+                                    const SnackBar(content: Text('Plan applied to today')),
                                   );
                                 },
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.15),
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.sm + 2),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(Icons.check_circle_outline,
-                                          size: 14, color: AppColors.neonBlue),
-                                      const SizedBox(width: 4),
-                                      Text("Apply",
-                                          style: AppTextStyles.chip.copyWith(
-                                              color: AppColors.neonBlue)),
-                                    ],
-                                  ),
-                                ),
+                                child: const Text('APPLY', style: TextStyle(fontSize: 10)),
                               ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -247,79 +136,97 @@ class WorkPlansView extends StatelessWidget {
     );
   }
 
+  Widget _buildCreateCard(BuildContext context, ScheduleStateProvider provider) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.neonBlue, AppColors.neonPurple],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonBlue.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
+          onTap: () => _showCreateTemplateDialog(context, provider),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.add_rounded, color: Colors.white, size: 32),
+                const SizedBox(height: 12),
+                Text('Create New Plan',
+                    style: AppTextStyles.heading3.copyWith(fontSize: 20, color: Colors.white),),
+                const SizedBox(height: 4),
+                Text('Build a reusable template',
+                    style: AppTextStyles.bodySmall.copyWith(color: Colors.white70),),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCreateTemplateDialog(
-      BuildContext context, ScheduleProvider provider) {
+      BuildContext context, ScheduleStateProvider provider,) {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.xxl)),
-        title: Text("Create New Plan", style: AppTextStyles.heading3),
+        title: const Text('Create New WorkPlan'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: "Plan Name",
-                labelStyle: const TextStyle(color: Colors.grey),
-                hintText: "e.g., Deep Work Wednesday",
-                hintStyle: const TextStyle(color: Colors.white12),
-                filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide.none),
-              ),
+              decoration: const InputDecoration(labelText: 'Plan Name'),
+              autofocus: true,
             ),
-            const SizedBox(height: 12),
             TextField(
               controller: descCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: "Description",
-                labelStyle: const TextStyle(color: Colors.grey),
-                filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide.none),
-              ),
+              decoration: const InputDecoration(labelText: 'Description'),
             ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.neonBlue,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md)),
-            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
             onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                final newTemplate = PlanTemplate(
-                  id: const Uuid().v4(),
-                  name: nameCtrl.text,
-                  description: descCtrl.text,
-                  tasks: [],
-                );
-                provider.addTemplate(newTemplate);
-                Navigator.pop(ctx);
-                // Immediately open the detail dialog so user can add tasks
-                showDialog(
-                  context: context,
-                  builder: (_) => WorkPlanDetailDialog(template: newTemplate),
-                );
-              }
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) return;
+
+              final template = PlanTemplate(
+                id: const Uuid().v4(),
+                name: name,
+                description: descCtrl.text.trim(),
+                tasks: [],
+              );
+
+              provider.addTemplate(template);
+              Navigator.pop(ctx);
+              showDialog(
+                context: context,
+                builder: (_) => WorkPlanDetailDialog(template: template),
+              );
             },
-            child: const Text("Create", style: TextStyle(color: Colors.white)),
+            child: const Text('Create'),
           ),
         ],
       ),

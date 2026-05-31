@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
-import '../app_database.dart';
-import '../tables.dart';
+import 'package:chronosky/data/local/app_database.dart';
+import 'package:chronosky/data/local/tables.dart';
 
 part 'todo_item_dao.g.dart';
 
@@ -14,14 +14,14 @@ class TodoItemDao extends DatabaseAccessor<AppDatabase>
 
   Stream<List<TodoItem>> watchAllTodos() => (select(todoItems)
         ..orderBy([
-          (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+          (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
         ]))
       .watch();
 
   Stream<List<TodoItem>> watchByType(String type) => (select(todoItems)
         ..where((t) => t.itemType.equals(type))
         ..orderBy([
-          (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+          (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
         ]))
       .watch();
 

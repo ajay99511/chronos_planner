@@ -1,40 +1,32 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'core/theme/app_theme.dart';
-import 'data/local/app_database.dart';
-import 'data/local/migration_helper.dart';
-import 'data/repositories/local/local_preference_repository.dart';
-import 'data/repositories/local/local_schedule_repository.dart';
-import 'data/repositories/local/local_template_repository.dart';
-import 'data/repositories/local/local_todo_repository.dart';
-import 'data/repositories/preference_repository.dart';
-import 'data/repositories/schedule_repository.dart';
-import 'data/repositories/template_repository.dart';
-import 'data/repositories/todo_repository.dart';
-import 'providers/schedule_provider.dart';
-import 'providers/todo_provider.dart';
-import 'ui/screens/home_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-/// Application entry point.
-/// 
-/// Initialization sequence:
-/// 1. Ensure Flutter bindings are initialized
-/// 2. Configure desktop window (Windows/Linux/macOS only)
-/// 3. Initialize Drift database
-/// 4. Run one-time migration from SharedPreferences
-/// 5. Create repository instances with dependency injection
-/// 6. Launch app with providers
-/// 
-/// Architecture:
-/// - MultiProvider for state management (ScheduleProvider, TodoProvider)
-/// - Repository pattern for data abstraction
-/// - Theme based on AppColors (dark mode, neon accents)
+import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/data/local/app_database.dart';
+import 'package:chronosky/data/local/migration_helper.dart';
+import 'package:chronosky/data/repositories/local/local_preference_repository.dart';
+import 'package:chronosky/data/repositories/local/local_schedule_repository.dart';
+import 'package:chronosky/data/repositories/local/local_template_repository.dart';
+import 'package:chronosky/data/repositories/local/local_todo_repository.dart';
+import 'package:chronosky/data/repositories/todo_repository.dart';
+import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/providers/analytics_provider.dart';
+import 'package:chronosky/providers/todo_provider.dart';
+import 'package:chronosky/ui/screens/home_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Logger
+  final logger = kDebugMode ? const ConsoleLogger() : const NoOpLogger();
+  logger.info('App starting...');
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
@@ -44,9 +36,9 @@ void main() async {
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.hidden, // For a custom glass title bar later if desired, or normal
+      titleBarStyle: TitleBarStyle.hidden,
     );
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
     });
@@ -62,51 +54,53 @@ void main() async {
   final prefRepo = LocalPreferenceRepository(db.preferenceDao);
   final todoRepo = LocalTodoRepository(db.todoItemDao);
 
-  runApp(MyApp(
+  final scheduleStateProvider = ScheduleStateProvider(
     scheduleRepo: scheduleRepo,
     templateRepo: templateRepo,
     prefRepo: prefRepo,
+    logger: logger,
+  );
+
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    windowManager.addListener(_WindowHandler(scheduleStateProvider));
+  }
+
+  runApp(MyApp(
+    scheduleStateProvider: scheduleStateProvider,
     todoRepo: todoRepo,
-  ));
+    logger: logger,
+  ),);
 }
 
-/// Root application widget with dependency injection.
-/// 
-/// Injects repositories into providers via constructor:
-/// - [ScheduleProvider]: Manages weekly schedule, templates, analytics
-/// - [TodoProvider]: Manages standalone todo items
-/// 
-/// Theme configuration:
-/// - Dark mode with Material 3
-/// - Inter font family (Google Fonts)
-/// - Custom color scheme from [AppColors]
-/// 
-/// Navigation:
-/// - [ChronosHome] as root with internal tab navigation
+class _WindowHandler extends WindowListener {
+  final ScheduleStateProvider stateProvider;
+  _WindowHandler(this.stateProvider);
+
+  @override
+  void onWindowClose() async {
+    stateProvider.flushState();
+  }
+}
+
 class MyApp extends StatelessWidget {
-  final ScheduleRepository scheduleRepo;
-  final TemplateRepository templateRepo;
-  final PreferenceRepository prefRepo;
+  final ScheduleStateProvider scheduleStateProvider;
   final TodoRepository todoRepo;
+  final Logger logger;
 
   const MyApp({
     super.key,
-    required this.scheduleRepo,
-    required this.templateRepo,
-    required this.prefRepo,
+    required this.scheduleStateProvider,
     required this.todoRepo,
+    required this.logger,
   });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: scheduleStateProvider),
         ChangeNotifierProvider(
-          create: (_) => ScheduleProvider(
-            scheduleRepo: scheduleRepo,
-            templateRepo: templateRepo,
-            prefRepo: prefRepo,
-          ),
+          create: (_) => AnalyticsProvider(scheduleStateProvider),
         ),
         ChangeNotifierProvider(
           create: (_) => TodoProvider(todoRepo),
@@ -115,6 +109,14 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Chronos',
         debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', 'US'),
+        ],
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,

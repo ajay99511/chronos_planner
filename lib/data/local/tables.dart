@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 /// Stores individual tasks belonging to a [DayPlans] entry.
+@TableIndex(name: 'idx_tasks_day_plan_id', columns: {#dayPlanId})
 class Tasks extends Table {
   TextColumn get id => text()();
   TextColumn get title => text().withLength(min: 1, max: 200)();
@@ -13,7 +14,9 @@ class Tasks extends Table {
   RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
   RealColumn get actualCost => real().withDefault(const Constant(0.0))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
-  TextColumn get dayPlanId => text().references(DayPlans, #id)();
+  
+  // v5: Added ON DELETE CASCADE
+  TextColumn get dayPlanId => text().references(DayPlans, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
 
   @override
@@ -21,10 +24,11 @@ class Tasks extends Table {
 }
 
 /// Represents one day in the weekly schedule.
+@TableIndex(name: 'idx_day_plans_week_key', columns: {#weekKey})
+@TableIndex(name: 'idx_day_plans_date', columns: {#date})
 class DayPlans extends Table {
   TextColumn get id => text()();
-  TextColumn get dateStr => text()(); // "Feb 10"
-  TextColumn get dayOfWeek => text()(); // "Monday"
+  // v5: Removed dateStr and dayOfWeek (now computed)
   DateTimeColumn get date => dateTime()();
   TextColumn get weekKey => text()(); // "2026-W07"
 
@@ -37,16 +41,29 @@ class PlanTemplates extends Table {
   TextColumn get id => text()();
   TextColumn get name => text().withLength(min: 1, max: 100)();
   TextColumn get description => text().withDefault(const Constant(''))();
-  TextColumn get activeDays => text().withDefault(const Constant(''))();
+  // v5: Removed activeDays (moved to TemplateActiveDays table)
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
+/// Junction table for template active days.
+/// v5: Added
+class TemplateActiveDays extends Table {
+  TextColumn get templateId => text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
+  IntColumn get dayIndex => integer()(); // 0-6
+
+  @override
+  Set<Column> get primaryKey => {templateId, dayIndex};
+}
+
 /// Tasks belonging to a [PlanTemplates] entry.
+@TableIndex(name: 'idx_template_tasks_template_id', columns: {#templateId})
 class TemplateTasks extends Table {
   TextColumn get id => text()();
-  TextColumn get templateId => text().references(PlanTemplates, #id)();
+  
+  // v5: Added ON DELETE CASCADE
+  TextColumn get templateId => text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
   TextColumn get title => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().withDefault(const Constant(''))();
   TextColumn get startTime => text()();
@@ -70,25 +87,15 @@ class Preferences extends Table {
 }
 
 /// Standalone tasks not connected to calendar.
-/// Supports three item types: note, timer, list.
 class TodoItems extends Table {
   TextColumn get id => text()();
   TextColumn get title => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().withDefault(const Constant(''))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-
-  /// Discriminator: 'note', 'timer', or 'list'
   TextColumn get itemType => text().withDefault(const Constant('note'))();
-
-  /// Timer-only: duration in minutes
   IntColumn get durationMinutes => integer().withDefault(const Constant(0))();
-
-  /// List-only: JSON-encoded array of checklist items
-  /// e.g. [{"text":"Buy milk","done":false},{"text":"Walk dog","done":true}]
   TextColumn get checklistJson => text().withDefault(const Constant(''))();
-
-  /// Timer-only: path to local audio file played on completion
   TextColumn get audioFilePath => text().withDefault(const Constant(''))();
 
   @override

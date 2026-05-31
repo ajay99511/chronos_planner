@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme/app_theme.dart';
-import '../../providers/schedule_provider.dart';
-import '../../data/models/task_model.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/data/models/task_model.dart';
 
 class FocusHudWidget extends StatelessWidget {
   final VoidCallback onExit;
@@ -11,7 +11,7 @@ class FocusHudWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<ScheduleProvider>(context);
+    final provider = Provider.of<ScheduleStateProvider>(context);
     final currentDay = provider.selectedDay;
     
     // Find the next uncompleted task
@@ -41,7 +41,7 @@ class FocusHudWidget extends StatelessWidget {
                     const Icon(Icons.bolt, color: AppColors.neonCyan, size: 16),
                     const SizedBox(width: 8),
                     Text(
-                      "FOCUS MODE",
+                      'FOCUS MODE',
                       style: AppTextStyles.label.copyWith(color: AppColors.neonCyan),
                     ),
                   ],
@@ -79,16 +79,16 @@ class FocusHudWidget extends StatelessWidget {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: () {
-                        provider.toggleTaskComplete(activeTask!.id);
+                        provider.updateTask(activeTask!.id, activeTask.copyWith(completed: true));
                       },
-                      child: const Text("Complete", style: TextStyle(color: Colors.white, fontSize: 12)),
+                      child: const Text('Complete', style: TextStyle(color: Colors.white, fontSize: 12)),
                     ),
                   ),
                 ],
               ),
             ] else ...[
               Center(
-                child: Text("All caught up!", style: AppTextStyles.body),
+                child: Text('All caught up!', style: AppTextStyles.body),
               ),
             ],
           ],
