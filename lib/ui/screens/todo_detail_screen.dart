@@ -32,8 +32,11 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.todo?.title ?? '');
-    _descController = TextEditingController(text: widget.todo?.description ?? '');
-    _durationController = TextEditingController(text: (widget.todo?.durationMinutes ?? 25).toString());
+    _descController =
+        TextEditingController(text: widget.todo?.description ?? '');
+    _durationController = TextEditingController(
+      text: (widget.todo?.durationMinutes ?? 25).toString(),
+    );
     _checklistEntryController = TextEditingController();
     _completed = widget.todo?.completed ?? false;
     _isEditing = widget.todo == null;
@@ -81,7 +84,8 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
 
   Future<void> _pickAudioFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: false);
+      final result = await FilePicker.platform
+          .pickFiles(type: FileType.audio, allowMultiple: false);
       if (result != null && result.files.isNotEmpty) {
         setState(() {
           _audioFilePath = result.files.single.path;
@@ -112,48 +116,82 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.close, color: Colors.white70), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white70),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           if (widget.todo != null && !_isEditing)
-            IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.white70), onPressed: () => setState(() => _isEditing = true)),
+            IconButton(
+              icon: const Icon(Icons.edit_rounded, color: Colors.white70),
+              onPressed: () => setState(() => _isEditing = true),
+            ),
           if (_isEditing)
-            TextButton(onPressed: _save, child: const Text('SAVE', style: TextStyle(color: AppColors.neonBlue, fontWeight: FontWeight.bold))),
+            TextButton(
+              onPressed: _save,
+              child: const Text(
+                'SAVE',
+                style: TextStyle(
+                  color: AppColors.neonBlue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           const SizedBox(width: 12),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppResponsive.pagePadding(context),
+          vertical: AppSpacing.md,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.todo != null && itemType == domain.TodoItemType.note) ...[
-               _buildCompletionToggle(),
-               const SizedBox(height: 24),
+            if (widget.todo != null &&
+                itemType == domain.TodoItemType.note) ...[
+              _buildCompletionToggle(),
+              const SizedBox(height: 24),
             ],
             _isEditing
                 ? TextField(
                     controller: _titleController,
                     style: AppTextStyles.heading1,
-                    decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none),
+                    decoration: const InputDecoration(
+                      hintText: 'Title',
+                      border: InputBorder.none,
+                    ),
                     maxLines: null,
                   )
-                : Text(_titleController.text, style: AppTextStyles.heading1.copyWith(
-                    decoration: _completed ? TextDecoration.lineThrough : null,
-                    color: _completed ? AppColors.textSecondary : Colors.white,
-                  ),),
+                : Text(
+                    _titleController.text,
+                    style: AppTextStyles.heading1.copyWith(
+                      fontSize: AppResponsive.heading1Size(context),
+                      decoration:
+                          _completed ? TextDecoration.lineThrough : null,
+                      color:
+                          _completed ? AppColors.textSecondary : Colors.white,
+                    ),
+                  ),
             const SizedBox(height: 16),
             _isEditing
                 ? TextField(
                     controller: _descController,
                     style: AppTextStyles.body.copyWith(color: Colors.white70),
-                    decoration: const InputDecoration(hintText: 'Add description...', border: InputBorder.none),
+                    decoration: const InputDecoration(
+                      hintText: 'Add description...',
+                      border: InputBorder.none,
+                    ),
                     maxLines: null,
                   )
-                : Text(_descController.text, style: AppTextStyles.body.copyWith(
-                    color: Colors.white70,
-                    decoration: _completed ? TextDecoration.lineThrough : null,
-                  ),),
-            
+                : Text(
+                    _descController.text,
+                    style: AppTextStyles.body.copyWith(
+                      color: Colors.white70,
+                      decoration:
+                          _completed ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
             if (itemType == domain.TodoItemType.timer) _buildTimerSection(),
             if (itemType == domain.TodoItemType.list) _buildChecklistSection(),
           ],
@@ -173,13 +211,25 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
             height: 24,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _completed ? AppColors.neonBlue : Colors.white38, width: 2),
+              border: Border.all(
+                color: _completed ? AppColors.neonBlue : Colors.white38,
+                width: 2,
+              ),
               color: _completed ? AppColors.neonBlue : Colors.transparent,
             ),
-            child: _completed ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+            child: _completed
+                ? const Icon(Icons.check, size: 16, color: Colors.white)
+                : null,
           ),
           const SizedBox(width: 12),
-          Text(_completed ? 'COMPLETED' : 'PENDING', style: TextStyle(color: _completed ? AppColors.neonBlue : Colors.white38, fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(
+            _completed ? 'COMPLETED' : 'PENDING',
+            style: TextStyle(
+              color: _completed ? AppColors.neonBlue : Colors.white38,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -187,32 +237,65 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
 
   Widget _buildTimerSection() {
     if (_isEditing) {
-       return Column(
-         crossAxisAlignment: CrossAxisAlignment.start,
-         children: [
-           const SizedBox(height: 32),
-           const Text('DURATION (MINUTES)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38)),
-           TextField(controller: _durationController, keyboardType: TextInputType.number),
-           const SizedBox(height: 16),
-           NeoButton(isSecondary: true, onPressed: _pickAudioFile, child: Text(_audioFileName ?? 'SELECT AUDIO')),
-         ],
-       );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 32),
+          const Text(
+            'DURATION (MINUTES)',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.white38,
+            ),
+          ),
+          TextField(
+            controller: _durationController,
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 16),
+          NeoButton(
+            isSecondary: true,
+            onPressed: _pickAudioFile,
+            child: Text(_audioFileName ?? 'SELECT AUDIO'),
+          ),
+        ],
+      );
     }
     return Column(
       children: [
         const SizedBox(height: 48),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
           children: [
-            const Icon(Icons.timer_rounded, color: AppColors.neonBlue, size: 32),
-            const SizedBox(width: 16),
-            Text('${_durationController.text} MIN', style: AppTextStyles.heading1),
+            const Icon(
+              Icons.timer_rounded,
+              color: AppColors.neonBlue,
+              size: 32,
+            ),
+            Text(
+              '${_durationController.text} MIN',
+              style: AppTextStyles.heading1.copyWith(
+                fontSize: AppResponsive.heading1Size(context),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 32),
-        NeoButton(onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => TimerView(timer: widget.todo!)));
-        }, child: const Text('START TIMER'),),
+        NeoButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TimerView(timer: widget.todo!),
+              ),
+            );
+          },
+          child: const Text('START TIMER'),
+        ),
       ],
     );
   }
@@ -222,14 +305,32 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 32),
-        const Text('CHECKLIST', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38)),
+        const Text(
+          'CHECKLIST',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white38,
+          ),
+        ),
         const SizedBox(height: 16),
-        ..._checklist.asMap().entries.map((entry) => _buildChecklistItem(entry.key, entry.value)),
+        ..._checklist
+            .asMap()
+            .entries
+            .map((entry) => _buildChecklistItem(entry.key, entry.value)),
         if (_isEditing) ...[
           Row(
             children: [
-              Expanded(child: TextField(controller: _checklistEntryController, decoration: const InputDecoration(hintText: 'Add item...'))),
-              IconButton(onPressed: _addChecklistItem, icon: const Icon(Icons.add_rounded, color: AppColors.neonBlue)),
+              Expanded(
+                child: TextField(
+                  controller: _checklistEntryController,
+                  decoration: const InputDecoration(hintText: 'Add item...'),
+                ),
+              ),
+              IconButton(
+                onPressed: _addChecklistItem,
+                icon: const Icon(Icons.add_rounded, color: AppColors.neonBlue),
+              ),
             ],
           ),
         ],
@@ -244,15 +345,33 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
         children: [
           Checkbox(
             value: item.done,
-            onChanged: _isEditing ? null : (val) {
-              setState(() {
-                _checklist[index] = item.copyWith(done: val ?? false);
-              });
-            },
+            onChanged: _isEditing
+                ? null
+                : (val) {
+                    setState(() {
+                      _checklist[index] = item.copyWith(done: val ?? false);
+                    });
+                  },
             activeColor: AppColors.health,
           ),
-          Expanded(child: Text(item.text, style: TextStyle(decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? Colors.white38 : Colors.white))),
-          if (_isEditing) IconButton(onPressed: () => setState(() => _checklist.removeAt(index)), icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18)),
+          Expanded(
+            child: Text(
+              item.text,
+              style: TextStyle(
+                decoration: item.done ? TextDecoration.lineThrough : null,
+                color: item.done ? Colors.white38 : Colors.white,
+              ),
+            ),
+          ),
+          if (_isEditing)
+            IconButton(
+              onPressed: () => setState(() => _checklist.removeAt(index)),
+              icon: const Icon(
+                Icons.remove_circle_outline,
+                color: Colors.redAccent,
+                size: 18,
+              ),
+            ),
         ],
       ),
     );

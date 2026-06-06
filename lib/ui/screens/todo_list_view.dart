@@ -44,19 +44,29 @@ class _TodoListViewState extends State<TodoListView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: AppResponsive.screenPadding(context),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Workspace', style: AppTextStyles.heading1),
-                    const SizedBox(height: 4),
-                    Text('Notes, Timers, and Checklists',
-                        style: AppTextStyles.bodySmall,),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Workspace',
+                        style: AppTextStyles.heading1.copyWith(
+                          fontSize: AppResponsive.heading1Size(context),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Notes, Timers, and Checklists',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: AppSpacing.md),
                 NeoButton(
                   width: 48,
                   height: 48,
@@ -66,20 +76,19 @@ class _TodoListViewState extends State<TodoListView> {
               ],
             ),
           ),
-
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            padding: AppResponsive.horizontalPadding(context),
             child: _buildTabSelector(),
           ),
           const SizedBox(height: AppSpacing.md),
-
           if (context.watch<TodoProvider>().errorMessage != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Text(context.watch<TodoProvider>().errorMessage!,
-                  style: const TextStyle(color: Colors.redAccent),),
+              padding: AppResponsive.horizontalPadding(context),
+              child: Text(
+                context.watch<TodoProvider>().errorMessage!,
+                style: const TextStyle(color: Colors.redAccent),
+              ),
             ),
-
           Expanded(
             child: Consumer<TodoProvider>(
               builder: (context, provider, _) {
@@ -130,10 +139,12 @@ class _TodoListViewState extends State<TodoListView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(tabs[i].icon,
-                        size: 16,
-                        color:
-                            isSelected ? Colors.white : AppColors.textSecondary,),
+                    Icon(
+                      tabs[i].icon,
+                      size: 16,
+                      color:
+                          isSelected ? Colors.white : AppColors.textSecondary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       tabs[i].label,
@@ -157,7 +168,7 @@ class _TodoListViewState extends State<TodoListView> {
 
   Widget _buildNotesList(List<domain.TodoItem> notes) {
     return GridView.builder(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: AppResponsive.screenPadding(context),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 300,
         mainAxisSpacing: AppSpacing.md,
@@ -198,8 +209,11 @@ class _TodoListViewState extends State<TodoListView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_circle_outline_rounded,
-                    color: Colors.white, size: 32,),
+                Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
                 SizedBox(height: 12),
                 Text(
                   'Capture Idea',
@@ -222,10 +236,17 @@ class _TodoListViewState extends State<TodoListView> {
       return _buildEmptyState(Icons.timer_outlined, 'No timers yet');
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.pagePadding(context),
+        0,
+        AppResponsive.pagePadding(context),
+        AppSpacing.xl,
+      ),
       itemCount: timers.length,
-      itemBuilder: (context, index) =>
-          _TimerCard(timer: timers[index], onTap: () => _openDetail(timers[index])),
+      itemBuilder: (context, index) => _TimerCard(
+        timer: timers[index],
+        onTap: () => _openDetail(timers[index]),
+      ),
     );
   }
 
@@ -234,7 +255,12 @@ class _TodoListViewState extends State<TodoListView> {
       return _buildEmptyState(Icons.checklist_outlined, 'No lists yet');
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.pagePadding(context),
+        0,
+        AppResponsive.pagePadding(context),
+        AppSpacing.xl,
+      ),
       itemCount: lists.length,
       itemBuilder: (context, index) =>
           _ListCard(list: lists[index], onTap: () => _openDetail(lists[index])),
@@ -289,7 +315,8 @@ class _NoteCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Saved just now', // Simplified for now
-            style: AppTextStyles.label.copyWith(fontSize: 9, color: Colors.white12),
+            style: AppTextStyles.label
+                .copyWith(fontSize: 9, color: Colors.white12),
           ),
         ],
       ),
@@ -316,10 +343,14 @@ class _TimerCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(timer.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),),
-                  Text('${timer.durationMinutes} minutes',
-                      style: AppTextStyles.bodySmall,),
+                  Text(
+                    timer.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '${timer.durationMinutes} minutes',
+                    style: AppTextStyles.bodySmall,
+                  ),
                 ],
               ),
             ),
@@ -327,7 +358,8 @@ class _TimerCard extends StatelessWidget {
               height: 32,
               width: 80,
               onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => TimerView(timer: timer)),),
+                MaterialPageRoute(builder: (_) => TimerView(timer: timer)),
+              ),
               child: const Text('START', style: TextStyle(fontSize: 10)),
             ),
           ],
@@ -357,10 +389,14 @@ class _ListCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(list.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),),
-                  Text('$done / ${list.checklist.length} items completed',
-                      style: AppTextStyles.bodySmall,),
+                  Text(
+                    list.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '$done / ${list.checklist.length} items completed',
+                    style: AppTextStyles.bodySmall,
+                  ),
                 ],
               ),
             ),

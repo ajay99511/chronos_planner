@@ -49,7 +49,10 @@ class _ScheduleViewState extends State<ScheduleView> {
             task: task,
             isCompleted: task.completed,
             onToggle: () {
-              context.read<ScheduleStateProvider>().updateTask(task.id, task.copyWith(completed: !task.completed));
+              context.read<ScheduleStateProvider>().updateTask(
+                    task.id,
+                    task.copyWith(completed: !task.completed),
+                  );
               Navigator.pop(context);
             },
             onEdit: () {
@@ -61,7 +64,9 @@ class _ScheduleViewState extends State<ScheduleView> {
                 builder: (_) => AddTaskSheet(
                   editingTask: task,
                   onAdd: (_, __) {},
-                  onUpdate: (updatedTask) => context.read<ScheduleStateProvider>().updateTask(task.id, updatedTask),
+                  onUpdate: (updatedTask) => context
+                      .read<ScheduleStateProvider>()
+                      .updateTask(task.id, updatedTask),
                 ),
               );
             },
@@ -106,11 +111,15 @@ class _ScheduleViewState extends State<ScheduleView> {
           children: [
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
             const SizedBox(height: 16),
-            Text(provider.errorMessage!,
-                style: const TextStyle(color: Colors.white70),),
+            Text(
+              provider.errorMessage!,
+              style: const TextStyle(color: Colors.white70),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
-                onPressed: provider.loadData, child: const Text('Retry'),),
+              onPressed: provider.loadData,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       );
@@ -163,15 +172,19 @@ class _ScheduleViewState extends State<ScheduleView> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 600;
-                  final narrowItemWidth = (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
-                  final itemWidth = isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
+                  final narrowItemWidth =
+                      (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
+                  final itemWidth =
+                      isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
 
                   Widget buildDayCard(int index) {
                     final day = provider.weekPlan[index];
                     final isSelected = index == provider.selectedDayIndex;
                     final hasTasks = day.tasks.isNotEmpty;
-                    final completedCount = day.tasks.where((t) => t.completed).length;
-                    final progress = hasTasks ? completedCount / day.tasks.length : 0.0;
+                    final completedCount =
+                        day.tasks.where((t) => t.completed).length;
+                    final progress =
+                        hasTasks ? completedCount / day.tasks.length : 0.0;
 
                     return GestureDetector(
                       onTap: () => provider.selectDay(index),
@@ -186,16 +199,28 @@ class _ScheduleViewState extends State<ScheduleView> {
                               ? const LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
-                                  colors: [AppColors.neonBlue, Color(0xFF6366F1)],
+                                  colors: [
+                                    AppColors.neonBlue,
+                                    Color(0xFF6366F1),
+                                  ],
                                 )
                               : null,
                           color: isSelected ? null : AppColors.surface,
                           borderRadius: BorderRadius.circular(AppRadius.lg),
                           border: Border.all(
-                            color: isSelected ? Colors.white.withValues(alpha: 0.2) : AppColors.glassBorder,
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.2)
+                                : AppColors.glassBorder,
                           ),
                           boxShadow: isSelected
-                              ? [BoxShadow(color: AppColors.neonBlue.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))]
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.neonBlue
+                                        .withValues(alpha: 0.4),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
                               : [],
                         ),
                         child: Column(
@@ -207,16 +232,22 @@ class _ScheduleViewState extends State<ScheduleView> {
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.5,
-                                color: isSelected ? Colors.white.withValues(alpha: 0.9) : AppColors.textSecondary,
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.9)
+                                    : AppColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              day.dateStr.split(' ').length > 1 ? day.dateStr.split(' ')[1] : day.dateStr,
+                              day.dateStr.split(' ').length > 1
+                                  ? day.dateStr.split(' ')[1]
+                                  : day.dateStr,
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: isSelected ? Colors.white : AppColors.textPrimary,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -253,12 +284,16 @@ class _ScheduleViewState extends State<ScheduleView> {
                   if (isWide) {
                     return Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(7, (index) => buildDayCard(index)),
+                      children:
+                          List.generate(7, (index) => buildDayCard(index)),
                     );
                   } else {
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       itemCount: 7,
                       itemBuilder: (context, index) => buildDayCard(index),
                     );
@@ -271,14 +306,11 @@ class _ScheduleViewState extends State<ScheduleView> {
 
             // ── Header Area ─────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.spaceBetween,
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  Column(
+              padding: AppResponsive.horizontalPadding(context),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 520;
+                  final titleBlock = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -286,107 +318,62 @@ class _ScheduleViewState extends State<ScheduleView> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 2,
+                          letterSpacing: 1.4,
                           color: AppColors.neonBlue.withValues(alpha: 0.8),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         dayPlan.dateStr,
-                        style: const TextStyle(
-                          fontSize: 28,
+                        style: TextStyle(
+                          fontSize: isCompact ? 24 : 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
-                          letterSpacing: -0.5,
+                          letterSpacing: 0,
                         ),
                       ),
                     ],
-                  ),
+                  );
+                  final toolbar = _ScheduleToolbar(
+                    provider: provider,
+                    currentViewMode: _currentViewMode,
+                    onToggleViewMode: _toggleViewMode,
+                    onAddTask: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => AddTaskSheet(
+                          defaultDate: dayPlan.date,
+                          onAdd: (t, d) => provider.addTask(t, d),
+                        ),
+                      );
+                    },
+                    onSaveTemplate: () =>
+                        _showSaveTemplateDialog(context, provider),
+                  );
 
-                  // Action Toolbar
-                  GlassContainer(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  if (isCompact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (provider.canUndo)
-                          _ActionButton(
-                            icon: Icons.undo,
-                            color: AppColors.neonBlue,
-                            onTap: () {
-                              provider.undo();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Action undone'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            tooltip: 'Undo',
-                          ),
-                        if (provider.canUndo) const SizedBox(width: 4),
-
-                        _ActionButton(
-                          icon: provider.sortOrder == SortOrder.asc
-                              ? Icons.arrow_upward
-                              : Icons.arrow_downward,
-                          color: AppColors.neonCyan,
-                          onTap: () => provider.toggleSortOrder(),
-                          tooltip: provider.sortOrder == SortOrder.asc
-                              ? 'Sorted: Earliest First'
-                              : 'Sorted: Latest First',
-                        ),
-                        const SizedBox(width: 4),
-
-                        _ActionButton(
-                          icon: Icons.save_outlined,
-                          color: AppColors.neonPurple,
-                          onTap: () => _showSaveTemplateDialog(context, provider),
-                          tooltip: 'Save Template',
-                        ),
-                        const SizedBox(width: 4),
-
-                        _ActionButton(
-                          icon: _currentViewMode == TaskCardViewMode.card
-                              ? Icons.view_list_rounded
-                              : Icons.grid_view_rounded,
-                          color: AppColors.neonPurple,
-                          onTap: _toggleViewMode,
-                          tooltip: _currentViewMode == TaskCardViewMode.card
-                              ? 'Switch to List View'
-                              : 'Switch to Card View',
-                        ),
-                        const SizedBox(width: 4),
-
-                        Container(
-                            width: 1,
-                            height: 24,
-                            color: Colors.white10,
-                            margin: const EdgeInsets.symmetric(horizontal: 8),),
-
-                        // Add task
-                        IconButton(
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (_) => AddTaskSheet(
-                                  defaultDate: dayPlan.date,
-                                  onAdd: (t, d) => provider.addTask(t, d),),
-                            );
-                          },
-                          icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppColors.neonBlue,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            padding: const EdgeInsets.all(10),
-                          ),
-                        ),
+                        titleBlock,
+                        const SizedBox(height: AppSpacing.md),
+                        toolbar,
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: titleBlock),
+                      const SizedBox(width: AppSpacing.md),
+                      toolbar,
+                    ],
+                  );
+                },
               ),
             ),
 
@@ -402,7 +389,8 @@ class _ScheduleViewState extends State<ScheduleView> {
                       final velocity = details.primaryVelocity ?? 0;
                       if (velocity.abs() < 300) return;
                       final current = provider.selectedDayIndex;
-                      if (velocity < 0 && current < provider.weekPlan.length - 1) {
+                      if (velocity < 0 &&
+                          current < provider.weekPlan.length - 1) {
                         provider.selectDay(current + 1);
                       } else if (velocity > 0 && current > 0) {
                         provider.selectDay(current - 1);
@@ -416,17 +404,23 @@ class _ScheduleViewState extends State<ScheduleView> {
                                 Container(
                                   padding: const EdgeInsets.all(24),
                                   decoration: BoxDecoration(
-                                    color: AppColors.surface.withValues(alpha: 0.5),
+                                    color: AppColors.surface
+                                        .withValues(alpha: 0.5),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(Icons.calendar_today_outlined,
-                                      size: 48,
-                                      color: Colors.white.withValues(alpha: 0.1),),
+                                  child: Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 48,
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
                                 ),
                                 const SizedBox(height: 24),
                                 Text(
                                   'No plans for ${dayPlan.dayOfWeek}',
-                                  style: const TextStyle(color: Colors.white60, fontSize: 16),
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ],
                             ),
@@ -440,13 +434,20 @@ class _ScheduleViewState extends State<ScheduleView> {
                                 return TaskCard(
                                   task: task,
                                   viewMode: _currentViewMode,
-                                  onToggle: () => provider.updateTask(task.id, task.copyWith(completed: !task.completed)),
+                                  onToggle: () => provider.updateTask(
+                                    task.id,
+                                    task.copyWith(
+                                      completed: !task.completed,
+                                    ),
+                                  ),
                                   onDelete: () {
                                     provider.deleteTask(task.id);
-                                    ScaffoldMessenger.of(context).clearSnackBars();
+                                    ScaffoldMessenger.of(context)
+                                        .clearSnackBars();
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Deleted "${task.title}"'),
+                                        content:
+                                            Text('Deleted "${task.title}"'),
                                         action: SnackBarAction(
                                           label: 'UNDO',
                                           textColor: AppColors.neonBlue,
@@ -463,8 +464,8 @@ class _ScheduleViewState extends State<ScheduleView> {
                                       builder: (_) => AddTaskSheet(
                                         editingTask: task,
                                         onAdd: (_, __) {},
-                                        onUpdate: (updatedTask) =>
-                                            provider.updateTask(task.id, updatedTask),
+                                        onUpdate: (updatedTask) => provider
+                                            .updateTask(task.id, updatedTask),
                                       ),
                                     );
                                   },
@@ -479,18 +480,34 @@ class _ScheduleViewState extends State<ScheduleView> {
                                 );
                               }
 
-                              if (isWide && _currentViewMode == TaskCardViewMode.card) {
+                              if (isWide &&
+                                  _currentViewMode == TaskCardViewMode.card) {
                                 return SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppResponsive.pagePadding(context),
+                                    0,
+                                    AppResponsive.pagePadding(context),
+                                    100,
+                                  ),
                                   physics: const BouncingScrollPhysics(),
                                   child: Wrap(
                                     spacing: 16,
-                                    runSpacing: 0, // TaskCard already has bottom margin
-                                    children: List.generate(sortedTasks.length, (index) {
-                                      final cols = constraints.maxWidth >= 1200 ? 3 : 2;
-                                      final cardWidth = (constraints.maxWidth - 40 - (16 * (cols - 1))) / cols;
+                                    runSpacing:
+                                        0, // TaskCard already has bottom margin
+                                    children: List.generate(sortedTasks.length,
+                                        (index) {
+                                      final cols =
+                                          constraints.maxWidth >= 1200 ? 3 : 2;
+                                      final horizontalPadding =
+                                          AppResponsive.pagePadding(context) *
+                                              2;
+                                      final cardWidth = (constraints.maxWidth -
+                                              horizontalPadding -
+                                              (16 * (cols - 1))) /
+                                          cols;
                                       return SizedBox(
-                                        width: cardWidth - 1, // Subtract 1 pixel to prevent rounding errors causing wrap
+                                        width: cardWidth -
+                                            1, // Subtract 1 pixel to prevent rounding errors causing wrap
                                         child: buildTaskCard(index),
                                       );
                                     }),
@@ -498,10 +515,16 @@ class _ScheduleViewState extends State<ScheduleView> {
                                 );
                               } else {
                                 return ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppResponsive.pagePadding(context),
+                                    0,
+                                    AppResponsive.pagePadding(context),
+                                    100,
+                                  ),
                                   physics: const BouncingScrollPhysics(),
                                   itemCount: sortedTasks.length,
-                                  itemBuilder: (context, index) => buildTaskCard(index),
+                                  itemBuilder: (context, index) =>
+                                      buildTaskCard(index),
                                 );
                               }
                             },
@@ -513,7 +536,9 @@ class _ScheduleViewState extends State<ScheduleView> {
                     Positioned.fill(
                       child: GestureDetector(
                         onTap: _closeTaskDetail,
-                        child: Container(color: Colors.black.withValues(alpha: 0.5)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                     Positioned(
@@ -526,7 +551,12 @@ class _ScheduleViewState extends State<ScheduleView> {
                           task: _selectedTask!,
                           isCompleted: _selectedTask!.completed,
                           onToggle: () {
-                            provider.updateTask(_selectedTask!.id, _selectedTask!.copyWith(completed: !_selectedTask!.completed));
+                            provider.updateTask(
+                              _selectedTask!.id,
+                              _selectedTask!.copyWith(
+                                completed: !_selectedTask!.completed,
+                              ),
+                            );
                             _closeTaskDetail();
                           },
                           onEdit: () {
@@ -538,7 +568,10 @@ class _ScheduleViewState extends State<ScheduleView> {
                               builder: (_) => AddTaskSheet(
                                 editingTask: _selectedTask!,
                                 onAdd: (_, __) {},
-                                onUpdate: (updatedTask) => provider.updateTask(_selectedTask!.id, updatedTask),
+                                onUpdate: (updatedTask) => provider.updateTask(
+                                  _selectedTask!.id,
+                                  updatedTask,
+                                ),
                               ),
                             );
                           },
@@ -561,7 +594,9 @@ class _ScheduleViewState extends State<ScheduleView> {
   }
 
   void _showSaveTemplateDialog(
-      BuildContext context, ScheduleStateProvider provider,) {
+    BuildContext context,
+    ScheduleStateProvider provider,
+  ) {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     showDialog(
@@ -601,18 +636,20 @@ class _ScheduleViewState extends State<ScheduleView> {
                 name: name,
                 description: descCtrl.text.trim(),
                 tasks: currentTasks
-                    .map((t) => TemplateTask(
-                          id: const Uuid().v4(),
-                          templateId: templateId,
-                          title: t.title,
-                          startTime: t.startTime,
-                          endTime: t.endTime,
-                          type: t.type,
-                          priority: t.priority,
-                          energyLevel: t.energyLevel,
-                          estimatedCost: t.estimatedCost,
-                          description: t.description,
-                        ),)
+                    .map(
+                      (t) => TemplateTask(
+                        id: const Uuid().v4(),
+                        templateId: templateId,
+                        title: t.title,
+                        startTime: t.startTime,
+                        endTime: t.endTime,
+                        type: t.type,
+                        priority: t.priority,
+                        energyLevel: t.energyLevel,
+                        estimatedCost: t.estimatedCost,
+                        description: t.description,
+                      ),
+                    )
                     .toList(),
               );
 
@@ -636,7 +673,12 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final String tooltip;
 
-  const _ActionButton({required this.icon, required this.color, required this.onTap, required this.tooltip});
+  const _ActionButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -646,7 +688,102 @@ class _ActionButton extends StatelessWidget {
       tooltip: tooltip,
       style: IconButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleToolbar extends StatelessWidget {
+  final ScheduleStateProvider provider;
+  final TaskCardViewMode currentViewMode;
+  final VoidCallback onToggleViewMode;
+  final VoidCallback onAddTask;
+  final VoidCallback onSaveTemplate;
+
+  const _ScheduleToolbar({
+    required this.provider,
+    required this.currentViewMode,
+    required this.onToggleViewMode,
+    required this.onAddTask,
+    required this.onSaveTemplate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassContainer(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (provider.canUndo)
+              _ActionButton(
+                icon: Icons.undo,
+                color: AppColors.neonBlue,
+                onTap: () {
+                  provider.undo();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Action undone'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                tooltip: 'Undo',
+              ),
+            if (provider.canUndo) const SizedBox(width: 4),
+            _ActionButton(
+              icon: provider.sortOrder == SortOrder.asc
+                  ? Icons.arrow_upward
+                  : Icons.arrow_downward,
+              color: AppColors.neonCyan,
+              onTap: provider.toggleSortOrder,
+              tooltip: provider.sortOrder == SortOrder.asc
+                  ? 'Sorted: Earliest First'
+                  : 'Sorted: Latest First',
+            ),
+            const SizedBox(width: 4),
+            _ActionButton(
+              icon: Icons.save_outlined,
+              color: AppColors.neonPurple,
+              onTap: onSaveTemplate,
+              tooltip: 'Save Template',
+            ),
+            const SizedBox(width: 4),
+            _ActionButton(
+              icon: currentViewMode == TaskCardViewMode.card
+                  ? Icons.view_list_rounded
+                  : Icons.grid_view_rounded,
+              color: AppColors.neonPurple,
+              onTap: onToggleViewMode,
+              tooltip: currentViewMode == TaskCardViewMode.card
+                  ? 'Switch to List View'
+                  : 'Switch to Card View',
+            ),
+            const SizedBox(width: 4),
+            Container(
+              width: 1,
+              height: 24,
+              color: Colors.white10,
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            IconButton(
+              onPressed: onAddTask,
+              icon: const Icon(Icons.add, color: Colors.white, size: 20),
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.neonBlue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.all(10),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

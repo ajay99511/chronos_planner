@@ -106,8 +106,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
         provider.addNote(title, description: desc);
         break;
       case 1: // Timer
-        final duration =
-            int.tryParse(_durationController.text.trim()) ?? 25;
+        final duration = int.tryParse(_durationController.text.trim()) ?? 25;
         provider.addTimer(
           title,
           description: desc,
@@ -137,7 +136,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
         ),
         decoration: const BoxDecoration(
           color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
           border: Border(
             top: BorderSide(color: Colors.white10),
             left: BorderSide(color: Colors.white10),
@@ -146,7 +146,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
         ),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: AppResponsive.screenPadding(context),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,8 +158,11 @@ class _NewItemSheetState extends State<NewItemSheet> {
                     Text('New Item', style: AppTextStyles.heading3),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.close,
-                          color: Colors.white54, size: 24,),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white54,
+                        size: 24,
+                      ),
                     ),
                   ],
                 ),
@@ -176,8 +179,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
                       .copyWith(color: AppColors.textSecondary),
                   decoration: InputDecoration(
                     hintText: _tabHintTitle,
-                    hintStyle: AppTextStyles.heading3
-                        .copyWith(color: Colors.white24),
+                    hintStyle:
+                        AppTextStyles.heading3.copyWith(color: Colors.white24),
                     border: InputBorder.none,
                   ),
                   autofocus: true,
@@ -190,8 +193,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
                     style: AppTextStyles.body.copyWith(height: 1.5),
                     decoration: InputDecoration(
                       hintText: 'Write your note here...',
-                      hintStyle: AppTextStyles.body
-                          .copyWith(color: Colors.white24),
+                      hintStyle:
+                          AppTextStyles.body.copyWith(color: Colors.white24),
                       border: InputBorder.none,
                     ),
                     maxLines: 5,
@@ -203,8 +206,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
                     style: AppTextStyles.body.copyWith(height: 1.5),
                     decoration: InputDecoration(
                       hintText: 'Add description or context...',
-                      hintStyle: AppTextStyles.body
-                          .copyWith(color: Colors.white24),
+                      hintStyle:
+                          AppTextStyles.body.copyWith(color: Colors.white24),
                       border: InputBorder.none,
                     ),
                     maxLines: 3,
@@ -279,39 +282,44 @@ class _NewItemSheetState extends State<NewItemSheet> {
       ),
       padding: const EdgeInsets.all(4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: List.generate(tabs.length, (i) {
           final isSelected = _selectedTab == i;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedTab = i),
-            child: AnimatedContainer(
-              duration: AppAnimDurations.fast,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm,),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.surfaceLight : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(tabs[i].icon,
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedTab = i),
+              child: AnimatedContainer(
+                duration: AppAnimDurations.fast,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected ? AppColors.surfaceLight : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      tabs[i].icon,
                       size: 16,
-                      color: isSelected
-                          ? Colors.white
-                          : AppColors.textSecondary,),
-                  const SizedBox(width: 6),
-                  Text(
-                    tabs[i].label,
-                    style: AppTextStyles.body.copyWith(
-                      color: isSelected
-                          ? Colors.white
-                          : AppColors.textSecondary,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          isSelected ? Colors.white : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      tabs[i].label,
+                      style: AppTextStyles.body.copyWith(
+                        color:
+                            isSelected ? Colors.white : AppColors.textSecondary,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -323,8 +331,10 @@ class _NewItemSheetState extends State<NewItemSheet> {
   List<Widget> _buildTimerFields() {
     return [
       const Divider(color: Colors.white10, height: 32),
-      Text('Duration (minutes)',
-          style: AppTextStyles.subtitle,),
+      Text(
+        'Duration (minutes)',
+        style: AppTextStyles.subtitle,
+      ),
       const SizedBox(height: AppSpacing.sm),
       Container(
         decoration: BoxDecoration(
@@ -341,16 +351,20 @@ class _NewItemSheetState extends State<NewItemSheet> {
         ),
       ),
       const SizedBox(height: AppSpacing.lg),
-      Text('Background Audio (Optional)',
-          style: AppTextStyles.subtitle,),
+      Text(
+        'Background Audio (Optional)',
+        style: AppTextStyles.subtitle,
+      ),
       const SizedBox(height: AppSpacing.sm),
-      Row(
-        children: [
-          GestureDetector(
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final button = GestureDetector(
             onTap: _pickAudioFile,
             child: Container(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm,),
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadius.md),
@@ -359,25 +373,44 @@ class _NewItemSheetState extends State<NewItemSheet> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.music_note,
-                      size: 18, color: AppColors.textSecondary,),
+                  const Icon(
+                    Icons.music_note,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Select Local Audio',
-                      style: AppTextStyles.body
-                          .copyWith(fontWeight: FontWeight.w600),),
+                  Text(
+                    'Select Local Audio',
+                    style: AppTextStyles.body
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              _audioFileName ?? 'No file selected',
-              style: AppTextStyles.bodySmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+          );
+          final fileLabel = Text(
+            _audioFileName ?? 'No file selected',
+            style: AppTextStyles.bodySmall,
+            overflow: TextOverflow.ellipsis,
+          );
+          if (constraints.maxWidth < 380) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                button,
+                const SizedBox(height: AppSpacing.sm),
+                fileLabel,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              button,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: fileLabel),
+            ],
+          );
+        },
       ),
     ];
   }
@@ -392,16 +425,22 @@ class _NewItemSheetState extends State<NewItemSheet> {
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(
             children: [
-              const Icon(Icons.check_box_outline_blank,
-                  size: 18, color: AppColors.textSecondary,),
+              const Icon(
+                Icons.check_box_outline_blank,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(entry.value, style: AppTextStyles.body),
               ),
               GestureDetector(
                 onTap: () => _removeChecklistItem(entry.key),
-                child: const Icon(Icons.close,
-                    size: 16, color: Colors.white38,),
+                child: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Colors.white38,
+                ),
               ),
             ],
           ),
@@ -416,15 +455,13 @@ class _NewItemSheetState extends State<NewItemSheet> {
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(color: Colors.white10),
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: TextField(
                 controller: _checklistController,
                 style: AppTextStyles.body,
                 decoration: InputDecoration(
                   hintText: 'Add new item...',
-                  hintStyle:
-                      AppTextStyles.body.copyWith(color: Colors.white24),
+                  hintStyle: AppTextStyles.body.copyWith(color: Colors.white24),
                   border: InputBorder.none,
                 ),
                 onSubmitted: (_) => _addChecklistItem(),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Design system for Chronos Planner.
-/// 
+///
 /// Centralized source of truth for all visual styling:
 /// - Color palette (backgrounds, accents, task types)
 /// - Typography scale (Inter font via Google Fonts)
@@ -11,9 +11,9 @@ import 'package:google_fonts/google_fonts.dart';
 /// - Shadow presets
 /// - Animation durations
 /// - Gradient presets
-/// 
+///
 /// Usage: Always import and use these constants instead of magic values.
-/// 
+///
 /// Example:
 /// ```dart
 /// Container(
@@ -73,14 +73,14 @@ class AppTextStyles {
         fontSize: 32,
         fontWeight: FontWeight.bold,
         color: AppColors.textPrimary,
-        letterSpacing: -0.5,
+        letterSpacing: 0,
       );
 
   static TextStyle get heading2 => GoogleFonts.inter(
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: AppColors.textPrimary,
-        letterSpacing: -0.5,
+        letterSpacing: 0,
       );
 
   static TextStyle get heading3 => GoogleFonts.inter(
@@ -134,6 +134,48 @@ class AppSpacing {
   static const double lg = 24;
   static const double xl = 32;
   static const double xxl = 48;
+}
+
+// ─────────────────────────────────────────────────
+// RESPONSIVE LAYOUT
+// ─────────────────────────────────────────────────
+class AppResponsive {
+  static bool isCompact(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 600;
+
+  static bool isMedium(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= 600 &&
+      MediaQuery.sizeOf(context).width < 900;
+
+  static bool isExpanded(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= 900;
+
+  static double pagePadding(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 360) return AppSpacing.md;
+    if (width < 600) return AppSpacing.md;
+    if (width < 900) return AppSpacing.lg;
+    return AppSpacing.xl;
+  }
+
+  static EdgeInsets screenPadding(BuildContext context) {
+    final padding = pagePadding(context);
+    return EdgeInsets.all(padding);
+  }
+
+  static EdgeInsets horizontalPadding(BuildContext context) {
+    final padding = pagePadding(context);
+    return EdgeInsets.symmetric(horizontal: padding);
+  }
+
+  static double heading1Size(BuildContext context) =>
+      isCompact(context) ? 26 : 32;
+
+  static double heading2Size(BuildContext context) =>
+      isCompact(context) ? 24 : 28;
+
+  static double cardRadius(BuildContext context) =>
+      isCompact(context) ? AppRadius.lg : AppRadius.xl;
 }
 
 // ─────────────────────────────────────────────────

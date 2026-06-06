@@ -87,68 +87,128 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _totalSeconds > 0 ? 1.0 - (_remainingSeconds / _totalSeconds) : 0.0;
+    final progress =
+        _totalSeconds > 0 ? 1.0 - (_remainingSeconds / _totalSeconds) : 0.0;
+    final size = MediaQuery.sizeOf(context);
+    final circleSize =
+        (size.shortestSide - (AppResponsive.pagePadding(context) * 2))
+            .clamp(220.0, 280.0);
+    final timeFontSize = (circleSize * 0.23).clamp(48.0, 64.0);
+    final primaryButtonSize = (circleSize * 0.28).clamp(68.0, 80.0);
+    final controlGap =
+        AppResponsive.isCompact(context) ? AppSpacing.lg : AppSpacing.xl;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70), onPressed: () => Navigator.pop(context)),
-        title: Text(widget.timer.title.toUpperCase(), style: const TextStyle(letterSpacing: 2, fontSize: 14, fontWeight: FontWeight.w800)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.timer.title.toUpperCase(),
+          style: const TextStyle(
+            letterSpacing: 2,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         centerTitle: true,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 280,
-                  height: 280,
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 10,
-                    strokeCap: StrokeCap.round,
-                    color: _isCompleted ? AppColors.health : AppColors.neonBlue,
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_formatTime(_remainingSeconds), style: AppTextStyles.heading1.copyWith(fontSize: 64, fontWeight: FontWeight.w200)),
-                    if (_isCompleted) const Text('COMPLETE', style: TextStyle(color: AppColors.health, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 64),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _ControlButton(icon: Icons.refresh_rounded, onTap: _resetTimer),
-                const SizedBox(width: 32),
-                GestureDetector(
-                  onTap: _isCompleted ? _resetTimer : (_isRunning ? _pauseTimer : _startTimer),
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [AppColors.neonBlue, AppColors.neonPurple]),
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: AppColors.neonBlue.withValues(alpha: 0.3), blurRadius: 20)],
+        child: SingleChildScrollView(
+          padding: AppResponsive.screenPadding(context),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: circleSize,
+                    height: circleSize,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 10,
+                      strokeCap: StrokeCap.round,
+                      color:
+                          _isCompleted ? AppColors.health : AppColors.neonBlue,
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
                     ),
-                    child: Icon(_isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 40, color: Colors.white),
                   ),
-                ),
-                const SizedBox(width: 32),
-                _ControlButton(icon: Icons.stop_rounded, onTap: () => _audioPlayer.stop()),
-              ],
-            ),
-          ],
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatTime(_remainingSeconds),
+                        style: AppTextStyles.heading1.copyWith(
+                          fontSize: timeFontSize,
+                          fontWeight: FontWeight.w200,
+                        ),
+                      ),
+                      if (_isCompleted)
+                        const Text(
+                          'COMPLETE',
+                          style: TextStyle(
+                            color: AppColors.health,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(
+                height: AppResponsive.isCompact(context) ? AppSpacing.xl : 64,
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ControlButton(
+                    icon: Icons.refresh_rounded,
+                    onTap: _resetTimer,
+                  ),
+                  SizedBox(width: controlGap),
+                  GestureDetector(
+                    onTap: _isCompleted
+                        ? _resetTimer
+                        : (_isRunning ? _pauseTimer : _startTimer),
+                    child: Container(
+                      width: primaryButtonSize,
+                      height: primaryButtonSize,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.neonBlue, AppColors.neonPurple],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.neonBlue.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isRunning
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: controlGap),
+                  _ControlButton(
+                    icon: Icons.stop_rounded,
+                    onTap: () => _audioPlayer.stop(),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

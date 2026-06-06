@@ -138,7 +138,10 @@ class TaskDetailPanel extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: task.completed
-                    ? [Colors.grey.withValues(alpha: 0.3), Colors.grey.withValues(alpha: 0.1)]
+                    ? [
+                        Colors.grey.withValues(alpha: 0.3),
+                        Colors.grey.withValues(alpha: 0.1),
+                      ]
                     : [typeColor, typeColor.withValues(alpha: 0.6)],
               ),
             ),
@@ -166,9 +169,13 @@ class TaskDetailPanel extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     _IconButton(
-                      icon: isCompleted ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                      icon: isCompleted
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
                       onTap: onToggle,
-                      tooltip: isCompleted ? 'Mark as incomplete' : 'Mark as complete',
+                      tooltip: isCompleted
+                          ? 'Mark as incomplete'
+                          : 'Mark as complete',
                       color: AppColors.health,
                     ),
                   ],
@@ -182,7 +189,11 @@ class TaskDetailPanel extends StatelessWidget {
           // Scrollable content
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: EdgeInsets.all(
+                AppResponsive.isCompact(context)
+                    ? AppSpacing.md
+                    : AppSpacing.lg,
+              ),
               children: [
                 // Task Title Card
                 _buildTitleCard(typeColor),
@@ -195,13 +206,12 @@ class TaskDetailPanel extends StatelessWidget {
                 const SizedBox(height: AppSpacing.lg),
 
                 // Description Section
-                if (task.description.isNotEmpty)
-                  _buildDescriptionCard(),
+                if (task.description.isNotEmpty) _buildDescriptionCard(),
 
                 const SizedBox(height: AppSpacing.lg),
 
                 // Metadata Grid
-                _buildMetadataGrid(typeColor),
+                _buildMetadataGrid(context, typeColor),
 
                 const SizedBox(height: AppSpacing.lg),
 
@@ -211,7 +221,7 @@ class TaskDetailPanel extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xl),
 
                 // Action Buttons
-                _buildActionButtons(),
+                _buildActionButtons(context),
               ],
             ),
           ),
@@ -355,7 +365,8 @@ class TaskDetailPanel extends StatelessWidget {
               if (isOverdue) ...[
                 const SizedBox(width: AppSpacing.xs),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.redAccent.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -507,7 +518,7 @@ class TaskDetailPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildMetadataGrid(Color typeColor) {
+  Widget _buildMetadataGrid(BuildContext context, Color typeColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,28 +530,40 @@ class TaskDetailPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetadataCard(
-                icon: _getEnergyIcon(task.energyLevel),
-                iconColor: _getEnergyColor(task.energyLevel),
-                label: _getEnergyLabel(task.energyLevel),
-                sublabel: 'Required energy',
-                typeColor: _getEnergyColor(task.energyLevel),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _buildMetadataCard(
-                icon: _getPriorityIcon(task.priority),
-                iconColor: _getPriorityColor(task.priority),
-                label: _getPriorityLabel(task.priority),
-                sublabel: 'Importance level',
-                typeColor: _getPriorityColor(task.priority),
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 340;
+            final energy = _buildMetadataCard(
+              icon: _getEnergyIcon(task.energyLevel),
+              iconColor: _getEnergyColor(task.energyLevel),
+              label: _getEnergyLabel(task.energyLevel),
+              sublabel: 'Required energy',
+              typeColor: _getEnergyColor(task.energyLevel),
+            );
+            final priority = _buildMetadataCard(
+              icon: _getPriorityIcon(task.priority),
+              iconColor: _getPriorityColor(task.priority),
+              label: _getPriorityLabel(task.priority),
+              sublabel: 'Importance level',
+              typeColor: _getPriorityColor(task.priority),
+            );
+            if (stack) {
+              return Column(
+                children: [
+                  energy,
+                  const SizedBox(height: AppSpacing.md),
+                  priority,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: energy),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(child: priority),
+              ],
+            );
+          },
         ),
         if (task.estimatedCost > 0) ...[
           const SizedBox(height: AppSpacing.md),
@@ -693,43 +716,58 @@ class TaskDetailPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.neonBlue,
-                  side: BorderSide(color: AppColors.neonBlue.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                  ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 340;
+            final edit = OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.neonBlue,
+                side: BorderSide(
+                  color: AppColors.neonBlue.withValues(alpha: 0.3),
                 ),
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_rounded, size: 18),
-                label: const Text('Edit Task'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.redAccent,
-                  side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                  ),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                label: const Text('Delete'),
               ),
-            ),
-          ],
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Edit Task'),
+            );
+            final delete = OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                side:
+                    BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                ),
+              ),
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('Delete'),
+            );
+            if (stack) {
+              return Column(
+                children: [
+                  SizedBox(width: double.infinity, child: edit),
+                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(width: double.infinity, child: delete),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: edit),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(child: delete),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -740,7 +778,7 @@ class TaskDetailPanel extends StatelessWidget {
       final start = _parseTime(task.startTime);
       final end = _parseTime(task.endTime);
       final diff = end - start;
-      
+
       if (diff < 0) {
         // Overnight task
         final overnight = diff + (24 * 60);
@@ -748,10 +786,10 @@ class TaskDetailPanel extends StatelessWidget {
         final minutes = overnight % 60;
         return '${hours}h ${minutes}m';
       }
-      
+
       final hours = diff ~/ 60;
       final minutes = diff % 60;
-      
+
       if (hours > 0) {
         return '${hours}h ${minutes}m';
       }
@@ -809,7 +847,8 @@ class _IconButton extends StatelessWidget {
       icon: Icon(icon, size: 20, color: color ?? AppColors.textSecondary),
       tooltip: tooltip,
       style: IconButton.styleFrom(
-        backgroundColor: (color ?? AppColors.textSecondary).withValues(alpha: 0.1),
+        backgroundColor:
+            (color ?? AppColors.textSecondary).withValues(alpha: 0.1),
         padding: const EdgeInsets.all(8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),

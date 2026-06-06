@@ -62,9 +62,14 @@ class _AnalyticsViewState extends State<AnalyticsView>
     return FadeTransition(
       opacity: _fadeAnim,
       child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: AppResponsive.screenPadding(context),
         children: [
-          Text('Weekly Insights', style: AppTextStyles.heading1),
+          Text(
+            'Weekly Insights',
+            style: AppTextStyles.heading1.copyWith(
+              fontSize: AppResponsive.heading1Size(context),
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             'Analytics based on your local schedule data.',
@@ -72,31 +77,33 @@ class _AnalyticsViewState extends State<AnalyticsView>
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          // Key Metrics Row
-          Row(
+          // Key Metrics
+          _ResponsiveCardGrid(
             children: [
-              Expanded(child: _EfficiencyCard(efficiency: analytics.efficiency)),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: GlassContainer(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.bolt_rounded,
-                              color: AppColors.neonPurple, size: 16,),
-                          const SizedBox(width: 8),
-                          Text('FOCUS HOURS', style: AppTextStyles.label),
-                        ],
+              _EfficiencyCard(efficiency: analytics.efficiency),
+              GlassContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.bolt_rounded,
+                          color: AppColors.neonPurple,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('FOCUS HOURS', style: AppTextStyles.label),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      '${analytics.totalFocusHours.toStringAsFixed(1)}h',
+                      style: AppTextStyles.heading2.copyWith(
+                        fontSize: AppResponsive.heading2Size(context),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        '${analytics.totalFocusHours.toStringAsFixed(1)}h',
-                        style: AppTextStyles.heading2.copyWith(fontSize: 28),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -104,49 +111,56 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
           const SizedBox(height: AppSpacing.md),
 
-          Row(
+          _ResponsiveCardGrid(
             children: [
-              Expanded(
-                child: GlassContainer(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.show_chart_rounded,
-                              color: AppColors.neonCyan, size: 16,),
-                          const SizedBox(width: 8),
-                          Text('PEAK HOUR', style: AppTextStyles.label),
-                        ],
+              GlassContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.show_chart_rounded,
+                          color: AppColors.neonCyan,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('PEAK HOUR', style: AppTextStyles.label),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _getPeakHourStr(energyPeaks),
+                      style: AppTextStyles.heading2.copyWith(
+                        fontSize: AppResponsive.heading2Size(context),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(_getPeakHourStr(energyPeaks),
-                          style: AppTextStyles.heading2.copyWith(fontSize: 28),),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: GlassContainer(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.assignment_turned_in_rounded,
-                              color: AppColors.health, size: 16,),
-                          const SizedBox(width: 8),
-                          Text('TASKS DONE', style: AppTextStyles.label),
-                        ],
+              GlassContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.assignment_turned_in_rounded,
+                          color: AppColors.health,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('TASKS DONE', style: AppTextStyles.label),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      '${analytics.completedTasks}/${analytics.totalTasks}',
+                      style: AppTextStyles.heading2.copyWith(
+                        fontSize: AppResponsive.heading2Size(context),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        '${analytics.completedTasks}/${analytics.totalTasks}',
-                        style: AppTextStyles.heading2.copyWith(fontSize: 28),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -163,8 +177,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
           _buildDistributionChart(analytics),
 
           const SizedBox(height: AppSpacing.xl),
-          Text('DAILY PROGRESS',
-              style: AppTextStyles.label.copyWith(color: Colors.white),),
+          Text(
+            'DAILY PROGRESS',
+            style: AppTextStyles.label.copyWith(color: Colors.white),
+          ),
           const SizedBox(height: AppSpacing.md),
           ...schedule.weekPlan.map((day) => _DailyProgressBar(day: day)),
         ],
@@ -182,11 +198,18 @@ class _AnalyticsViewState extends State<AnalyticsView>
         children: [
           Row(
             children: [
-              const Icon(Icons.flash_on_rounded,
-                  color: AppColors.neonPurple, size: 18,),
+              const Icon(
+                Icons.flash_on_rounded,
+                color: AppColors.neonPurple,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              Text('ENERGY INTENSITY (RELATIVE)',
-                  style: AppTextStyles.label.copyWith(color: Colors.white),),
+              Expanded(
+                child: Text(
+                  'ENERGY INTENSITY (RELATIVE)',
+                  style: AppTextStyles.label.copyWith(color: Colors.white),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -217,8 +240,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
                               colors: isPeak
                                   ? [AppColors.neonCyan, AppColors.neonBlue]
                                   : [
-                                      AppColors.neonPurple.withValues(alpha: 0.8),
-                                      AppColors.neonPurple.withValues(alpha: 0.2),
+                                      AppColors.neonPurple
+                                          .withValues(alpha: 0.8),
+                                      AppColors.neonPurple
+                                          .withValues(alpha: 0.2),
                                     ],
                             ),
                             borderRadius: BorderRadius.circular(4),
@@ -227,8 +252,11 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       ),
                       const SizedBox(height: 4),
                       if (index % 6 == 0)
-                        Text('${index}h',
-                            style: const TextStyle(fontSize: 8, color: Colors.grey),)
+                        Text(
+                          '${index}h',
+                          style:
+                              const TextStyle(fontSize: 8, color: Colors.grey),
+                        )
                       else
                         const SizedBox(height: 10),
                     ],
@@ -251,15 +279,17 @@ class _AnalyticsViewState extends State<AnalyticsView>
             children: [
               const Icon(Icons.pie_chart_rounded, color: Colors.grey, size: 18),
               const SizedBox(width: 8),
-              Text('TIME DISTRIBUTION',
-                  style: AppTextStyles.label.copyWith(color: Colors.white),),
+              Text(
+                'TIME DISTRIBUTION',
+                style: AppTextStyles.label.copyWith(color: Colors.white),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
           Center(
             child: SizedBox(
-              width: 160,
-              height: 160,
+              width: AppResponsive.isCompact(context) ? 140 : 160,
+              height: AppResponsive.isCompact(context) ? 140 : 160,
               child: CustomPaint(
                 painter: _DonutChartPainter(
                   distribution: analytics.categoryDistribution,
@@ -269,8 +299,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('${analytics.totalFocusHours.toStringAsFixed(1)}h',
-                          style: AppTextStyles.heading3,),
+                      Text(
+                        '${analytics.totalFocusHours.toStringAsFixed(1)}h',
+                        style: AppTextStyles.heading3,
+                      ),
                       Text('Total', style: AppTextStyles.bodySmall),
                     ],
                   ),
@@ -285,7 +317,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
                 ? hours / analytics.totalFocusHours
                 : 0.0;
             return _DistributionBar(
-                type: type, hours: hours, percentage: percentage,);
+              type: type,
+              hours: hours,
+              percentage: percentage,
+            );
           }),
         ],
       ),
@@ -305,15 +340,22 @@ class _EfficiencyCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_rounded,
-                  color: AppColors.neonBlue, size: 16,),
+              const Icon(
+                Icons.analytics_rounded,
+                color: AppColors.neonBlue,
+                size: 16,
+              ),
               const SizedBox(width: 8),
               Text('EFFICIENCY', style: AppTextStyles.label),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('${efficiency.toInt()}%',
-              style: AppTextStyles.heading2.copyWith(fontSize: 32),),
+          Text(
+            '${efficiency.toInt()}%',
+            style: AppTextStyles.heading2.copyWith(
+              fontSize: AppResponsive.isCompact(context) ? 28 : 32,
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           LinearProgressIndicator(
             value: efficiency / 100,
@@ -327,13 +369,42 @@ class _EfficiencyCard extends StatelessWidget {
   }
 }
 
+class _ResponsiveCardGrid extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ResponsiveCardGrid({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 560;
+        final gap = AppSpacing.md;
+        final itemWidth =
+            isCompact ? constraints.maxWidth : (constraints.maxWidth - gap) / 2;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: children
+              .map((child) => SizedBox(width: itemWidth, child: child))
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
 class _DistributionBar extends StatelessWidget {
   final TaskType type;
   final double hours;
   final double percentage;
 
-  const _DistributionBar(
-      {required this.type, required this.hours, required this.percentage,});
+  const _DistributionBar({
+    required this.type,
+    required this.hours,
+    required this.percentage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -360,10 +431,14 @@ class _DistributionBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(type.name.toUpperCase(),
-                  style: AppTextStyles.label.copyWith(fontSize: 10),),
-              Text('${hours.toStringAsFixed(1)}h (${(percentage * 100).toInt()}%)',
-                  style: AppTextStyles.bodySmall,),
+              Text(
+                type.name.toUpperCase(),
+                style: AppTextStyles.label.copyWith(fontSize: 10),
+              ),
+              Text(
+                '${hours.toStringAsFixed(1)}h (${(percentage * 100).toInt()}%)',
+                style: AppTextStyles.bodySmall,
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -397,9 +472,12 @@ class _DailyProgressBar extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-                width: 44,
-                child: Text(day.dayOfWeek.substring(0, 3),
-                    style: AppTextStyles.chip,),),
+              width: 44,
+              child: Text(
+                day.dayOfWeek.substring(0, 3),
+                style: AppTextStyles.chip,
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: LinearProgressIndicator(
@@ -434,12 +512,13 @@ class _DonutChartPainter extends CustomPainter {
 
     if (total <= 0) {
       canvas.drawCircle(
-          center,
-          radius - strokeWidth / 2,
-          Paint()
-            ..color = Colors.white10
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = strokeWidth,);
+        center,
+        radius - strokeWidth / 2,
+        Paint()
+          ..color = Colors.white10
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
       return;
     }
 
@@ -449,15 +528,16 @@ class _DonutChartPainter extends CustomPainter {
       if (hours <= 0) continue;
       final sweepAngle = (hours / total) * 2 * pi;
       canvas.drawArc(
-          rect,
-          startAngle,
-          sweepAngle - 0.05,
-          false,
-          Paint()
-            ..color = _getColor(type)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = strokeWidth
-            ..strokeCap = StrokeCap.round,);
+        rect,
+        startAngle,
+        sweepAngle - 0.05,
+        false,
+        Paint()
+          ..color = _getColor(type)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round,
+      );
       startAngle += sweepAngle;
     }
   }

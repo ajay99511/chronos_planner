@@ -70,7 +70,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     final analytics = Provider.of<AnalyticsProvider>(context, listen: false);
     final peaks = analytics.energyPeaks;
     final suggestion = _intelService.recommendTime(_selectedEnergy, peaks);
-    
+
     setState(() {
       _startTime = suggestion;
       final hour = int.parse(suggestion.split(':')[0]);
@@ -80,34 +80,44 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        top: 24, left: 24, right: 24,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 20),
-            _buildTextFields(),
-            const SizedBox(height: 16),
-            _buildPickers(),
-            const SizedBox(height: 16),
-            _buildCategorySelector(),
-            const SizedBox(height: 16),
-            _buildPrioritySelector(),
-            const SizedBox(height: 16),
-            _buildEnergySelector(),
-            const SizedBox(height: 24),
-            _buildSubmitButton(),
-          ],
+    final pagePadding = AppResponsive.pagePadding(context);
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+        ),
+        padding: EdgeInsets.fromLTRB(
+          pagePadding,
+          AppSpacing.lg,
+          pagePadding,
+          AppSpacing.lg,
+        ),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 20),
+              _buildTextFields(),
+              const SizedBox(height: 16),
+              _buildPickers(),
+              const SizedBox(height: 16),
+              _buildCategorySelector(),
+              const SizedBox(height: 16),
+              _buildPrioritySelector(),
+              const SizedBox(height: 16),
+              _buildEnergySelector(),
+              const SizedBox(height: 24),
+              _buildSubmitButton(),
+            ],
+          ),
         ),
       ),
     );
@@ -117,8 +127,18 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(_isEditing ? 'Edit Task' : 'New Task', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-        IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.grey)),
+        Text(
+          _isEditing ? 'Edit Task' : 'New Task',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close, color: Colors.grey),
+        ),
       ],
     );
   }
@@ -130,14 +150,22 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
           controller: _titleCtrl,
           autofocus: !_isEditing,
           style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: const InputDecoration(hintText: 'What needs to be done?', hintStyle: TextStyle(color: Colors.white24), border: InputBorder.none),
+          decoration: const InputDecoration(
+            hintText: 'What needs to be done?',
+            hintStyle: TextStyle(color: Colors.white24),
+            border: InputBorder.none,
+          ),
         ),
         const Divider(color: Colors.white10),
         TextField(
           controller: _descCtrl,
           style: const TextStyle(color: Colors.white70, fontSize: 14),
           maxLines: 2,
-          decoration: const InputDecoration(hintText: 'Add a description (optional)', hintStyle: TextStyle(color: Colors.white12), border: InputBorder.none),
+          decoration: const InputDecoration(
+            hintText: 'Add a description (optional)',
+            hintStyle: TextStyle(color: Colors.white12),
+            border: InputBorder.none,
+          ),
         ),
         const Divider(color: Colors.white10),
       ],
@@ -145,33 +173,76 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   }
 
   Widget _buildPickers() {
-     // Simplifying pickers for brevity in this refactor call
-     return Column(
-       children: [
-         InkWell(
-           onTap: () async {
-              final d = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime.now().subtract(const Duration(days: 365)), lastDate: DateTime.now().add(const Duration(days: 365)));
-              if (d != null) setState(() => _selectedDate = d);
-           },
-           child: _PickerRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: DateFormat('EEE, MMM d').format(_selectedDate)),
-         ),
-         const SizedBox(height: 12),
-         Row(
-           children: [
-             Expanded(child: InkWell(onTap: () => _pickTime(true), child: _PickerRow(icon: Icons.access_time_rounded, label: 'START', value: _startTime))),
-             const SizedBox(width: 12),
-             Expanded(child: InkWell(onTap: () => _pickTime(false), child: _PickerRow(icon: Icons.access_time_filled_rounded, label: 'END', value: _endTime))),
-           ],
-         ),
-       ],
-     );
+    // Simplifying pickers for brevity in this refactor call
+    return Column(
+      children: [
+        InkWell(
+          onTap: () async {
+            final d = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate,
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (d != null) setState(() => _selectedDate = d);
+          },
+          child: _PickerRow(
+            icon: Icons.calendar_today_rounded,
+            label: 'DATE',
+            value: DateFormat('EEE, MMM d').format(_selectedDate),
+          ),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 340;
+            final start = InkWell(
+              onTap: () => _pickTime(true),
+              child: _PickerRow(
+                icon: Icons.access_time_rounded,
+                label: 'START',
+                value: _startTime,
+              ),
+            );
+            final end = InkWell(
+              onTap: () => _pickTime(false),
+              child: _PickerRow(
+                icon: Icons.access_time_filled_rounded,
+                label: 'END',
+                value: _endTime,
+              ),
+            );
+            if (stack) {
+              return Column(
+                children: [
+                  start,
+                  const SizedBox(height: AppSpacing.sm),
+                  end,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: start),
+                const SizedBox(width: 12),
+                Expanded(child: end),
+              ],
+            );
+          },
+        ),
+      ],
+    );
   }
 
   Future<void> _pickTime(bool isStart) async {
-    final t = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 9, minute: 0));
+    final t = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
     if (t != null) {
       setState(() {
-        final f = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        final f =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
         if (isStart) {
           _startTime = f;
         } else {
@@ -185,16 +256,30 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('CATEGORY', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        const Text(
+          'CATEGORY',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: TaskType.values.map((type) => ChoiceChip(
-            label: Text(type.name.toUpperCase(), style: const TextStyle(fontSize: 10)),
-            selected: _selectedType == type,
-            onSelected: (_) => setState(() => _selectedType = type),
-            selectedColor: AppColors.neonBlue,
-          ),).toList(),
+          children: TaskType.values
+              .map(
+                (type) => ChoiceChip(
+                  label: Text(
+                    type.name.toUpperCase(),
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  selected: _selectedType == type,
+                  onSelected: (_) => setState(() => _selectedType = type),
+                  selectedColor: AppColors.neonBlue,
+                ),
+              )
+              .toList(),
         ),
       ],
     );
@@ -204,15 +289,29 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('PRIORITY', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        const Text(
+          'PRIORITY',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: TaskPriority.values.map((p) => ChoiceChip(
-            label: Text(p.name.toUpperCase(), style: const TextStyle(fontSize: 10)),
-            selected: _selectedPriority == p,
-            onSelected: (_) => setState(() => _selectedPriority = p),
-          ),).toList(),
+          children: TaskPriority.values
+              .map(
+                (p) => ChoiceChip(
+                  label: Text(
+                    p.name.toUpperCase(),
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  selected: _selectedPriority == p,
+                  onSelected: (_) => setState(() => _selectedPriority = p),
+                ),
+              )
+              .toList(),
         ),
       ],
     );
@@ -222,20 +321,43 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
           children: [
-            const Text('ENERGY LEVEL', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-            TextButton(onPressed: _suggestOptimalTime, child: const Text('Suggest Optimal Time', style: TextStyle(fontSize: 10, color: AppColors.neonCyan))),
+            const Text(
+              'ENERGY LEVEL',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: _suggestOptimalTime,
+              child: const Text(
+                'Suggest Optimal Time',
+                style: TextStyle(fontSize: 10, color: AppColors.neonCyan),
+              ),
+            ),
           ],
         ),
         Wrap(
           spacing: 8,
-          children: TaskEnergyLevel.values.map((e) => ChoiceChip(
-            label: Text(e.name.toUpperCase(), style: const TextStyle(fontSize: 10)),
-            selected: _selectedEnergy == e,
-            onSelected: (_) => setState(() => _selectedEnergy = e),
-          ),).toList(),
+          children: TaskEnergyLevel.values
+              .map(
+                (e) => ChoiceChip(
+                  label: Text(
+                    e.name.toUpperCase(),
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  selected: _selectedEnergy == e,
+                  onSelected: (_) => setState(() => _selectedEnergy = e),
+                ),
+              )
+              .toList(),
         ),
       ],
     );
@@ -263,8 +385,14 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         }
         Navigator.pop(context);
       },
-      style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonBlue, padding: const EdgeInsets.symmetric(vertical: 16)),
-      child: Text(_isEditing ? 'SAVE CHANGES' : 'CREATE TASK', style: const TextStyle(fontWeight: FontWeight.bold)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.neonBlue,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+      ),
+      child: Text(
+        _isEditing ? 'SAVE CHANGES' : 'CREATE TASK',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
     );
   }
 }
@@ -273,21 +401,48 @@ class _PickerRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _PickerRow({required this.icon, required this.label, required this.value});
+  const _PickerRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           Icon(icon, color: AppColors.neonBlue, size: 18),
           const SizedBox(width: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-          ],),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
