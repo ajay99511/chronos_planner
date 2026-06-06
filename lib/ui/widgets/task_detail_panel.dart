@@ -119,7 +119,6 @@ class TaskDetailPanel extends StatelessWidget {
     final duration = _calculateDuration();
 
     return Container(
-      width: 400,
       decoration: BoxDecoration(
         color: AppColors.surface,
         boxShadow: [

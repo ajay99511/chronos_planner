@@ -32,9 +32,55 @@ class _ScheduleViewState extends State<ScheduleView> {
   }
 
   void _openTaskDetail(Task task) {
-    setState(() {
-      _selectedTask = task;
-    });
+    if (MediaQuery.sizeOf(context).width < 800) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          height: MediaQuery.sizeOf(context).height * 0.85,
+          margin: const EdgeInsets.only(top: 24),
+          clipBehavior: Clip.antiAlias,
+          decoration: const BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: TaskDetailPanel(
+            task: task,
+            isCompleted: task.completed,
+            onToggle: () {
+              context.read<ScheduleStateProvider>().updateTask(task.id, task.copyWith(completed: !task.completed));
+              Navigator.pop(context);
+            },
+            onEdit: () {
+              Navigator.pop(context);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => AddTaskSheet(
+                  editingTask: task,
+                  onAdd: (_, __) {},
+                  onUpdate: (updatedTask) => context.read<ScheduleStateProvider>().updateTask(task.id, updatedTask),
+                ),
+              );
+            },
+            onDelete: () {
+              context.read<ScheduleStateProvider>().deleteTask(task.id);
+              Navigator.pop(context);
+            },
+            onClose: () => Navigator.pop(context),
+          ),
+        ),
+      ).then((_) {
+        // Clear selection if they somehow interacted with both UI elements
+        if (_selectedTask != null) _closeTaskDetail();
+      });
+    } else {
+      setState(() {
+        _selectedTask = task;
+      });
+    }
   }
 
   void _closeTaskDetail() {
@@ -111,114 +157,112 @@ class _ScheduleViewState extends State<ScheduleView> {
           children: [
             const SizedBox(height: 10),
 
-            // ── Day Selector (Scrollable for better fit) ──
+            // ── Day Selector (Adaptive Width) ──
             SizedBox(
               height: 90,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: provider.weekPlan.length,
-                itemBuilder: (context, index) {
-                  final day = provider.weekPlan[index];
-                  final isSelected = index == provider.selectedDayIndex;
-                  final hasTasks = day.tasks.isNotEmpty;
-                  final completedCount =
-                      day.tasks.where((t) => t.completed).length;
-                  final progress =
-                      hasTasks ? completedCount / day.tasks.length : 0.0;
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 600;
+                  final narrowItemWidth = (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
+                  final itemWidth = isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
 
-                  return GestureDetector(
-                    onTap: () => provider.selectDay(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      width: 70, // Fixed width for consistent horizontal scrolling
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.neonBlue,
-                                  Color(0xFF6366F1),
-                                ],
-                              )
-                            : null,
-                        color: isSelected ? null : AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.white.withValues(alpha: 0.2)
-                              : AppColors.glassBorder,
+                  Widget buildDayCard(int index) {
+                    final day = provider.weekPlan[index];
+                    final isSelected = index == provider.selectedDayIndex;
+                    final hasTasks = day.tasks.isNotEmpty;
+                    final completedCount = day.tasks.where((t) => t.completed).length;
+                    final progress = hasTasks ? completedCount / day.tasks.length : 0.0;
+
+                    return GestureDetector(
+                      onTap: () => provider.selectDay(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        width: itemWidth,
+                        margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [AppColors.neonBlue, Color(0xFF6366F1)],
+                                )
+                              : null,
+                          color: isSelected ? null : AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          border: Border.all(
+                            color: isSelected ? Colors.white.withValues(alpha: 0.2) : AppColors.glassBorder,
+                          ),
+                          boxShadow: isSelected
+                              ? [BoxShadow(color: AppColors.neonBlue.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))]
+                              : [],
                         ),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.4),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),),
-                              ]
-                            : [],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            day.dayOfWeek.substring(0, 3).toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.9)
-                                  : AppColors.textSecondary,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              day.dayOfWeek.substring(0, 3).toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                                color: isSelected ? Colors.white.withValues(alpha: 0.9) : AppColors.textSecondary,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            day.dateStr.split(' ').length > 1
-                                ? day.dateStr.split(' ')[1]
-                                : day.dateStr,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
+                            const SizedBox(height: 4),
+                            Text(
+                              day.dateStr.split(' ').length > 1 ? day.dateStr.split(' ')[1] : day.dateStr,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected ? Colors.white : AppColors.textPrimary,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          if (isSelected && hasTasks)
-                            SizedBox(
-                              width: 24,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(2),
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: Colors.black26,
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  minHeight: 3,
+                            const SizedBox(height: 4),
+                            if (isSelected && hasTasks)
+                              SizedBox(
+                                width: 24,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    backgroundColor: Colors.black26,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    minHeight: 3,
+                                  ),
                                 ),
-                              ),
-                            )
-                          else if (!isSelected && hasTasks)
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                color: AppColors.neonPurple,
-                                shape: BoxShape.circle,
-                              ),
-                            )
-                          else
-                            const SizedBox(height: 5),
-                        ],
+                              )
+                            else if (!isSelected && hasTasks)
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.neonPurple,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            else
+                              const SizedBox(height: 5),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
+
+                  if (isWide) {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(7, (index) => buildDayCard(index)),
+                    );
+                  } else {
+                    return ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: 7,
+                      itemBuilder: (context, index) => buildDayCard(index),
+                    );
+                  }
                 },
               ),
             ),
@@ -228,9 +272,11 @@ class _ScheduleViewState extends State<ScheduleView> {
             // ── Header Area ─────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 16,
+                runSpacing: 16,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,52 +431,79 @@ class _ScheduleViewState extends State<ScheduleView> {
                               ],
                             ),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: sortedTasks.length,
-                            itemBuilder: (context, index) {
-                              final task = sortedTasks[index];
-                              return TaskCard(
-                                task: task,
-                                viewMode: _currentViewMode,
-                                onToggle: () => provider.updateTask(task.id, task.copyWith(completed: !task.completed)),
-                                onDelete: () {
-                                  provider.deleteTask(task.id);
-                                  ScaffoldMessenger.of(context).clearSnackBars();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Deleted "${task.title}"'),
-                                      action: SnackBarAction(
-                                        label: 'UNDO',
-                                        textColor: AppColors.neonBlue,
-                                        onPressed: () => provider.undo(),
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isWide = constraints.maxWidth >= 800;
+
+                              Widget buildTaskCard(int index) {
+                                final task = sortedTasks[index];
+                                return TaskCard(
+                                  task: task,
+                                  viewMode: _currentViewMode,
+                                  onToggle: () => provider.updateTask(task.id, task.copyWith(completed: !task.completed)),
+                                  onDelete: () {
+                                    provider.deleteTask(task.id);
+                                    ScaffoldMessenger.of(context).clearSnackBars();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Deleted "${task.title}"'),
+                                        action: SnackBarAction(
+                                          label: 'UNDO',
+                                          textColor: AppColors.neonBlue,
+                                          onPressed: () => provider.undo(),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                                onEdit: () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (_) => AddTaskSheet(
-                                      editingTask: task,
-                                      onAdd: (_, __) {},
-                                      onUpdate: (updatedTask) =>
-                                          provider.updateTask(task.id, updatedTask),
-                                    ),
-                                  );
-                                },
-                                onDuplicate: () {
-                                  final duplicate = task.copyWith(
-                                    id: const Uuid().v4(),
-                                    completed: false,
-                                  );
-                                  provider.addTask(duplicate);
-                                },
-                                onTap: () => _openTaskDetail(task),
-                              );
+                                    );
+                                  },
+                                  onEdit: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => AddTaskSheet(
+                                        editingTask: task,
+                                        onAdd: (_, __) {},
+                                        onUpdate: (updatedTask) =>
+                                            provider.updateTask(task.id, updatedTask),
+                                      ),
+                                    );
+                                  },
+                                  onDuplicate: () {
+                                    final duplicate = task.copyWith(
+                                      id: const Uuid().v4(),
+                                      completed: false,
+                                    );
+                                    provider.addTask(duplicate);
+                                  },
+                                  onTap: () => _openTaskDetail(task),
+                                );
+                              }
+
+                              if (isWide && _currentViewMode == TaskCardViewMode.card) {
+                                return SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Wrap(
+                                    spacing: 16,
+                                    runSpacing: 0, // TaskCard already has bottom margin
+                                    children: List.generate(sortedTasks.length, (index) {
+                                      final cols = constraints.maxWidth >= 1200 ? 3 : 2;
+                                      final cardWidth = (constraints.maxWidth - 40 - (16 * (cols - 1))) / cols;
+                                      return SizedBox(
+                                        width: cardWidth - 1, // Subtract 1 pixel to prevent rounding errors causing wrap
+                                        child: buildTaskCard(index),
+                                      );
+                                    }),
+                                  ),
+                                );
+                              } else {
+                                return ListView.builder(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                                  physics: const BouncingScrollPhysics(),
+                                  itemCount: sortedTasks.length,
+                                  itemBuilder: (context, index) => buildTaskCard(index),
+                                );
+                              }
                             },
                           ),
                   ),
@@ -447,31 +520,34 @@ class _ScheduleViewState extends State<ScheduleView> {
                       right: 0,
                       top: 0,
                       bottom: 0,
-                      child: TaskDetailPanel(
-                        task: _selectedTask!,
-                        isCompleted: _selectedTask!.completed,
-                        onToggle: () {
-                          provider.updateTask(_selectedTask!.id, _selectedTask!.copyWith(completed: !_selectedTask!.completed));
-                          _closeTaskDetail();
-                        },
-                        onEdit: () {
-                          _closeTaskDetail();
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => AddTaskSheet(
-                              editingTask: _selectedTask!,
-                              onAdd: (_, __) {},
-                              onUpdate: (updatedTask) => provider.updateTask(_selectedTask!.id, updatedTask),
-                            ),
-                          );
-                        },
-                        onDelete: () {
-                          provider.deleteTask(_selectedTask!.id);
-                          _closeTaskDetail();
-                        },
-                        onClose: _closeTaskDetail,
+                      child: SizedBox(
+                        width: 400,
+                        child: TaskDetailPanel(
+                          task: _selectedTask!,
+                          isCompleted: _selectedTask!.completed,
+                          onToggle: () {
+                            provider.updateTask(_selectedTask!.id, _selectedTask!.copyWith(completed: !_selectedTask!.completed));
+                            _closeTaskDetail();
+                          },
+                          onEdit: () {
+                            _closeTaskDetail();
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => AddTaskSheet(
+                                editingTask: _selectedTask!,
+                                onAdd: (_, __) {},
+                                onUpdate: (updatedTask) => provider.updateTask(_selectedTask!.id, updatedTask),
+                              ),
+                            );
+                          },
+                          onDelete: () {
+                            provider.deleteTask(_selectedTask!.id);
+                            _closeTaskDetail();
+                          },
+                          onClose: _closeTaskDetail,
+                        ),
                       ),
                     ),
                   ],
