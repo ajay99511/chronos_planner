@@ -671,13 +671,6 @@ class TaskDetailPanel extends StatelessWidget {
             value: task.completed ? 'Completed' : 'Pending',
             iconColor: task.completed ? AppColors.health : AppColors.leisure,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _buildInfoRow(
-            icon: Icons.edit_note_rounded,
-            label: 'Last Modified',
-            value: 'Just now',
-            iconColor: AppColors.neonCyan,
-          ),
         ],
       ),
     );

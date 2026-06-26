@@ -127,6 +127,31 @@ class LocalScheduleRepository implements ScheduleRepository {
   }
 
   @override
+  Future<Result<void>> addTasksToDate(
+      DateTime date, List<domain.Task> tasksToAdd,) async {
+    return _wrap(() async {
+      if (tasksToAdd.isEmpty) return;
+      final targetDate = DateTime(date.year, date.month, date.day);
+      String? dayPlanId = await _dayPlanDao.getDayPlanId(targetDate);
+
+      if (dayPlanId == null) {
+        dayPlanId = const Uuid().v4();
+        final weekKey = _calculateWeekKey(targetDate);
+        await _dayPlanDao.insertDayPlan(DayPlansCompanion(
+          id: Value(dayPlanId),
+          date: Value(targetDate),
+          weekKey: Value(weekKey),
+        ),);
+      }
+
+      final planId = dayPlanId;
+      await _taskDao.insertTasks(
+        tasksToAdd.map((t) => _modelTaskToCompanion(t, planId)).toList(),
+      );
+    });
+  }
+
+  @override
   Future<Result<void>> saveDayPlan(domain.DayPlan dayPlan) async {
     return _wrap(() async {
       await _taskDao.deleteTasksForDay(dayPlan.id);
@@ -167,6 +192,15 @@ class LocalScheduleRepository implements ScheduleRepository {
   Future<Result<void>> clearDay(String dayPlanId) {
     return _wrap(() async {
       await _taskDao.deleteTasksForDay(dayPlanId);
+    });
+  }
+
+  @override
+  Future<Result<List<domain.Task>>> getTaskHistory(DateTime since) {
+    return _wrap(() async {
+      final since0 = DateTime(since.year, since.month, since.day);
+      final dbTasks = await _taskDao.getTasksSince(since0);
+      return dbTasks.map(_dbTaskToModel).toList();
     });
   }
 

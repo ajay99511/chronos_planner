@@ -94,6 +94,31 @@ class _ScheduleViewState extends State<ScheduleView> {
     });
   }
 
+  /// Adds a task and, if it collides with existing tasks on that day, surfaces
+  /// a non-blocking warning so the user can spot accidental double-booking.
+  void _addTaskWithOverlapCheck(
+    ScheduleStateProvider provider,
+    Task task,
+    DateTime date,
+  ) {
+    final overlaps = provider.overlappingTasks(task, date);
+    provider.addTask(task, date);
+    if (overlaps.isNotEmpty && mounted) {
+      final first = overlaps.first;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.surfaceLight,
+          content: Text(
+            overlaps.length == 1
+                ? 'Heads up: overlaps with "${first.title}" (${first.startTime}–${first.endTime})'
+                : 'Heads up: overlaps with ${overlaps.length} other tasks',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScheduleStateProvider>(context);
@@ -345,7 +370,11 @@ class _ScheduleViewState extends State<ScheduleView> {
                         backgroundColor: Colors.transparent,
                         builder: (_) => AddTaskSheet(
                           defaultDate: dayPlan.date,
-                          onAdd: (t, d) => provider.addTask(t, d),
+                          onAdd: (t, d) => _addTaskWithOverlapCheck(
+                            provider,
+                            t,
+                            d,
+                          ),
                         ),
                       );
                     },

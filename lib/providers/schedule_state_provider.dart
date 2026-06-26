@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -36,6 +37,11 @@ class ScheduleStateProvider extends ChangeNotifier {
   String? _errorMessage;
   final List<UndoAction> _undoStack = [];
   SortOrder _sortOrder = SortOrder.asc;
+
+  /// Persisted keys (`templateId|y-m-d`) marking recurring-template instances
+  /// the user has deleted, so they are not auto-recreated on the next load.
+  static const String _dismissalPrefKey = 'recurring_dismissals';
+  Set<String> _dismissedRecurring = {};
 
   Completer<void>? _loadingCompleter;
 
@@ -89,6 +95,7 @@ class ScheduleStateProvider extends ChangeNotifier {
 
       final templateResult = await _templateRepo.getAllTemplates();
       final prefResult = await _prefRepo.get('sort_order');
+      final dismissResult = await _prefRepo.get(_dismissalPrefKey);
 
       templateResult.fold(
         onSuccess: (data) {
@@ -104,6 +111,12 @@ class ScheduleStateProvider extends ChangeNotifier {
         onSuccess: (val) => _sortOrder = val == 'desc' ? SortOrder.desc : SortOrder.asc,
         onFailure: (f) => _logger.warning('Failed to load sort order'),
       );
+
+      dismissResult.fold(
+        onSuccess: (val) => _dismissedRecurring = _decodeDismissals(val),
+        onFailure: (f) => _logger.warning('Failed to load recurring dismissals'),
+      );
+      _pruneDismissals();
 
       _selectedDayIndex = 0;
 
@@ -162,6 +175,87 @@ class ScheduleStateProvider extends ChangeNotifier {
     _sortOrder = _sortOrder == SortOrder.asc ? SortOrder.desc : SortOrder.asc;
     notifyListeners();
     await _prefRepo.set('sort_order', _sortOrder.name);
+  }
+
+  // ─── Recurring dismissal tracking ────────────
+
+  String _dismissalKey(String templateId, DateTime date) =>
+      '$templateId|${date.year}-${date.month}-${date.day}';
+
+  Set<String> _decodeDismissals(String? raw) {
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      return (jsonDecode(raw) as List).cast<String>().toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  DateTime? _parseDismissalDate(String key) {
+    final sep = key.lastIndexOf('|');
+    if (sep == -1) return null;
+    final parts = key.substring(sep + 1).split('-');
+    if (parts.length != 3) return null;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final d = int.tryParse(parts[2]);
+    if (y == null || m == null || d == null) return null;
+    return DateTime(y, m, d);
+  }
+
+  /// Drops dismissal markers for past dates so the preference never grows
+  /// unbounded (the schedule only ever spans today..+6 days).
+  void _pruneDismissals() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    _dismissedRecurring.removeWhere((key) {
+      final date = _parseDismissalDate(key);
+      return date == null || date.isBefore(today);
+    });
+  }
+
+  Future<void> _persistDismissals() async {
+    await _prefRepo.set(
+      _dismissalPrefKey,
+      jsonEncode(_dismissedRecurring.toList()),
+    );
+  }
+
+  /// Parses an "HH:mm" string into minutes-since-midnight (0 on failure).
+  static int _toMinutes(String time) {
+    final parts = time.split(':');
+    if (parts.length != 2) return 0;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return h * 60 + m;
+  }
+
+  /// Returns existing tasks on [date] whose time range overlaps [task].
+  ///
+  /// Overnight ranges (end <= start) are normalized by adding 24h. Tasks
+  /// sharing [task]'s id (or [excludeId]) are ignored so editing a task does
+  /// not flag it against itself. Used to warn the user about double-booking.
+  List<Task> overlappingTasks(Task task, DateTime date, {String? excludeId}) {
+    final idx = _weekPlan.indexWhere(
+      (p) =>
+          p.date.year == date.year &&
+          p.date.month == date.month &&
+          p.date.day == date.day,
+    );
+    if (idx == -1) return const [];
+
+    final skipId = excludeId ?? task.id;
+    var aStart = _toMinutes(task.startTime);
+    var aEnd = _toMinutes(task.endTime);
+    if (aEnd <= aStart) aEnd += 24 * 60;
+
+    return _weekPlan[idx].tasks.where((t) {
+      if (t.id == skipId) return false;
+      var bStart = _toMinutes(t.startTime);
+      var bEnd = _toMinutes(t.endTime);
+      if (bEnd <= bStart) bEnd += 24 * 60;
+      return aStart < bEnd && bStart < aEnd;
+    }).toList();
   }
 
   List<Task> getSortedTasks(DayPlan dayPlan) {
@@ -237,7 +331,15 @@ class ScheduleStateProvider extends ChangeNotifier {
     final removedTask = _weekPlan[planIdx].tasks[taskIdx];
     final newTasks = List<Task>.from(_weekPlan[planIdx].tasks)..removeAt(taskIdx);
     _weekPlan[planIdx] = _weekPlan[planIdx].copyWith(tasks: newTasks);
-    
+
+    // Remember that a template-sourced instance was removed so recurring
+    // templates don't silently re-create it on the next load.
+    if (removedTask.sourceTemplateId.isNotEmpty) {
+      _dismissedRecurring
+          .add(_dismissalKey(removedTask.sourceTemplateId, _weekPlan[planIdx].date));
+      unawaited(_persistDismissals());
+    }
+
     _addToUndoStack(UndoAction(
       type: UndoType.deleteTask,
       dayIndex: planIdx,
@@ -271,6 +373,16 @@ class ScheduleStateProvider extends ChangeNotifier {
     switch (action.type) {
       case UndoType.deleteTask:
         if (action.task != null) {
+          // Restoring a template-sourced task clears its dismissal marker.
+          if (action.task!.sourceTemplateId.isNotEmpty) {
+            _dismissedRecurring.remove(
+              _dismissalKey(
+                action.task!.sourceTemplateId,
+                _weekPlan[action.dayIndex].date,
+              ),
+            );
+            unawaited(_persistDismissals());
+          }
           await addTask(action.task!, _weekPlan[action.dayIndex].date);
         }
         break;
@@ -429,6 +541,10 @@ class ScheduleStateProvider extends ChangeNotifier {
     _templates[idx] = _templates[idx].copyWith(activeDays: days);
     notifyListeners();
 
+    // Explicitly (re)enabling recurrence overrides any prior per-day dismissals.
+    _dismissedRecurring.removeWhere((key) => key.startsWith('$templateId|'));
+    unawaited(_persistDismissals());
+
     final result = await _templateRepo.updateTemplateActiveDays(templateId, days);
     result.fold(
       onSuccess: (_) => unawaited(_applyRecurringTemplates()),
@@ -454,8 +570,9 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   Future<void> applyTemplate(PlanTemplate template, [int? index]) async {
     final dayIdx = index ?? _selectedDayIndex;
+    if (dayIdx < 0 || dayIdx >= _weekPlan.length) return;
     final dayPlan = _weekPlan[dayIdx];
-    
+
     final newTasks = template.tasks.map((t) => Task(
       id: const Uuid().v4(),
       title: t.title,
@@ -469,9 +586,25 @@ class ScheduleStateProvider extends ChangeNotifier {
       sourceTemplateId: template.id,
     ),).toList();
 
-    for (final task in newTasks) {
-      await addTask(task, dayPlan.date);
-    }
+    if (newTasks.isEmpty) return;
+
+    // Single optimistic update + one batched write instead of N round-trips.
+    final originalPlan = List<DayPlan>.from(_weekPlan);
+    final mergedTasks = List<Task>.from(dayPlan.tasks)..addAll(newTasks);
+    _weekPlan[dayIdx] = dayPlan.copyWith(tasks: mergedTasks);
+    notifyListeners();
+
+    final result = await _scheduleRepo.addTasksToDate(dayPlan.date, newTasks);
+    result.fold(
+      onSuccess: (_) => _logger.debug(
+        'Applied template ${template.id} (${newTasks.length} tasks)',
+      ),
+      onFailure: (f) {
+        _weekPlan = originalPlan;
+        _errorMessage = f.message;
+        notifyListeners();
+      },
+    );
   }
 
   Future<void> _applyRecurringTemplates() async {
@@ -480,6 +613,11 @@ class ScheduleStateProvider extends ChangeNotifier {
       for (int i = 0; i < _weekPlan.length; i++) {
         final weekday = _weekPlan[i].date.weekday - 1; // 0-indexed Mon=0
         if (tmpl.activeDays.contains(weekday)) {
+          // Respect a user's deletion of this template's instance for the day.
+          if (_dismissedRecurring
+              .contains(_dismissalKey(tmpl.id, _weekPlan[i].date))) {
+            continue;
+          }
           final alreadyApplied = _weekPlan[i].tasks.any((t) => t.sourceTemplateId == tmpl.id);
           if (!alreadyApplied) {
             await applyTemplate(tmpl, i);

@@ -35,6 +35,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   TaskType _selectedType = TaskType.work;
   TaskPriority _selectedPriority = TaskPriority.medium;
   TaskEnergyLevel _selectedEnergy = TaskEnergyLevel.medium;
+  String? _formError;
 
   final _intelService = IntelligenceService();
 
@@ -109,11 +110,35 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
               const SizedBox(height: 16),
               _buildPickers(),
               const SizedBox(height: 16),
+              _buildCostField(),
+              const SizedBox(height: 16),
               _buildCategorySelector(),
               const SizedBox(height: 16),
               _buildPrioritySelector(),
               const SizedBox(height: 16),
               _buildEnergySelector(),
+              if (_formError != null) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.redAccent,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _formError!,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 24),
               _buildSubmitButton(),
             ],
@@ -241,6 +266,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     );
     if (t != null) {
       setState(() {
+        _formError = null;
         final f =
             '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
         if (isStart) {
@@ -250,6 +276,54 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         }
       });
     }
+  }
+
+  Widget _buildCostField() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.attach_money_rounded,
+            color: AppColors.health,
+            size: 18,
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'EST. COST',
+            style: TextStyle(
+              fontSize: 9,
+              color: Colors.grey,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _costCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: const InputDecoration(
+                hintText: '0.00',
+                hintStyle: TextStyle(color: Colors.white24),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildCategorySelector() {
@@ -366,7 +440,20 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   Widget _buildSubmitButton() {
     return ElevatedButton(
       onPressed: () {
-        if (_titleCtrl.text.isEmpty) return;
+        if (_titleCtrl.text.trim().isEmpty) {
+          setState(() => _formError = 'Please enter a title.');
+          return;
+        }
+        if (_startTime == _endTime) {
+          setState(
+            () => _formError =
+                'End time must be different from the start time.',
+          );
+          return;
+        }
+        final estimatedCost =
+            double.tryParse(_costCtrl.text.trim())?.clamp(0.0, double.maxFinite) ??
+                0.0;
         final t = Task(
           id: _isEditing ? widget.editingTask!.id : const Uuid().v4(),
           title: _titleCtrl.text,
@@ -375,6 +462,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
           type: _selectedType,
           priority: _selectedPriority,
           energyLevel: _selectedEnergy,
+          estimatedCost: estimatedCost,
+          actualCost: _isEditing ? widget.editingTask!.actualCost : 0.0,
           description: _descCtrl.text,
           completed: _isEditing ? widget.editingTask!.completed : false,
         );

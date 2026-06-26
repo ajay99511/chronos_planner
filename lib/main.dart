@@ -67,6 +67,7 @@ void main() async {
 
   runApp(MyApp(
     scheduleStateProvider: scheduleStateProvider,
+    scheduleRepo: scheduleRepo,
     todoRepo: todoRepo,
     logger: logger,
   ),);
@@ -84,12 +85,14 @@ class _WindowHandler extends WindowListener {
 
 class MyApp extends StatelessWidget {
   final ScheduleStateProvider scheduleStateProvider;
+  final LocalScheduleRepository scheduleRepo;
   final TodoRepository todoRepo;
   final Logger logger;
 
   const MyApp({
     super.key,
     required this.scheduleStateProvider,
+    required this.scheduleRepo,
     required this.todoRepo,
     required this.logger,
   });
@@ -100,7 +103,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: scheduleStateProvider),
         ChangeNotifierProvider(
-          create: (_) => AnalyticsProvider(scheduleStateProvider),
+          create: (_) => AnalyticsProvider(scheduleStateProvider, scheduleRepo),
         ),
         ChangeNotifierProvider(
           create: (_) => TodoProvider(todoRepo),

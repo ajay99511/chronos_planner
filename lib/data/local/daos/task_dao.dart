@@ -51,4 +51,22 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   Future<Task?> getTaskById(String taskId) {
     return (select(tasks)..where((t) => t.id.equals(taskId))).getSingleOrNull();
   }
+
+  /// Returns all tasks whose owning day plan falls on or after [since],
+  /// joined across the `day_plans` table by date.
+  ///
+  /// Used by the analytics/intelligence layer to derive energy peaks and
+  /// other history-based insights. A raw join is used so this DAO does not
+  /// need a generated accessor for [DayPlans].
+  Future<List<Task>> getTasksSince(DateTime since) async {
+    final rows = await customSelect(
+      'SELECT t.* FROM tasks t '
+      'INNER JOIN day_plans d ON t.day_plan_id = d.id '
+      'WHERE d.date >= ? '
+      'ORDER BY d.date ASC, t.start_time ASC',
+      variables: [Variable.withDateTime(since)],
+      readsFrom: {tasks},
+    ).get();
+    return rows.map((row) => tasks.map(row.data)).toList();
+  }
 }
