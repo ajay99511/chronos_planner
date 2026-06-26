@@ -198,7 +198,7 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'APPLY TO DAYS',
+            'SELECT DAYS FOR PLAN',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -242,23 +242,37 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
           LayoutBuilder(
             builder: (context, constraints) {
               final stack = constraints.maxWidth < 340;
+              final hasSelectedDays = _selectedDays.isNotEmpty;
               final thisWeek = NeoButton(
                 isSecondary: true,
-                onPressed: () {
-                  provider.applyTemplateToDays(tmpl, _selectedDays.toList());
-                  Navigator.pop(context);
-                },
-                child: const Text('THIS WEEK', style: TextStyle(fontSize: 10)),
+                onPressed: hasSelectedDays
+                    ? () {
+                        provider.applyTemplateToDays(
+                          tmpl,
+                          _selectedDays.toList(),
+                        );
+                        Navigator.pop(context);
+                      }
+                    : null,
+                child: const Text(
+                  'APPLY THIS WEEK',
+                  style: TextStyle(fontSize: 10),
+                ),
               );
               final everyWeek = NeoButton(
-                onPressed: () {
-                  provider.setTemplateRecurring(
-                    tmpl.id,
-                    _selectedDays.toList(),
-                  );
-                  Navigator.pop(context);
-                },
-                child: const Text('EVERY WEEK', style: TextStyle(fontSize: 10)),
+                onPressed: hasSelectedDays
+                    ? () {
+                        provider.setTemplateRecurring(
+                          tmpl.id,
+                          _selectedDays.toList(),
+                        );
+                        Navigator.pop(context);
+                      }
+                    : null,
+                child: const Text(
+                  'REPEAT WEEKLY',
+                  style: TextStyle(fontSize: 10),
+                ),
               );
               if (stack) {
                 return Column(
@@ -350,6 +364,8 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddTaskSheet(
+        showDateControls: false,
+        submitLabel: 'ADD TO PLAN',
         onAdd: (task, _) => provider.addTaskToTemplate(templateId, task),
       ),
     );
@@ -377,6 +393,8 @@ class _WorkPlanDetailDialogState extends State<WorkPlanDetailDialog> {
       backgroundColor: Colors.transparent,
       builder: (_) => AddTaskSheet(
         editingTask: domainTask,
+        showDateControls: false,
+        submitLabel: 'SAVE PLAN TASK',
         onAdd: (_, __) {},
         onUpdate: (updated) =>
             provider.updateTaskInTemplate(widget.template.id, task.id, updated),

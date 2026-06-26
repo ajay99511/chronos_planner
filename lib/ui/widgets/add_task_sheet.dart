@@ -7,18 +7,28 @@ import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/core/services/intelligence_service.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 
+enum _TaskDateMode { exactDate, weekdays }
+
 class AddTaskSheet extends StatefulWidget {
   final Function(Task, DateTime) onAdd;
+  final Function(Task, List<DateTime>)? onAddToDates;
   final Function(Task)? onUpdate;
   final Task? editingTask;
   final DateTime? defaultDate;
+  final List<DateTime> availableDates;
+  final bool showDateControls;
+  final String? submitLabel;
 
   const AddTaskSheet({
     super.key,
     required this.onAdd,
+    this.onAddToDates,
     this.onUpdate,
     this.editingTask,
     this.defaultDate,
+    this.availableDates = const [],
+    this.showDateControls = true,
+    this.submitLabel,
   });
 
   @override
@@ -30,6 +40,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   final _descCtrl = TextEditingController();
   final _costCtrl = TextEditingController(text: '0.0');
   late DateTime _selectedDate;
+  late _TaskDateMode _dateMode;
+  late Set<int> _selectedWeekdays;
   String _startTime = '09:00';
   String _endTime = '10:00';
   TaskType _selectedType = TaskType.work;
@@ -45,6 +57,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   void initState() {
     super.initState();
     _selectedDate = widget.defaultDate ?? DateTime.now();
+    _dateMode = _TaskDateMode.exactDate;
+    _selectedWeekdays = {_weekdayIndex(_selectedDate)};
 
     if (_isEditing) {
       final t = widget.editingTask!;
@@ -79,6 +93,31 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     });
   }
 
+  static DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  static int _weekdayIndex(DateTime date) => date.weekday - 1;
+
+  List<DateTime> get _availableDates {
+    final dates = widget.availableDates.isNotEmpty
+        ? widget.availableDates
+        : List.generate(7, (i) => _selectedDate.add(Duration(days: i)));
+
+    final unique = <String, DateTime>{};
+    for (final date in dates) {
+      final normalized = _dateOnly(date);
+      unique['${normalized.year}-${normalized.month}-${normalized.day}'] =
+          normalized;
+    }
+
+    final sorted = unique.values.toList()..sort((a, b) => a.compareTo(b));
+    return sorted;
+  }
+
+  List<DateTime> get _selectedRepeatDates => _availableDates
+      .where((date) => _selectedWeekdays.contains(_weekdayIndex(date)))
+      .toList();
+
   @override
   Widget build(BuildContext context) {
     final pagePadding = AppResponsive.pagePadding(context);
@@ -108,7 +147,11 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
               const SizedBox(height: 20),
               _buildTextFields(),
               const SizedBox(height: 16),
-              _buildPickers(),
+              if (widget.showDateControls && !_isEditing) ...[
+                _buildDateOptions(),
+                const SizedBox(height: 16),
+              ],
+              _buildTimePickers(),
               const SizedBox(height: 16),
               _buildCostField(),
               const SizedBox(height: 16),
@@ -197,27 +240,184 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     );
   }
 
-  Widget _buildPickers() {
-    // Simplifying pickers for brevity in this refactor call
+  Widget _buildDateOptions() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: () async {
-            final d = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate,
-              firstDate: DateTime.now().subtract(const Duration(days: 365)),
-              lastDate: DateTime.now().add(const Duration(days: 365)),
-            );
-            if (d != null) setState(() => _selectedDate = d);
-          },
-          child: _PickerRow(
-            icon: Icons.calendar_today_rounded,
-            label: 'DATE',
-            value: DateFormat('EEE, MMM d').format(_selectedDate),
+        const Text(
+          'SCHEDULE',
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
           ),
         ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 360;
+            final exact = _DateModeButton(
+              label: 'Exact date',
+              icon: Icons.event_rounded,
+              selected: _dateMode == _TaskDateMode.exactDate,
+              onTap: () => setState(() => _dateMode = _TaskDateMode.exactDate),
+            );
+            final weekdays = _DateModeButton(
+              label: 'Weekdays',
+              icon: Icons.date_range_rounded,
+              selected: _dateMode == _TaskDateMode.weekdays,
+              onTap: () => setState(() => _dateMode = _TaskDateMode.weekdays),
+            );
+
+            if (stack) {
+              return Column(
+                children: [
+                  exact,
+                  const SizedBox(height: AppSpacing.sm),
+                  weekdays,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: exact),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: weekdays),
+              ],
+            );
+          },
+        ),
         const SizedBox(height: 12),
+        if (_dateMode == _TaskDateMode.exactDate) _buildDatePicker(),
+        if (_dateMode == _TaskDateMode.weekdays) _buildWeekdayPicker(),
+      ],
+    );
+  }
+
+  Widget _buildDatePicker() {
+    return InkWell(
+      onTap: () async {
+        final d = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (d != null) {
+          setState(() {
+            _selectedDate = d;
+            _selectedWeekdays = {_weekdayIndex(d)};
+          });
+        }
+      },
+      child: _PickerRow(
+        icon: Icons.calendar_today_rounded,
+        label: 'DATE',
+        value: DateFormat('EEE, MMM d').format(_selectedDate),
+      ),
+    );
+  }
+
+  Widget _buildWeekdayPicker() {
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final selectedDates = _selectedRepeatDates;
+    final summary = selectedDates.isEmpty
+        ? 'Choose at least one day'
+        : selectedDates
+            .map((date) => DateFormat('EEE, MMM d').format(date))
+            .join(', ');
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _QuickDayButton(
+                label: 'Weekdays',
+                onTap: () => setState(
+                  () => _selectedWeekdays = {0, 1, 2, 3, 4},
+                ),
+              ),
+              _QuickDayButton(
+                label: 'Every day',
+                onTap: () => setState(
+                  () => _selectedWeekdays = {0, 1, 2, 3, 4, 5, 6},
+                ),
+              ),
+              _QuickDayButton(
+                label: 'Clear',
+                onTap: () => setState(_selectedWeekdays.clear),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(7, (i) {
+              final isSelected = _selectedWeekdays.contains(i);
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(
+                    () => isSelected
+                        ? _selectedWeekdays.remove(i)
+                        : _selectedWeekdays.add(i),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.neonBlue
+                          : Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.18)
+                            : Colors.white.withValues(alpha: 0.04),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      labels[i],
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            summary,
+            style: TextStyle(
+              color: selectedDates.isEmpty
+                  ? Colors.redAccent
+                  : AppColors.textSecondary,
+              fontSize: 12,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePickers() {
+    return Column(
+      children: [
         LayoutBuilder(
           builder: (context, constraints) {
             final stack = constraints.maxWidth < 340;
@@ -446,14 +646,21 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         }
         if (_startTime == _endTime) {
           setState(
-            () => _formError =
-                'End time must be different from the start time.',
+            () =>
+                _formError = 'End time must be different from the start time.',
           );
           return;
         }
-        final estimatedCost =
-            double.tryParse(_costCtrl.text.trim())?.clamp(0.0, double.maxFinite) ??
-                0.0;
+        if (!_isEditing &&
+            widget.showDateControls &&
+            _dateMode == _TaskDateMode.weekdays &&
+            _selectedRepeatDates.isEmpty) {
+          setState(() => _formError = 'Please select at least one day.');
+          return;
+        }
+        final estimatedCost = double.tryParse(_costCtrl.text.trim())
+                ?.clamp(0.0, double.maxFinite) ??
+            0.0;
         final t = Task(
           id: _isEditing ? widget.editingTask!.id : const Uuid().v4(),
           title: _titleCtrl.text,
@@ -469,6 +676,17 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         );
         if (_isEditing) {
           widget.onUpdate?.call(t);
+        } else if (widget.showDateControls &&
+            _dateMode == _TaskDateMode.weekdays) {
+          final dates = _selectedRepeatDates;
+          if (widget.onAddToDates != null) {
+            widget.onAddToDates!(t, dates);
+          } else {
+            for (var i = 0; i < dates.length; i++) {
+              final task = i == 0 ? t : t.copyWith(id: const Uuid().v4());
+              widget.onAdd(task, dates[i]);
+            }
+          }
         } else {
           widget.onAdd(t, _selectedDate);
         }
@@ -479,9 +697,89 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         padding: const EdgeInsets.symmetric(vertical: 16),
       ),
       child: Text(
-        _isEditing ? 'SAVE CHANGES' : 'CREATE TASK',
+        widget.submitLabel ?? (_isEditing ? 'SAVE CHANGES' : 'CREATE TASK'),
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
+    );
+  }
+}
+
+class _DateModeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DateModeButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.neonBlue.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.neonBlue : Colors.white10,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected ? Colors.white : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : AppColors.textSecondary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickDayButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickDayButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.neonCyan,
+        side: BorderSide(color: AppColors.neonCyan.withValues(alpha: 0.35)),
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 11)),
     );
   }
 }

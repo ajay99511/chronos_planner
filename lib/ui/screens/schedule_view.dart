@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +64,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                 backgroundColor: Colors.transparent,
                 builder: (_) => AddTaskSheet(
                   editingTask: task,
+                  showDateControls: false,
                   onAdd: (_, __) {},
                   onUpdate: (updatedTask) => context
                       .read<ScheduleStateProvider>()
@@ -117,6 +119,42 @@ class _ScheduleViewState extends State<ScheduleView> {
         ),
       );
     }
+  }
+
+  void _addTaskToDatesWithOverlapCheck(
+    ScheduleStateProvider provider,
+    Task task,
+    List<DateTime> dates,
+  ) {
+    if (dates.isEmpty) return;
+
+    var overlapCount = 0;
+    Task? firstOverlap;
+
+    for (var i = 0; i < dates.length; i++) {
+      final datedTask = i == 0 ? task : task.copyWith(id: const Uuid().v4());
+      final overlaps = provider.overlappingTasks(datedTask, dates[i]);
+      overlapCount += overlaps.length;
+      firstOverlap ??= overlaps.isNotEmpty ? overlaps.first : null;
+      provider.addTask(datedTask, dates[i]);
+    }
+
+    if (!mounted) return;
+
+    final overlapText = overlapCount == 0
+        ? ''
+        : '; $overlapCount overlap${overlapCount == 1 ? '' : 's'} found'
+            '${firstOverlap == null ? '' : ' including "${firstOverlap.title}"'}';
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.surfaceLight,
+        content: Text(
+          'Added "${task.title}" to ${dates.length} days$overlapText',
+        ),
+      ),
+    );
   }
 
   @override
@@ -370,10 +408,18 @@ class _ScheduleViewState extends State<ScheduleView> {
                         backgroundColor: Colors.transparent,
                         builder: (_) => AddTaskSheet(
                           defaultDate: dayPlan.date,
+                          availableDates:
+                              provider.weekPlan.map((day) => day.date).toList(),
                           onAdd: (t, d) => _addTaskWithOverlapCheck(
                             provider,
                             t,
                             d,
+                          ),
+                          onAddToDates: (t, dates) =>
+                              _addTaskToDatesWithOverlapCheck(
+                            provider,
+                            t,
+                            dates,
                           ),
                         ),
                       );
@@ -492,6 +538,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                                       backgroundColor: Colors.transparent,
                                       builder: (_) => AddTaskSheet(
                                         editingTask: task,
+                                        showDateControls: false,
                                         onAdd: (_, __) {},
                                         onUpdate: (updatedTask) => provider
                                             .updateTask(task.id, updatedTask),
@@ -575,7 +622,12 @@ class _ScheduleViewState extends State<ScheduleView> {
                       top: 0,
                       bottom: 0,
                       child: SizedBox(
-                        width: 400,
+                        width: math
+                            .min(
+                              420,
+                              MediaQuery.sizeOf(context).width * 0.88,
+                            )
+                            .toDouble(),
                         child: TaskDetailPanel(
                           task: _selectedTask!,
                           isCompleted: _selectedTask!.completed,
@@ -596,6 +648,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                               backgroundColor: Colors.transparent,
                               builder: (_) => AddTaskSheet(
                                 editingTask: _selectedTask!,
+                                showDateControls: false,
                                 onAdd: (_, __) {},
                                 onUpdate: (updatedTask) => provider.updateTask(
                                   _selectedTask!.id,
@@ -800,15 +853,29 @@ class _ScheduleToolbar extends StatelessWidget {
               color: Colors.white10,
               margin: const EdgeInsets.symmetric(horizontal: 8),
             ),
-            IconButton(
-              onPressed: onAddTask,
-              icon: const Icon(Icons.add, color: Colors.white, size: 20),
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.neonBlue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            Tooltip(
+              message: 'Add Task',
+              child: TextButton.icon(
+                onPressed: onAddTask,
+                icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                label: const Text(
+                  'ADD TASK',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                padding: const EdgeInsets.all(10),
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.neonBlue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
               ),
             ),
           ],
