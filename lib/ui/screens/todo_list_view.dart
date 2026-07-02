@@ -20,9 +20,30 @@ class TodoListView extends StatefulWidget {
 
 class _TodoListViewState extends State<TodoListView> {
   int _selectedTab = 0; // 0 = Notes, 1 = Timers, 2 = Lists
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   void _openNewItemSheet() {
     NewItemSheet.show(context, initialTab: _selectedTab);
+  }
+
+  List<domain.TodoItem> _filtered(List<domain.TodoItem> items) {
+    if (_query.isEmpty) return items;
+    final q = _query.toLowerCase();
+    return items
+        .where(
+          (i) =>
+              i.title.toLowerCase().contains(q) ||
+              i.description.toLowerCase().contains(q) ||
+              i.checklist.any((c) => c.text.toLowerCase().contains(q)),
+        )
+        .toList();
   }
 
   void _openDetail(domain.TodoItem item) {
@@ -81,6 +102,53 @@ class _TodoListViewState extends State<TodoListView> {
             padding: AppResponsive.horizontalPadding(context),
             child: _buildTabSelector(),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Padding(
+            padding: AppResponsive.horizontalPadding(context),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v.trim()),
+              style: const TextStyle(fontSize: 14, color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search notes, timers, and lists…',
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: Colors.white38,
+                ),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: Colors.white38,
+                        ),
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.surface.withValues(alpha: 0.6),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  borderSide: const BorderSide(color: Colors.white10),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  borderSide: const BorderSide(color: Colors.white10),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  borderSide: const BorderSide(color: AppColors.neonBlue),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           if (context.watch<TodoProvider>().errorMessage != null)
             Padding(
@@ -95,11 +163,11 @@ class _TodoListViewState extends State<TodoListView> {
               builder: (context, provider, _) {
                 switch (_selectedTab) {
                   case 0:
-                    return _buildNotesList(provider.notes);
+                    return _buildNotesList(_filtered(provider.notes));
                   case 1:
-                    return _buildTimersList(provider.timers);
+                    return _buildTimersList(_filtered(provider.timers));
                   case 2:
-                    return _buildChecklistsList(provider.lists);
+                    return _buildChecklistsList(_filtered(provider.lists));
                   default:
                     return const SizedBox.shrink();
                 }
@@ -130,39 +198,46 @@ class _TodoListViewState extends State<TodoListView> {
               button: true,
               selected: isSelected,
               label: '${tabs[i].label} tab',
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedTab = i),
-                child: AnimatedContainer(
-                  duration: AppAnimDurations.fast,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        tabs[i].icon,
-                        size: 16,
-                        color:
-                            isSelected ? Colors.white : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        tabs[i].label,
-                        style: TextStyle(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() => _selectedTab = i),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  focusColor: Colors.white.withValues(alpha: 0.08),
+                  child: AnimatedContainer(
+                    duration: AppAnimDurations.fast,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          tabs[i].icon,
+                          size: 16,
                           color: isSelected
                               ? Colors.white
                               : AppColors.textSecondary,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 13,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          tabs[i].label,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -174,6 +249,12 @@ class _TodoListViewState extends State<TodoListView> {
   }
 
   Widget _buildNotesList(List<domain.TodoItem> notes) {
+    // Hide the Create card while a search is active so results stand alone.
+    final isSearching = _query.isNotEmpty;
+    if (isSearching && notes.isEmpty) {
+      return _buildEmptyState(Icons.search_off_rounded, 'No matches');
+    }
+    final extra = isSearching ? 0 : 1;
     return GridView.builder(
       padding: AppResponsive.screenPadding(context),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -182,12 +263,12 @@ class _TodoListViewState extends State<TodoListView> {
         crossAxisSpacing: AppSpacing.md,
         childAspectRatio: 1.2, // Slightly wider than square for better text fit
       ),
-      itemCount: notes.length + 1, // +1 for the Create card
+      itemCount: notes.length + extra,
       itemBuilder: (context, index) {
-        if (index == 0) {
+        if (!isSearching && index == 0) {
           return _buildCreateNoteCard();
         }
-        final note = notes[index - 1];
+        final note = notes[index - extra];
         return _NoteCard(note: note, onTap: () => _openDetail(note));
       },
     );
@@ -240,7 +321,9 @@ class _TodoListViewState extends State<TodoListView> {
 
   Widget _buildTimersList(List<domain.TodoItem> timers) {
     if (timers.isEmpty) {
-      return _buildEmptyState(Icons.timer_outlined, 'No timers yet');
+      return _query.isNotEmpty
+          ? _buildEmptyState(Icons.search_off_rounded, 'No matches')
+          : _buildEmptyState(Icons.timer_outlined, 'No timers yet');
     }
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(
@@ -259,7 +342,9 @@ class _TodoListViewState extends State<TodoListView> {
 
   Widget _buildChecklistsList(List<domain.TodoItem> lists) {
     if (lists.isEmpty) {
-      return _buildEmptyState(Icons.checklist_outlined, 'No lists yet');
+      return _query.isNotEmpty
+          ? _buildEmptyState(Icons.search_off_rounded, 'No matches')
+          : _buildEmptyState(Icons.checklist_outlined, 'No lists yet');
     }
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(
@@ -295,10 +380,10 @@ class _NoteCard extends StatelessWidget {
 
   String _relativeTime(DateTime time) {
     final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 1) return 'just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays == 1) return 'yesterday';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
     return DateFormat.MMMd().format(time);
   }
@@ -331,7 +416,9 @@ class _NoteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            _relativeTime(note.createdAt),
+            note.updatedAt.isAfter(note.createdAt)
+                ? 'Edited ${_relativeTime(note.updatedAt)}'
+                : 'Created ${_relativeTime(note.createdAt)}',
             style: AppTextStyles.label
                 .copyWith(fontSize: 9, color: Colors.white24),
           ),

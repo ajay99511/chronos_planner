@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -22,6 +23,11 @@ class _TimerViewState extends State<TimerView> {
   bool _isCompleted = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  /// Wall-clock deadline for the running countdown. Deriving the remaining
+  /// time from this (instead of decrementing per tick) keeps the timer
+  /// accurate even if ticks are delayed or the app is suspended.
+  DateTime? _deadline;
+
   @override
   void initState() {
     super.initState();
@@ -33,33 +39,51 @@ class _TimerViewState extends State<TimerView> {
   void dispose() {
     _ticker?.cancel();
     _audioPlayer.dispose();
+    WakelockPlus.disable();
     super.dispose();
   }
 
   void _startTimer() {
+    _deadline = DateTime.now().add(Duration(seconds: _remainingSeconds));
     setState(() => _isRunning = true);
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_remainingSeconds <= 0) {
+    // Keep the screen awake only while the countdown is running.
+    WakelockPlus.enable();
+    _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final remaining = _deadline!.difference(DateTime.now()).inSeconds;
+      if (remaining <= 0) {
         _ticker?.cancel();
+        WakelockPlus.disable();
         setState(() {
+          _remainingSeconds = 0;
           _isRunning = false;
           _isCompleted = true;
         });
         _onTimerComplete();
-      } else {
-        setState(() => _remainingSeconds--);
+      } else if (remaining != _remainingSeconds) {
+        setState(() => _remainingSeconds = remaining);
       }
     });
   }
 
   void _pauseTimer() {
     _ticker?.cancel();
-    setState(() => _isRunning = false);
+    WakelockPlus.disable();
+    final deadline = _deadline;
+    setState(() {
+      if (deadline != null) {
+        _remainingSeconds = deadline
+            .difference(DateTime.now())
+            .inSeconds
+            .clamp(0, _totalSeconds);
+      }
+      _isRunning = false;
+    });
   }
 
   void _resetTimer() {
     _ticker?.cancel();
     _audioPlayer.stop();
+    WakelockPlus.disable();
     setState(() {
       _remainingSeconds = _totalSeconds;
       _isRunning = false;

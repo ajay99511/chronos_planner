@@ -10,8 +10,11 @@ abstract class TemplateRepository {
   Future<Result<void>> addTemplate(PlanTemplate template);
 
   /// Update template metadata (name, description).
-  Future<Result<void>> updateTemplate(String templateId,
-      {String? name, String? description,});
+  Future<Result<void>> updateTemplate(
+    String templateId, {
+    String? name,
+    String? description,
+  });
 
   /// Delete a template and all its tasks.
   Future<Result<void>> deleteTemplate(String templateId);
@@ -21,13 +24,17 @@ abstract class TemplateRepository {
 
   /// Update a task inside a template.
   Future<Result<void>> updateTaskInTemplate(
-      String templateId, String taskId, TemplateTask updatedTask,);
+    String templateId,
+    String taskId,
+    TemplateTask updatedTask,
+  );
 
   /// Remove a task from a template.
   Future<Result<void>> removeTaskFromTemplate(String templateId, String taskId);
 
   /// Update the active recurring days for a template.
-  Future<Result<void>> updateTemplateActiveDays(String templateId, List<int> days);
+  Future<Result<void>> updateTemplateActiveDays(
+      String templateId, List<int> days,);
 
   /// Get all templates with recurring active days set.
   Future<Result<List<PlanTemplate>>> getRecurringTemplates();

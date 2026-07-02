@@ -15,7 +15,8 @@ class LocalPreferenceRepository implements BulkPreferenceRepository {
       final value = await action();
       return Success(value);
     } on DriftWrappedException catch (e) {
-      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+      return Failure(
+          DatabaseFailure('Database operation failed', e.toString()),);
     } on Exception catch (e) {
       return Failure(UnknownFailure('Unexpected error', e.toString()));
     }

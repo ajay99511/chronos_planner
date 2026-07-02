@@ -45,7 +45,8 @@ class LocalScheduleRepository implements ScheduleRepository {
       final value = await _retry(action);
       return Success(value);
     } on DriftWrappedException catch (e) {
-      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+      return Failure(
+          DatabaseFailure('Database operation failed', e.toString()),);
     } on Exception catch (e) {
       return Failure(UnknownFailure('Unexpected error', e.toString()));
     }
@@ -73,27 +74,33 @@ class LocalScheduleRepository implements ScheduleRepository {
 
         if (existing != null) {
           final dbTasks = await _taskDao.getTasksForDay(existing.id);
-          fullList.add(domain.DayPlan(
-            id: existing.id,
-            date: existing.date,
-            tasks: dbTasks.map(_dbTaskToModel).toList()
-              ..sort((a, b) => a.startTime.compareTo(b.startTime)),
-          ),);
+          fullList.add(
+            domain.DayPlan(
+              id: existing.id,
+              date: existing.date,
+              tasks: dbTasks.map(_dbTaskToModel).toList()
+                ..sort((a, b) => a.startTime.compareTo(b.startTime)),
+            ),
+          );
         } else {
           final id = const Uuid().v4();
           final weekKey = _calculateWeekKey(date);
 
-          newDays.add(DayPlansCompanion(
-            id: Value(id),
-            date: Value(date),
-            weekKey: Value(weekKey),
-          ),);
+          newDays.add(
+            DayPlansCompanion(
+              id: Value(id),
+              date: Value(date),
+              weekKey: Value(weekKey),
+            ),
+          );
 
-          fullList.add(domain.DayPlan(
-            id: id,
-            date: date,
-            tasks: [],
-          ),);
+          fullList.add(
+            domain.DayPlan(
+              id: id,
+              date: date,
+              tasks: [],
+            ),
+          );
         }
       }
 
@@ -115,11 +122,13 @@ class LocalScheduleRepository implements ScheduleRepository {
         dayPlanId = const Uuid().v4();
         final weekKey = _calculateWeekKey(targetDate);
 
-        await _dayPlanDao.insertDayPlan(DayPlansCompanion(
-          id: Value(dayPlanId),
-          date: Value(targetDate),
-          weekKey: Value(weekKey),
-        ),);
+        await _dayPlanDao.insertDayPlan(
+          DayPlansCompanion(
+            id: Value(dayPlanId),
+            date: Value(targetDate),
+            weekKey: Value(weekKey),
+          ),
+        );
       }
 
       await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
@@ -128,7 +137,9 @@ class LocalScheduleRepository implements ScheduleRepository {
 
   @override
   Future<Result<void>> addTasksToDate(
-      DateTime date, List<domain.Task> tasksToAdd,) async {
+    DateTime date,
+    List<domain.Task> tasksToAdd,
+  ) async {
     return _wrap(() async {
       if (tasksToAdd.isEmpty) return;
       final targetDate = DateTime(date.year, date.month, date.day);
@@ -137,11 +148,13 @@ class LocalScheduleRepository implements ScheduleRepository {
       if (dayPlanId == null) {
         dayPlanId = const Uuid().v4();
         final weekKey = _calculateWeekKey(targetDate);
-        await _dayPlanDao.insertDayPlan(DayPlansCompanion(
-          id: Value(dayPlanId),
-          date: Value(targetDate),
-          weekKey: Value(weekKey),
-        ),);
+        await _dayPlanDao.insertDayPlan(
+          DayPlansCompanion(
+            id: Value(dayPlanId),
+            date: Value(targetDate),
+            weekKey: Value(weekKey),
+          ),
+        );
       }
 
       final planId = dayPlanId;
@@ -157,7 +170,9 @@ class LocalScheduleRepository implements ScheduleRepository {
       await _taskDao.deleteTasksForDay(dayPlan.id);
       if (dayPlan.tasks.isNotEmpty) {
         await _taskDao.insertTasks(
-          dayPlan.tasks.map((t) => _modelTaskToCompanion(t, dayPlan.id)).toList(),
+          dayPlan.tasks
+              .map((t) => _modelTaskToCompanion(t, dayPlan.id))
+              .toList(),
         );
       }
     });
@@ -172,7 +187,10 @@ class LocalScheduleRepository implements ScheduleRepository {
 
   @override
   Future<Result<void>> updateTask(
-      String dayPlanId, String taskId, domain.Task updatedTask,) {
+    String dayPlanId,
+    String taskId,
+    domain.Task updatedTask,
+  ) {
     return _wrap(() async {
       await _taskDao.updateTask(
         taskId,

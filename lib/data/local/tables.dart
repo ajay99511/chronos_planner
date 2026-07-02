@@ -14,9 +14,10 @@ class Tasks extends Table {
   RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
   RealColumn get actualCost => real().withDefault(const Constant(0.0))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
-  
+
   // v5: Added ON DELETE CASCADE
-  TextColumn get dayPlanId => text().references(DayPlans, #id, onDelete: KeyAction.cascade)();
+  TextColumn get dayPlanId =>
+      text().references(DayPlans, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
 
   @override
@@ -50,7 +51,8 @@ class PlanTemplates extends Table {
 /// Junction table for template active days.
 /// v5: Added
 class TemplateActiveDays extends Table {
-  TextColumn get templateId => text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
+  TextColumn get templateId =>
+      text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
   IntColumn get dayIndex => integer()(); // 0-6
 
   @override
@@ -61,9 +63,10 @@ class TemplateActiveDays extends Table {
 @TableIndex(name: 'idx_template_tasks_template_id', columns: {#templateId})
 class TemplateTasks extends Table {
   TextColumn get id => text()();
-  
+
   // v5: Added ON DELETE CASCADE
-  TextColumn get templateId => text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
+  TextColumn get templateId =>
+      text().references(PlanTemplates, #id, onDelete: KeyAction.cascade)();
   TextColumn get title => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().withDefault(const Constant(''))();
   TextColumn get startTime => text()();
@@ -93,6 +96,8 @@ class TodoItems extends Table {
   TextColumn get description => text().withDefault(const Constant(''))();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  // v7: Added — tracks last modification for display/sorting
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   TextColumn get itemType => text().withDefault(const Constant('note'))();
   IntColumn get durationMinutes => integer().withDefault(const Constant(0))();
   TextColumn get checklistJson => text().withDefault(const Constant(''))();

@@ -21,7 +21,8 @@ class TemplateDao extends DatabaseAccessor<AppDatabase>
   Future<List<PlanTemplate>> getRecurringTemplates() async {
     // Join with template_active_days to find templates with at least one active day
     final query = select(planTemplates).join([
-      innerJoin(templateActiveDays, templateActiveDays.templateId.equalsExp(planTemplates.id)),
+      innerJoin(templateActiveDays,
+          templateActiveDays.templateId.equalsExp(planTemplates.id),),
     ])
       ..groupBy([planTemplates.id]);
 
@@ -41,7 +42,9 @@ class TemplateDao extends DatabaseAccessor<AppDatabase>
 
   /// Update a template's metadata.
   Future<void> updateTemplate(
-      String templateId, PlanTemplatesCompanion updates,) {
+    String templateId,
+    PlanTemplatesCompanion updates,
+  ) {
     return (update(planTemplates)..where((t) => t.id.equals(templateId)))
         .write(updates);
   }
@@ -75,7 +78,9 @@ class TemplateDao extends DatabaseAccessor<AppDatabase>
 
   /// Update a template task.
   Future<void> updateTemplateTask(
-      String taskId, TemplateTasksCompanion updates,) {
+    String taskId,
+    TemplateTasksCompanion updates,
+  ) {
     return (update(templateTasks)..where((t) => t.id.equals(taskId)))
         .write(updates);
   }

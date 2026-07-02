@@ -87,46 +87,61 @@ class TodoProvider extends ChangeNotifier {
 
   // ── CRUD ──
 
-  Future<void> addTodo(domain.TodoItem todo) => _handleResult(_repository.addTodo(todo));
+  Future<void> addTodo(domain.TodoItem todo) =>
+      _handleResult(_repository.addTodo(todo));
 
   Future<void> addNote(String title, {String description = ''}) {
-    return addTodo(domain.TodoItem(
-      id: const Uuid().v4(),
-      title: title,
-      description: description,
-      createdAt: DateTime.now(),
-      itemType: domain.TodoItemType.note,
-    ),);
+    return addTodo(
+      domain.TodoItem(
+        id: const Uuid().v4(),
+        title: title,
+        description: description,
+        createdAt: DateTime.now(),
+        itemType: domain.TodoItemType.note,
+      ),
+    );
   }
 
-  Future<void> addTimer(String title, {String description = '', int durationMinutes = 25, String audioFilePath = ''}) {
-    return addTodo(domain.TodoItem(
-      id: const Uuid().v4(),
-      title: title,
-      description: description,
-      createdAt: DateTime.now(),
-      itemType: domain.TodoItemType.timer,
-      durationMinutes: durationMinutes,
-      audioFilePath: audioFilePath,
-    ),);
+  Future<void> addTimer(String title,
+      {String description = '',
+      int durationMinutes = 25,
+      String audioFilePath = '',}) {
+    return addTodo(
+      domain.TodoItem(
+        id: const Uuid().v4(),
+        title: title,
+        description: description,
+        createdAt: DateTime.now(),
+        itemType: domain.TodoItemType.timer,
+        durationMinutes: durationMinutes,
+        audioFilePath: audioFilePath,
+      ),
+    );
   }
 
-  Future<void> addList(String title, {String description = '', List<domain.ChecklistItem> checklist = const []}) {
-    return addTodo(domain.TodoItem(
-      id: const Uuid().v4(),
-      title: title,
-      description: description,
-      createdAt: DateTime.now(),
-      itemType: domain.TodoItemType.list,
-      checklist: checklist,
-    ),);
+  Future<void> addList(String title,
+      {String description = '',
+      List<domain.ChecklistItem> checklist = const [],}) {
+    return addTodo(
+      domain.TodoItem(
+        id: const Uuid().v4(),
+        title: title,
+        description: description,
+        createdAt: DateTime.now(),
+        itemType: domain.TodoItemType.list,
+        checklist: checklist,
+      ),
+    );
   }
 
   Future<void> toggleTodo(domain.TodoItem todo) {
-    return _handleResult(_repository.updateTodo(todo.copyWith(completed: !todo.completed)));
+    return updateTodo(todo.copyWith(completed: !todo.completed));
   }
 
-  Future<void> updateTodo(domain.TodoItem todo) => _handleResult(_repository.updateTodo(todo));
+  /// Persists [todo], stamping [domain.TodoItem.updatedAt] with the current time.
+  Future<void> updateTodo(domain.TodoItem todo) => _handleResult(
+      _repository.updateTodo(todo.copyWith(updatedAt: DateTime.now())),);
 
-  Future<void> deleteTodo(String id) => _handleResult(_repository.deleteTodo(id));
+  Future<void> deleteTodo(String id) =>
+      _handleResult(_repository.deleteTodo(id));
 }

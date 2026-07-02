@@ -48,7 +48,8 @@ class AnalyticsProvider extends ChangeNotifier {
   // ── Public getters (read memoized values) ──
   int get totalTasks => _totalTasks;
   int get completedTasks => _completedTasks;
-  double get efficiency => _totalTasks == 0 ? 0 : (_completedTasks / _totalTasks) * 100;
+  double get efficiency =>
+      _totalTasks == 0 ? 0 : (_completedTasks / _totalTasks) * 100;
   double get totalFocusHours => _totalFocusHours;
   Map<TaskType, double> get categoryDistribution => _categoryDistribution;
   Map<int, double> get energyPeaks => _energyPeaks;
@@ -86,7 +87,8 @@ class AnalyticsProvider extends ChangeNotifier {
   Future<void> _loadHistory() async {
     final repo = _scheduleRepo;
     if (repo == null) return;
-    final since = DateTime.now().subtract(const Duration(days: _historyWindowDays));
+    final since =
+        DateTime.now().subtract(const Duration(days: _historyWindowDays));
     final result = await repo.getTaskHistory(since);
     result.fold(
       onSuccess: (tasks) {

@@ -11,6 +11,7 @@ import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
 import 'package:chronosky/data/repositories/template_repository.dart';
 import 'package:chronosky/data/repositories/preference_repository.dart';
+
 enum UndoType { deleteTask, clearDay }
 
 enum SortOrder { asc, desc }
@@ -21,7 +22,8 @@ class UndoAction {
   final Task? task;
   final List<Task>? tasks;
 
-  UndoAction({required this.type, required this.dayIndex, this.task, this.tasks});
+  UndoAction(
+      {required this.type, required this.dayIndex, this.task, this.tasks,});
 }
 
 class ScheduleStateProvider extends ChangeNotifier {
@@ -71,7 +73,7 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   Future<void> loadData() async {
     if (_isLoading) return _loadingCompleter?.future;
-    
+
     _isLoading = true;
     _errorMessage = null; // Clear previous error so retry can succeed
     _loadingCompleter = Completer<void>();
@@ -79,14 +81,15 @@ class ScheduleStateProvider extends ChangeNotifier {
 
     try {
       _logger.info('Loading schedule data...');
-      
+
       final weekResult = await _scheduleRepo.getUpcomingDays(7);
 
       weekResult.fold(
         onSuccess: (data) => _weekPlan = data,
         onFailure: (f) {
           _errorMessage = '${f.message}\n${f.originalError ?? ""}';
-          _logger.error('Failed to load week plan: ${f.message}', f.originalError);
+          _logger.error(
+              'Failed to load week plan: ${f.message}', f.originalError,);
         },
       );
 
@@ -104,17 +107,20 @@ class ScheduleStateProvider extends ChangeNotifier {
             unawaited(_seedDefaultTemplates());
           }
         },
-        onFailure: (f) => _logger.error('Failed to load templates: ${f.message}'),
+        onFailure: (f) =>
+            _logger.error('Failed to load templates: ${f.message}'),
       );
 
       prefResult.fold(
-        onSuccess: (val) => _sortOrder = val == 'desc' ? SortOrder.desc : SortOrder.asc,
+        onSuccess: (val) =>
+            _sortOrder = val == 'desc' ? SortOrder.desc : SortOrder.asc,
         onFailure: (f) => _logger.warning('Failed to load sort order'),
       );
 
       dismissResult.fold(
         onSuccess: (val) => _dismissedRecurring = _decodeDismissals(val),
-        onFailure: (f) => _logger.warning('Failed to load recurring dismissals'),
+        onFailure: (f) =>
+            _logger.warning('Failed to load recurring dismissals'),
       );
       _pruneDismissals();
 
@@ -126,7 +132,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       } catch (e) {
         _logger.warning('Failed to apply recurring templates: $e');
       }
-      
+
       _logger.info('Schedule data loaded successfully');
     } catch (e, stackTrace) {
       _logger.error('Unexpected error loading data: $e\n$stackTrace');
@@ -158,7 +164,7 @@ class ScheduleStateProvider extends ChangeNotifier {
         ],
       ),
     ];
-    
+
     for (final t in seeds) {
       await addTemplate(t);
     }
@@ -260,9 +266,11 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   List<Task> getSortedTasks(DayPlan dayPlan) {
     final tasks = List<Task>.from(dayPlan.tasks);
-    tasks.sort((a, b) => _sortOrder == SortOrder.asc
-        ? a.startTime.compareTo(b.startTime)
-        : b.startTime.compareTo(a.startTime),);
+    tasks.sort(
+      (a, b) => _sortOrder == SortOrder.asc
+          ? a.startTime.compareTo(b.startTime)
+          : b.startTime.compareTo(a.startTime),
+    );
     return tasks;
   }
 
@@ -270,9 +278,13 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   Future<void> addTask(Task task, [DateTime? date]) async {
     final targetDate = date ?? selectedDay.date;
-    final planIdx = _weekPlan.indexWhere((p) => 
-      p.date.year == targetDate.year && p.date.month == targetDate.month && p.date.day == targetDate.day,);
-    
+    final planIdx = _weekPlan.indexWhere(
+      (p) =>
+          p.date.year == targetDate.year &&
+          p.date.month == targetDate.month &&
+          p.date.day == targetDate.day,
+    );
+
     List<DayPlan>? originalPlan;
     if (planIdx != -1) {
       originalPlan = List<DayPlan>.from(_weekPlan);
@@ -300,17 +312,19 @@ class ScheduleStateProvider extends ChangeNotifier {
         break;
       }
     }
-    
+
     if (planIdx == -1) return;
 
     final originalPlan = List<DayPlan>.from(_weekPlan);
     final taskIdx = _weekPlan[planIdx].tasks.indexWhere((t) => t.id == taskId);
-    
-    final newTasks = List<Task>.from(_weekPlan[planIdx].tasks)..[taskIdx] = updatedTask;
+
+    final newTasks = List<Task>.from(_weekPlan[planIdx].tasks)
+      ..[taskIdx] = updatedTask;
     _weekPlan[planIdx] = _weekPlan[planIdx].copyWith(tasks: newTasks);
     notifyListeners();
 
-    final result = await _scheduleRepo.updateTask(_weekPlan[planIdx].id, taskId, updatedTask);
+    final result = await _scheduleRepo.updateTask(
+        _weekPlan[planIdx].id, taskId, updatedTask,);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -324,31 +338,35 @@ class ScheduleStateProvider extends ChangeNotifier {
   Future<void> deleteTask(String taskId) async {
     final planIdx = _selectedDayIndex;
     final originalPlan = List<DayPlan>.from(_weekPlan);
-    
+
     final taskIdx = _weekPlan[planIdx].tasks.indexWhere((t) => t.id == taskId);
     if (taskIdx == -1) return;
 
     final removedTask = _weekPlan[planIdx].tasks[taskIdx];
-    final newTasks = List<Task>.from(_weekPlan[planIdx].tasks)..removeAt(taskIdx);
+    final newTasks = List<Task>.from(_weekPlan[planIdx].tasks)
+      ..removeAt(taskIdx);
     _weekPlan[planIdx] = _weekPlan[planIdx].copyWith(tasks: newTasks);
 
     // Remember that a template-sourced instance was removed so recurring
     // templates don't silently re-create it on the next load.
     if (removedTask.sourceTemplateId.isNotEmpty) {
-      _dismissedRecurring
-          .add(_dismissalKey(removedTask.sourceTemplateId, _weekPlan[planIdx].date));
+      _dismissedRecurring.add(
+          _dismissalKey(removedTask.sourceTemplateId, _weekPlan[planIdx].date),);
       unawaited(_persistDismissals());
     }
 
-    _addToUndoStack(UndoAction(
-      type: UndoType.deleteTask,
-      dayIndex: planIdx,
-      task: removedTask,
-    ),);
-    
+    _addToUndoStack(
+      UndoAction(
+        type: UndoType.deleteTask,
+        dayIndex: planIdx,
+        task: removedTask,
+      ),
+    );
+
     notifyListeners();
 
-    final result = await _scheduleRepo.deleteTask(_weekPlan[planIdx].id, taskId);
+    final result =
+        await _scheduleRepo.deleteTask(_weekPlan[planIdx].id, taskId);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -369,7 +387,7 @@ class ScheduleStateProvider extends ChangeNotifier {
   Future<void> undo() async {
     if (_undoStack.isEmpty) return;
     final action = _undoStack.removeLast();
-    
+
     switch (action.type) {
       case UndoType.deleteTask:
         if (action.task != null) {
@@ -413,7 +431,7 @@ class ScheduleStateProvider extends ChangeNotifier {
     final original = List<PlanTemplate>.from(_templates);
     _templates.removeWhere((t) => t.id == id);
     notifyListeners();
-    
+
     final result = await _templateRepo.deleteTemplate(id);
     result.fold(
       onSuccess: (_) => _logger.debug('Template removed: $id'),
@@ -425,15 +443,18 @@ class ScheduleStateProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> updateTemplate(String templateId, {String? name, String? description}) async {
+  Future<void> updateTemplate(String templateId,
+      {String? name, String? description,}) async {
     final idx = _templates.indexWhere((t) => t.id == templateId);
     if (idx == -1) return;
 
     final original = List<PlanTemplate>.from(_templates);
-    _templates[idx] = _templates[idx].copyWith(name: name, description: description);
+    _templates[idx] =
+        _templates[idx].copyWith(name: name, description: description);
     notifyListeners();
 
-    final result = await _templateRepo.updateTemplate(templateId, name: name, description: description);
+    final result = await _templateRepo.updateTemplate(templateId,
+        name: name, description: description,);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -461,12 +482,14 @@ class ScheduleStateProvider extends ChangeNotifier {
       estimatedCost: task.estimatedCost,
       description: task.description,
     );
-    
-    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)..add(templateTask);
+
+    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)
+      ..add(templateTask);
     _templates[idx] = _templates[idx].copyWith(tasks: newTasks);
     notifyListeners();
 
-    final result = await _templateRepo.addTaskToTemplate(templateId, templateTask);
+    final result =
+        await _templateRepo.addTaskToTemplate(templateId, templateTask);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -482,11 +505,13 @@ class ScheduleStateProvider extends ChangeNotifier {
     if (idx == -1) return;
 
     final original = List<PlanTemplate>.from(_templates);
-    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)..removeWhere((t) => t.id == taskId);
+    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)
+      ..removeWhere((t) => t.id == taskId);
     _templates[idx] = _templates[idx].copyWith(tasks: newTasks);
     notifyListeners();
 
-    final result = await _templateRepo.removeTaskFromTemplate(templateId, taskId);
+    final result =
+        await _templateRepo.removeTaskFromTemplate(templateId, taskId);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -497,7 +522,8 @@ class ScheduleStateProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> updateTaskInTemplate(String templateId, String taskId, Task task) async {
+  Future<void> updateTaskInTemplate(
+      String templateId, String taskId, Task task,) async {
     final idx = _templates.indexWhere((t) => t.id == templateId);
     if (idx == -1) return;
 
@@ -518,11 +544,13 @@ class ScheduleStateProvider extends ChangeNotifier {
       description: task.description,
     );
 
-    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)..[taskIdx] = templateTask;
+    final newTasks = List<TemplateTask>.from(_templates[idx].tasks)
+      ..[taskIdx] = templateTask;
     _templates[idx] = _templates[idx].copyWith(tasks: newTasks);
     notifyListeners();
 
-    final result = await _templateRepo.updateTaskInTemplate(templateId, taskId, templateTask);
+    final result = await _templateRepo.updateTaskInTemplate(
+        templateId, taskId, templateTask,);
     result.fold(
       onSuccess: (_) => null,
       onFailure: (f) {
@@ -545,7 +573,8 @@ class ScheduleStateProvider extends ChangeNotifier {
     _dismissedRecurring.removeWhere((key) => key.startsWith('$templateId|'));
     unawaited(_persistDismissals());
 
-    final result = await _templateRepo.updateTemplateActiveDays(templateId, days);
+    final result =
+        await _templateRepo.updateTemplateActiveDays(templateId, days);
     result.fold(
       onSuccess: (_) => unawaited(_applyRecurringTemplates()),
       onFailure: (f) {
@@ -560,7 +589,8 @@ class ScheduleStateProvider extends ChangeNotifier {
     await setTemplateRecurring(templateId, []);
   }
 
-  Future<void> applyTemplateToDays(PlanTemplate template, List<int> dayIndices) async {
+  Future<void> applyTemplateToDays(
+      PlanTemplate template, List<int> dayIndices,) async {
     for (final dayIdx in dayIndices) {
       if (dayIdx >= 0 && dayIdx < _weekPlan.length) {
         await applyTemplate(template, dayIdx);
@@ -573,18 +603,22 @@ class ScheduleStateProvider extends ChangeNotifier {
     if (dayIdx < 0 || dayIdx >= _weekPlan.length) return;
     final dayPlan = _weekPlan[dayIdx];
 
-    final newTasks = template.tasks.map((t) => Task(
-      id: const Uuid().v4(),
-      title: t.title,
-      startTime: t.startTime,
-      endTime: t.endTime,
-      type: t.type,
-      priority: t.priority,
-      energyLevel: t.energyLevel,
-      estimatedCost: t.estimatedCost,
-      description: t.description,
-      sourceTemplateId: template.id,
-    ),).toList();
+    final newTasks = template.tasks
+        .map(
+          (t) => Task(
+            id: const Uuid().v4(),
+            title: t.title,
+            startTime: t.startTime,
+            endTime: t.endTime,
+            type: t.type,
+            priority: t.priority,
+            energyLevel: t.energyLevel,
+            estimatedCost: t.estimatedCost,
+            description: t.description,
+            sourceTemplateId: template.id,
+          ),
+        )
+        .toList();
 
     if (newTasks.isEmpty) return;
 
@@ -618,7 +652,8 @@ class ScheduleStateProvider extends ChangeNotifier {
               .contains(_dismissalKey(tmpl.id, _weekPlan[i].date))) {
             continue;
           }
-          final alreadyApplied = _weekPlan[i].tasks.any((t) => t.sourceTemplateId == tmpl.id);
+          final alreadyApplied =
+              _weekPlan[i].tasks.any((t) => t.sourceTemplateId == tmpl.id);
           if (!alreadyApplied) {
             await applyTemplate(tmpl, i);
           }

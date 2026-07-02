@@ -21,7 +21,8 @@ abstract class ScheduleRepository {
   Future<Result<void>> addTask(String dayPlanId, Task task);
 
   /// Update an existing task.
-  Future<Result<void>> updateTask(String dayPlanId, String taskId, Task updatedTask);
+  Future<Result<void>> updateTask(
+      String dayPlanId, String taskId, Task updatedTask,);
 
   /// Delete a task by id.
   Future<Result<void>> deleteTask(String dayPlanId, String taskId);

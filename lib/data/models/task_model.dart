@@ -39,12 +39,16 @@ class Task {
     this.sourceTemplateId = '',
     this.completed = false,
   }) {
-    assert(title.isNotEmpty && title.length <= 200, 'Title must be 1-200 characters');
+    assert(title.isNotEmpty && title.length <= 200,
+        'Title must be 1-200 characters',);
     final timeRegex = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
-    assert(timeRegex.hasMatch(startTime), 'Invalid startTime format: $startTime');
+    assert(
+        timeRegex.hasMatch(startTime), 'Invalid startTime format: $startTime',);
     assert(timeRegex.hasMatch(endTime), 'Invalid endTime format: $endTime');
-    assert(estimatedCost >= 0.0 && estimatedCost.isFinite, 'estimatedCost must be >= 0.0 and finite');
-    assert(actualCost >= 0.0 && actualCost.isFinite, 'actualCost must be >= 0.0 and finite');
+    assert(estimatedCost >= 0.0 && estimatedCost.isFinite,
+        'estimatedCost must be >= 0.0 and finite',);
+    assert(actualCost >= 0.0 && actualCost.isFinite,
+        'actualCost must be >= 0.0 and finite',);
   }
 
   Task copyWith({

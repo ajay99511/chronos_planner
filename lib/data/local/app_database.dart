@@ -18,19 +18,21 @@ import 'package:chronosky/data/local/daos/todo_item_dao.dart';
 part 'app_database.g.dart';
 
 /// Main Drift database for Chronos Planner.
-/// 
+///
 /// ## Responsibilities:
 /// - Singleton database connection management
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
-/// 
+///
 /// ## Schema Version: 5
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
 /// - **v3→v4**: Added energy/cost fields to tasks and template tasks
 /// - **v4→v5**: Added itemType/durationMinutes/checklistJson/audioFilePath to TodoItems
-/// 
+/// - **v5→v6**: Cleanup of legacy columns from partial v5 migrations
+/// - **v6→v7**: Added `updatedAt` to TodoItems (backfilled from createdAt)
+///
 /// ## Tables:
 /// | Table | Purpose |
 /// |-------|---------|
@@ -40,17 +42,17 @@ part 'app_database.g.dart';
 /// | [TemplateTasks] | Tasks belonging to templates |
 /// | [Preferences] | Key-value store |
 /// | [TodoItems] | Standalone todo tasks |
-/// 
+///
 /// ## Usage:
 /// ```dart
 /// // Get singleton instance
 /// final db = AppDatabase.instance;
-/// 
+///
 /// // Access DAOs
 /// final tasks = await db.taskDao.getTasksForDay(dayPlanId);
 /// await db.dayPlanDao.insertDayPlan(plan);
 /// ```
-/// 
+///
 /// ## Storage Location:
 /// Platform-specific documents directory:
 /// - Windows: `C:\Users\<user>\AppData\Roaming\...`
@@ -84,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,18 +95,24 @@ class AppDatabase extends _$AppDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            final taskCols = await customSelect('PRAGMA table_info(tasks)').get();
-            final taskColNames = taskCols.map((c) => c.read<String>('name')).toSet();
+            final taskCols =
+                await customSelect('PRAGMA table_info(tasks)').get();
+            final taskColNames =
+                taskCols.map((c) => c.read<String>('name')).toSet();
             if (!taskColNames.contains('source_template_id')) {
               await customStatement(
-                  "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''",);
+                "ALTER TABLE tasks ADD COLUMN source_template_id TEXT NOT NULL DEFAULT ''",
+              );
             }
-            
-            final tmplCols = await customSelect('PRAGMA table_info(plan_templates)').get();
-            final tmplColNames = tmplCols.map((c) => c.read<String>('name')).toSet();
+
+            final tmplCols =
+                await customSelect('PRAGMA table_info(plan_templates)').get();
+            final tmplColNames =
+                tmplCols.map((c) => c.read<String>('name')).toSet();
             if (!tmplColNames.contains('active_days')) {
               await customStatement(
-                  "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''",);
+                "ALTER TABLE plan_templates ADD COLUMN active_days TEXT NOT NULL DEFAULT ''",
+              );
             }
           }
           if (from < 3) {
@@ -118,32 +126,41 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             // Check existing columns before adding to handle partially-migrated DBs
-            final taskCols = await customSelect('PRAGMA table_info(tasks)').get();
-            final taskColNames = taskCols.map((c) => c.read<String>('name')).toSet();
-            
+            final taskCols =
+                await customSelect('PRAGMA table_info(tasks)').get();
+            final taskColNames =
+                taskCols.map((c) => c.read<String>('name')).toSet();
+
             if (!taskColNames.contains('energy_level')) {
               await customStatement(
-                  "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
+                "ALTER TABLE tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",
+              );
             }
             if (!taskColNames.contains('estimated_cost')) {
               await customStatement(
-                  'ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
+                'ALTER TABLE tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',
+              );
             }
             if (!taskColNames.contains('actual_cost')) {
               await customStatement(
-                  'ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0',);
+                'ALTER TABLE tasks ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0.0',
+              );
             }
 
-            final tmplCols = await customSelect('PRAGMA table_info(template_tasks)').get();
-            final tmplColNames = tmplCols.map((c) => c.read<String>('name')).toSet();
-            
+            final tmplCols =
+                await customSelect('PRAGMA table_info(template_tasks)').get();
+            final tmplColNames =
+                tmplCols.map((c) => c.read<String>('name')).toSet();
+
             if (!tmplColNames.contains('energy_level')) {
               await customStatement(
-                  "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",);
+                "ALTER TABLE template_tasks ADD COLUMN energy_level TEXT NOT NULL DEFAULT 'medium'",
+              );
             }
             if (!tmplColNames.contains('estimated_cost')) {
               await customStatement(
-                  'ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',);
+                'ALTER TABLE template_tasks ADD COLUMN estimated_cost REAL NOT NULL DEFAULT 0.0',
+              );
             }
           }
           if (from < 5) {
@@ -158,7 +175,8 @@ class AppDatabase extends _$AppDatabase {
 
             // Helper to check if a column exists in a table
             Future<Set<String>> getColumnNames(String tableName) async {
-              final cols = await customSelect('PRAGMA table_info($tableName)').get();
+              final cols =
+                  await customSelect('PRAGMA table_info($tableName)').get();
               return cols.map((c) => c.read<String>('name')).toSet();
             }
 
@@ -179,7 +197,9 @@ class AppDatabase extends _$AppDatabase {
             // 2. Migrate active_days data from plan_templates (if column still exists)
             final ptCols = await getColumnNames('plan_templates');
             if (ptCols.contains('active_days')) {
-              final templates = await customSelect('SELECT id, active_days FROM plan_templates').get();
+              final templates = await customSelect(
+                      'SELECT id, active_days FROM plan_templates',)
+                  .get();
               for (final row in templates) {
                 final id = row.read<String>('id');
                 final activeDaysStr = row.read<String>('active_days');
@@ -236,22 +256,27 @@ class AppDatabase extends _$AppDatabase {
             final todoColNames = await getColumnNames('todo_items');
 
             if (!todoColNames.contains('item_type')) {
-              await customStatement("ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'");
+              await customStatement(
+                  "ALTER TABLE todo_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'note'",);
             }
             if (!todoColNames.contains('duration_minutes')) {
-              await customStatement('ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0');
+              await customStatement(
+                  'ALTER TABLE todo_items ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 0',);
             }
             if (!todoColNames.contains('checklist_json')) {
-              await customStatement("ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''");
+              await customStatement(
+                  "ALTER TABLE todo_items ADD COLUMN checklist_json TEXT NOT NULL DEFAULT ''",);
             }
             if (!todoColNames.contains('audio_file_path')) {
-              await customStatement("ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''");
+              await customStatement(
+                  "ALTER TABLE todo_items ADD COLUMN audio_file_path TEXT NOT NULL DEFAULT ''",);
             }
           }
           if (from < 6) {
             // Forcefully clean up any legacy columns that survived v5 due to partial migrations or skipped version bumps
             Future<Set<String>> getColumnNames(String tableName) async {
-              final cols = await customSelect('PRAGMA table_info($tableName)').get();
+              final cols =
+                  await customSelect('PRAGMA table_info($tableName)').get();
               return cols.map((c) => c.read<String>('name')).toSet();
             }
 
@@ -269,6 +294,22 @@ class AppDatabase extends _$AppDatabase {
               await m.alterTable(TableMigration(planTemplates));
             }
           }
+          if (from < 7) {
+            final todoCols =
+                await customSelect('PRAGMA table_info(todo_items)').get();
+            final todoColNames =
+                todoCols.map((c) => c.read<String>('name')).toSet();
+            if (!todoColNames.contains('updated_at')) {
+              // SQLite forbids non-constant defaults in ADD COLUMN, so add
+              // with 0 and backfill from created_at.
+              await customStatement(
+                'ALTER TABLE todo_items ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0',
+              );
+              await customStatement(
+                'UPDATE todo_items SET updated_at = created_at',
+              );
+            }
+          }
         },
       );
 }
@@ -281,7 +322,7 @@ LazyDatabase _openConnection() {
     if (Platform.isAndroid) {
       // Work around limitations on old Android versions
       await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
-      
+
       // SQLite needs a place to store temporary files for large transactions/migrations
       // The default /tmp is not accessible on Android due to sandboxing.
       final cachebase = (await getTemporaryDirectory()).path;

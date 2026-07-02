@@ -18,7 +18,8 @@ class LocalTodoRepository implements TodoRepository {
       final value = await action();
       return Success(value);
     } on DriftWrappedException catch (e) {
-      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+      return Failure(
+          DatabaseFailure('Database operation failed', e.toString()),);
     } on Exception catch (e) {
       return Failure(UnknownFailure('Unexpected error', e.toString()));
     }
@@ -34,12 +35,16 @@ class LocalTodoRepository implements TodoRepository {
 
   @override
   Stream<List<domain.TodoItem>> watchTodos() {
-    return _todoItemDao.watchAllTodos().map((list) => list.map(_dbTodoToModel).toList());
+    return _todoItemDao
+        .watchAllTodos()
+        .map((list) => list.map(_dbTodoToModel).toList());
   }
 
   @override
   Stream<List<domain.TodoItem>> watchByType(domain.TodoItemType type) {
-    return _todoItemDao.watchByType(type.name).map((list) => list.map(_dbTodoToModel).toList());
+    return _todoItemDao
+        .watchByType(type.name)
+        .map((list) => list.map(_dbTodoToModel).toList());
   }
 
   @override
@@ -57,7 +62,9 @@ class LocalTodoRepository implements TodoRepository {
   @override
   Future<Result<void>> updateTodo(domain.TodoItem todo) {
     return _wrap(() async {
-      await _todoItemDao.db.update(_todoItemDao.todoItems).replace(_modelTodoToDataClass(todo));
+      await _todoItemDao.db
+          .update(_todoItemDao.todoItems)
+          .replace(_modelTodoToDataClass(todo));
     });
   }
 
@@ -86,6 +93,7 @@ class LocalTodoRepository implements TodoRepository {
       description: dbTodo.description,
       completed: dbTodo.completed,
       createdAt: dbTodo.createdAt,
+      updatedAt: dbTodo.updatedAt,
       itemType: domain.TodoItemType.values.firstWhere(
         (e) => e.name == dbTodo.itemType,
         orElse: () => domain.TodoItemType.note,
@@ -105,9 +113,11 @@ class LocalTodoRepository implements TodoRepository {
       description: Value(todo.description),
       completed: Value(todo.completed),
       createdAt: Value(todo.createdAt),
+      updatedAt: Value(todo.updatedAt),
       itemType: Value(todo.itemType.name),
       durationMinutes: Value(todo.durationMinutes),
-      checklistJson: Value(jsonEncode(todo.checklist.map((i) => i.toJson()).toList())),
+      checklistJson:
+          Value(jsonEncode(todo.checklist.map((i) => i.toJson()).toList())),
       audioFilePath: Value(todo.audioFilePath),
     );
   }
@@ -119,6 +129,7 @@ class LocalTodoRepository implements TodoRepository {
       description: todo.description,
       completed: todo.completed,
       createdAt: todo.createdAt,
+      updatedAt: todo.updatedAt,
       itemType: todo.itemType.name,
       durationMinutes: todo.durationMinutes,
       checklistJson: jsonEncode(todo.checklist.map((i) => i.toJson()).toList()),

@@ -42,9 +42,12 @@ class DayPlan {
   factory DayPlan.fromJson(Map<String, dynamic> json) {
     return DayPlan(
       id: json['id'] as String,
-      date: json['date'] != null ? DateTime.parse(json['date'] as String) : DateTime.now(),
+      date: json['date'] != null
+          ? DateTime.parse(json['date'] as String)
+          : DateTime.now(),
       tasks: List<Task>.unmodifiable(
-        (json['tasks'] as List).map((t) => Task.fromJson(t as Map<String, dynamic>)),
+        (json['tasks'] as List)
+            .map((t) => Task.fromJson(t as Map<String, dynamic>)),
       ),
     );
   }

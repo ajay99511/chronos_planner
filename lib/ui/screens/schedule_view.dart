@@ -285,97 +285,103 @@ class _ScheduleViewState extends State<ScheduleView> {
                       selected: isSelected,
                       label:
                           '${day.dayOfWeek}, ${day.dateStr}, $completedCount of ${day.tasks.length} tasks completed',
-                      child: GestureDetector(
-                        onTap: () => provider.selectDay(index),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeOutCubic,
-                          width: itemWidth,
-                          margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            gradient: isSelected
-                                ? const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      AppColors.neonBlue,
-                                      Color(0xFF6366F1),
-                                    ],
-                                  )
-                                : null,
-                            color: isSelected ? null : AppColors.surface,
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.2)
-                                  : AppColors.glassBorder,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => provider.selectDay(index),
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          focusColor:
+                              AppColors.neonBlue.withValues(alpha: 0.15),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutCubic,
+                            width: itemWidth,
+                            margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppColors.neonBlue,
+                                        Color(0xFF6366F1),
+                                      ],
+                                    )
+                                  : null,
+                              color: isSelected ? null : AppColors.surface,
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : AppColors.glassBorder,
+                              ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.neonBlue
+                                            .withValues(alpha: 0.4),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : [],
                             ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: AppColors.neonBlue
-                                          .withValues(alpha: 0.4),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : [],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                day.dayOfWeek.substring(0, 3).toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                  color: isSelected
-                                      ? Colors.white.withValues(alpha: 0.9)
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                day.dateStr.split(' ').length > 1
-                                    ? day.dateStr.split(' ')[1]
-                                    : day.dateStr,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              if (isSelected && hasTasks)
-                                SizedBox(
-                                  width: 24,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(2),
-                                    child: LinearProgressIndicator(
-                                      value: progress,
-                                      backgroundColor: Colors.black26,
-                                      color:
-                                          Colors.white.withValues(alpha: 0.8),
-                                      minHeight: 3,
-                                    ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  day.dayOfWeek.substring(0, 3).toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: isSelected
+                                        ? Colors.white.withValues(alpha: 0.9)
+                                        : AppColors.textSecondary,
                                   ),
-                                )
-                              else if (!isSelected && hasTasks)
-                                Container(
-                                  width: 5,
-                                  height: 5,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.neonPurple,
-                                    shape: BoxShape.circle,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  day.dateStr.split(' ').length > 1
+                                      ? day.dateStr.split(' ')[1]
+                                      : day.dateStr,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
                                   ),
-                                )
-                              else
-                                const SizedBox(height: 5),
-                            ],
+                                ),
+                                const SizedBox(height: 4),
+                                if (isSelected && hasTasks)
+                                  SizedBox(
+                                    width: 24,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(2),
+                                      child: LinearProgressIndicator(
+                                        value: progress,
+                                        backgroundColor: Colors.black26,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.8),
+                                        minHeight: 3,
+                                      ),
+                                    ),
+                                  )
+                                else if (!isSelected && hasTasks)
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.neonPurple,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                else
+                                  const SizedBox(height: 5),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -439,6 +445,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                     provider: provider,
                     currentViewMode: _currentViewMode,
                     onToggleViewMode: _toggleViewMode,
+                    onSearch: () => _showWeekSearch(provider),
                     onAddTask: () {
                       showModalBottomSheet(
                         context: context,
@@ -720,6 +727,20 @@ class _ScheduleViewState extends State<ScheduleView> {
     );
   }
 
+  void _showWeekSearch(ScheduleStateProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _WeekSearchDialog(
+        provider: provider,
+        onSelect: (dayIndex, task) {
+          Navigator.pop(ctx);
+          provider.selectDay(dayIndex);
+          _openTaskDetail(task);
+        },
+      ),
+    );
+  }
+
   void _showSaveTemplateDialog(
     BuildContext context,
     ScheduleStateProvider provider,
@@ -823,12 +844,128 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+/// Searches every task across the loaded week; selecting a result jumps to
+/// that day and opens the task's detail view.
+class _WeekSearchDialog extends StatefulWidget {
+  final ScheduleStateProvider provider;
+  final void Function(int dayIndex, Task task) onSelect;
+
+  const _WeekSearchDialog({required this.provider, required this.onSelect});
+
+  @override
+  State<_WeekSearchDialog> createState() => _WeekSearchDialogState();
+}
+
+class _WeekSearchDialogState extends State<_WeekSearchDialog> {
+  String _query = '';
+
+  List<(int, Task)> get _matches {
+    if (_query.isEmpty) return const [];
+    final q = _query.toLowerCase();
+    final results = <(int, Task)>[];
+    for (var i = 0; i < widget.provider.weekPlan.length; i++) {
+      for (final task in widget.provider.weekPlan[i].tasks) {
+        if (task.title.toLowerCase().contains(q) ||
+            task.description.toLowerCase().contains(q)) {
+          results.add((i, task));
+        }
+      }
+    }
+    return results;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _matches;
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _query = v.trim()),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Search this week\'s tasks…',
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Flexible(
+                child: _query.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(AppSpacing.lg),
+                        child: Text(
+                          'Type to search across all 7 days',
+                          style: TextStyle(color: Colors.white38),
+                        ),
+                      )
+                    : matches.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(AppSpacing.lg),
+                            child: Text(
+                              'No matching tasks',
+                              style: TextStyle(color: Colors.white38),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: matches.length,
+                            itemBuilder: (context, index) {
+                              final (dayIdx, task) = matches[index];
+                              final day = widget.provider.weekPlan[dayIdx];
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  task.completed
+                                      ? Icons.check_circle_rounded
+                                      : Icons.radio_button_unchecked,
+                                  size: 18,
+                                  color: task.completed
+                                      ? AppColors.neonBlue
+                                      : Colors.white38,
+                                ),
+                                title: Text(
+                                  task.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                subtitle: Text(
+                                  '${day.dayOfWeek} · ${task.startTime}–${task.endTime}',
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                onTap: () => widget.onSelect(dayIdx, task),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ScheduleToolbar extends StatelessWidget {
   final ScheduleStateProvider provider;
   final TaskCardViewMode currentViewMode;
   final VoidCallback onToggleViewMode;
   final VoidCallback onAddTask;
   final VoidCallback onSaveTemplate;
+  final VoidCallback onSearch;
 
   const _ScheduleToolbar({
     required this.provider,
@@ -836,6 +973,7 @@ class _ScheduleToolbar extends StatelessWidget {
     required this.onToggleViewMode,
     required this.onAddTask,
     required this.onSaveTemplate,
+    required this.onSearch,
   });
 
   @override
@@ -863,6 +1001,13 @@ class _ScheduleToolbar extends StatelessWidget {
                 tooltip: 'Undo',
               ),
             if (provider.canUndo) const SizedBox(width: 4),
+            _ActionButton(
+              icon: Icons.search_rounded,
+              color: AppColors.neonCyan,
+              onTap: onSearch,
+              tooltip: 'Search This Week',
+            ),
+            const SizedBox(width: 4),
             _ActionButton(
               icon: provider.sortOrder == SortOrder.asc
                   ? Icons.arrow_upward

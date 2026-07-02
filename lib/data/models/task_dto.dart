@@ -94,9 +94,13 @@ class TaskDto {
       title: title,
       startTime: startTime,
       endTime: endTime,
-      type: TaskType.values.firstWhere((e) => e.name == type, orElse: () => TaskType.work),
-      priority: TaskPriority.values.firstWhere((e) => e.name == priority, orElse: () => TaskPriority.medium),
-      energyLevel: TaskEnergyLevel.values.firstWhere((e) => e.name == energyLevel, orElse: () => TaskEnergyLevel.medium),
+      type: TaskType.values
+          .firstWhere((e) => e.name == type, orElse: () => TaskType.work),
+      priority: TaskPriority.values.firstWhere((e) => e.name == priority,
+          orElse: () => TaskPriority.medium,),
+      energyLevel: TaskEnergyLevel.values.firstWhere(
+          (e) => e.name == energyLevel,
+          orElse: () => TaskEnergyLevel.medium,),
       estimatedCost: estimatedCost,
       actualCost: actualCost,
       description: description,

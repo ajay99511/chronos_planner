@@ -56,6 +56,9 @@ class TodoItem {
   final String description;
   final bool completed;
   final DateTime createdAt;
+
+  /// Last modification time. Falls back to [createdAt] for never-edited items.
+  final DateTime updatedAt;
   final TodoItemType itemType;
   final int durationMinutes;
   final List<ChecklistItem> checklist;
@@ -67,12 +70,14 @@ class TodoItem {
     this.description = '',
     this.completed = false,
     required this.createdAt,
+    DateTime? updatedAt,
     this.itemType = TodoItemType.note,
     this.durationMinutes = 0,
     this.checklist = const [],
     this.audioFilePath = '',
-  }) {
-    assert(title.isNotEmpty && title.length <= 200, 'Title must be 1-200 characters');
+  }) : updatedAt = updatedAt ?? createdAt {
+    assert(title.isNotEmpty && title.length <= 200,
+        'Title must be 1-200 characters',);
   }
 
   TodoItem copyWith({
@@ -81,6 +86,7 @@ class TodoItem {
     String? description,
     bool? completed,
     DateTime? createdAt,
+    DateTime? updatedAt,
     TodoItemType? itemType,
     int? durationMinutes,
     List<ChecklistItem>? checklist,
@@ -92,6 +98,7 @@ class TodoItem {
       description: description ?? this.description,
       completed: completed ?? this.completed,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       itemType: itemType ?? this.itemType,
       durationMinutes: durationMinutes ?? this.durationMinutes,
       checklist: checklist ?? this.checklist,
@@ -105,6 +112,7 @@ class TodoItem {
         'description': description,
         'completed': completed,
         'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
         'itemType': itemType.name,
         'durationMinutes': durationMinutes,
         'checklist': checklist.map((i) => i.toJson()).toList(),
@@ -117,14 +125,21 @@ class TodoItem {
       title: json['title'] as String,
       description: (json['description'] ?? '') as String,
       completed: (json['completed'] ?? false) as bool,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
       itemType: TodoItemType.values.firstWhere(
         (e) => e.name == json['itemType'],
         orElse: () => TodoItemType.note,
       ),
       durationMinutes: (json['durationMinutes'] ?? 0) as int,
       checklist: List<ChecklistItem>.unmodifiable(
-        (json['checklist'] as List?)?.map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>)) ?? const [],
+        (json['checklist'] as List?)?.map(
+                (i) => ChecklistItem.fromJson(i as Map<String, dynamic>),) ??
+            const [],
       ),
       audioFilePath: (json['audioFilePath'] ?? '') as String,
     );
@@ -140,6 +155,7 @@ class TodoItem {
           description == other.description &&
           completed == other.completed &&
           createdAt == other.createdAt &&
+          updatedAt == other.updatedAt &&
           itemType == other.itemType &&
           durationMinutes == other.durationMinutes &&
           listEquals(checklist, other.checklist) &&
@@ -152,6 +168,7 @@ class TodoItem {
       description.hashCode ^
       completed.hashCode ^
       createdAt.hashCode ^
+      updatedAt.hashCode ^
       itemType.hashCode ^
       durationMinutes.hashCode ^
       checklist.hashCode ^

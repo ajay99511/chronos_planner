@@ -2062,6 +2062,14 @@ class $TodoItemsTable extends TodoItems
       type: DriftSqlType.dateTime,
       requiredDuringInsert: false,
       defaultValue: currentDateAndTime);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
   static const VerificationMeta _itemTypeMeta =
       const VerificationMeta('itemType');
   @override
@@ -2101,6 +2109,7 @@ class $TodoItemsTable extends TodoItems
         description,
         completed,
         createdAt,
+        updatedAt,
         itemType,
         durationMinutes,
         checklistJson,
@@ -2140,6 +2149,10 @@ class $TodoItemsTable extends TodoItems
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
     }
     if (data.containsKey('item_type')) {
       context.handle(_itemTypeMeta,
@@ -2182,6 +2195,8 @@ class $TodoItemsTable extends TodoItems
           .read(DriftSqlType.bool, data['${effectivePrefix}completed'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       itemType: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}item_type'])!,
       durationMinutes: attachedDatabase.typeMapping
@@ -2205,6 +2220,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final String description;
   final bool completed;
   final DateTime createdAt;
+  final DateTime updatedAt;
   final String itemType;
   final int durationMinutes;
   final String checklistJson;
@@ -2215,6 +2231,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       required this.description,
       required this.completed,
       required this.createdAt,
+      required this.updatedAt,
       required this.itemType,
       required this.durationMinutes,
       required this.checklistJson,
@@ -2227,6 +2244,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
     map['description'] = Variable<String>(description);
     map['completed'] = Variable<bool>(completed);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     map['item_type'] = Variable<String>(itemType);
     map['duration_minutes'] = Variable<int>(durationMinutes);
     map['checklist_json'] = Variable<String>(checklistJson);
@@ -2241,6 +2259,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       description: Value(description),
       completed: Value(completed),
       createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
       itemType: Value(itemType),
       durationMinutes: Value(durationMinutes),
       checklistJson: Value(checklistJson),
@@ -2257,6 +2276,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       description: serializer.fromJson<String>(json['description']),
       completed: serializer.fromJson<bool>(json['completed']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       itemType: serializer.fromJson<String>(json['itemType']),
       durationMinutes: serializer.fromJson<int>(json['durationMinutes']),
       checklistJson: serializer.fromJson<String>(json['checklistJson']),
@@ -2272,6 +2292,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       'description': serializer.toJson<String>(description),
       'completed': serializer.toJson<bool>(completed),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'itemType': serializer.toJson<String>(itemType),
       'durationMinutes': serializer.toJson<int>(durationMinutes),
       'checklistJson': serializer.toJson<String>(checklistJson),
@@ -2285,6 +2306,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           String? description,
           bool? completed,
           DateTime? createdAt,
+          DateTime? updatedAt,
           String? itemType,
           int? durationMinutes,
           String? checklistJson,
@@ -2295,6 +2317,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
         description: description ?? this.description,
         completed: completed ?? this.completed,
         createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
         itemType: itemType ?? this.itemType,
         durationMinutes: durationMinutes ?? this.durationMinutes,
         checklistJson: checklistJson ?? this.checklistJson,
@@ -2308,6 +2331,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           data.description.present ? data.description.value : this.description,
       completed: data.completed.present ? data.completed.value : this.completed,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       itemType: data.itemType.present ? data.itemType.value : this.itemType,
       durationMinutes: data.durationMinutes.present
           ? data.durationMinutes.value
@@ -2329,6 +2353,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ..write('description: $description, ')
           ..write('completed: $completed, ')
           ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('itemType: $itemType, ')
           ..write('durationMinutes: $durationMinutes, ')
           ..write('checklistJson: $checklistJson, ')
@@ -2339,7 +2364,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
 
   @override
   int get hashCode => Object.hash(id, title, description, completed, createdAt,
-      itemType, durationMinutes, checklistJson, audioFilePath);
+      updatedAt, itemType, durationMinutes, checklistJson, audioFilePath);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2349,6 +2374,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           other.description == this.description &&
           other.completed == this.completed &&
           other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
           other.itemType == this.itemType &&
           other.durationMinutes == this.durationMinutes &&
           other.checklistJson == this.checklistJson &&
@@ -2361,6 +2387,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
   final Value<String> description;
   final Value<bool> completed;
   final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
   final Value<String> itemType;
   final Value<int> durationMinutes;
   final Value<String> checklistJson;
@@ -2372,6 +2399,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.description = const Value.absent(),
     this.completed = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.itemType = const Value.absent(),
     this.durationMinutes = const Value.absent(),
     this.checklistJson = const Value.absent(),
@@ -2384,6 +2412,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.description = const Value.absent(),
     this.completed = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.itemType = const Value.absent(),
     this.durationMinutes = const Value.absent(),
     this.checklistJson = const Value.absent(),
@@ -2397,6 +2426,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     Expression<String>? description,
     Expression<bool>? completed,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
     Expression<String>? itemType,
     Expression<int>? durationMinutes,
     Expression<String>? checklistJson,
@@ -2409,6 +2439,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       if (description != null) 'description': description,
       if (completed != null) 'completed': completed,
       if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (itemType != null) 'item_type': itemType,
       if (durationMinutes != null) 'duration_minutes': durationMinutes,
       if (checklistJson != null) 'checklist_json': checklistJson,
@@ -2423,6 +2454,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       Value<String>? description,
       Value<bool>? completed,
       Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
       Value<String>? itemType,
       Value<int>? durationMinutes,
       Value<String>? checklistJson,
@@ -2434,6 +2466,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       description: description ?? this.description,
       completed: completed ?? this.completed,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       itemType: itemType ?? this.itemType,
       durationMinutes: durationMinutes ?? this.durationMinutes,
       checklistJson: checklistJson ?? this.checklistJson,
@@ -2459,6 +2492,9 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
     if (itemType.present) {
       map['item_type'] = Variable<String>(itemType.value);
@@ -2486,6 +2522,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
           ..write('description: $description, ')
           ..write('completed: $completed, ')
           ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('itemType: $itemType, ')
           ..write('durationMinutes: $durationMinutes, ')
           ..write('checklistJson: $checklistJson, ')
@@ -4194,6 +4231,7 @@ typedef $$TodoItemsTableCreateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> description,
   Value<bool> completed,
   Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
   Value<String> itemType,
   Value<int> durationMinutes,
   Value<String> checklistJson,
@@ -4206,6 +4244,7 @@ typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> description,
   Value<bool> completed,
   Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
   Value<String> itemType,
   Value<int> durationMinutes,
   Value<String> checklistJson,
@@ -4236,6 +4275,9 @@ class $$TodoItemsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get itemType => $composableBuilder(
       column: $table.itemType, builder: (column) => ColumnFilters(column));
@@ -4274,6 +4316,9 @@ class $$TodoItemsTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get itemType => $composableBuilder(
       column: $table.itemType, builder: (column) => ColumnOrderings(column));
@@ -4314,6 +4359,9 @@ class $$TodoItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
   GeneratedColumn<String> get itemType =>
       $composableBuilder(column: $table.itemType, builder: (column) => column);
@@ -4356,6 +4404,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> description = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
             Value<String> itemType = const Value.absent(),
             Value<int> durationMinutes = const Value.absent(),
             Value<String> checklistJson = const Value.absent(),
@@ -4368,6 +4417,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             description: description,
             completed: completed,
             createdAt: createdAt,
+            updatedAt: updatedAt,
             itemType: itemType,
             durationMinutes: durationMinutes,
             checklistJson: checklistJson,
@@ -4380,6 +4430,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> description = const Value.absent(),
             Value<bool> completed = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
             Value<String> itemType = const Value.absent(),
             Value<int> durationMinutes = const Value.absent(),
             Value<String> checklistJson = const Value.absent(),
@@ -4392,6 +4443,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             description: description,
             completed: completed,
             createdAt: createdAt,
+            updatedAt: updatedAt,
             itemType: itemType,
             durationMinutes: durationMinutes,
             checklistJson: checklistJson,

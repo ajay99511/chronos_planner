@@ -285,15 +285,17 @@ class _SidebarItemState extends State<_SidebarItem> {
     final isActive = widget.isSelected;
     final showHighlight = isActive || _isHovered;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Semantics(
-        button: true,
-        selected: isActive,
-        label: widget.label,
-        child: GestureDetector(
+    return Semantics(
+      button: true,
+      selected: isActive,
+      label: widget.label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           onTap: widget.onTap,
+          onHover: (hovering) => setState(() => _isHovered = hovering),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          focusColor: AppColors.neonBlue.withValues(alpha: 0.12),
           child: AnimatedContainer(
             duration: AppAnimDurations.fast,
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),

@@ -18,7 +18,8 @@ class LocalTemplateRepository implements TemplateRepository {
       final value = await action();
       return Success(value);
     } on DriftWrappedException catch (e) {
-      return Failure(DatabaseFailure('Database operation failed', e.toString()));
+      return Failure(
+          DatabaseFailure('Database operation failed', e.toString()),);
     } on Exception catch (e) {
       return Failure(UnknownFailure('Unexpected error', e.toString()));
     }
@@ -32,15 +33,19 @@ class LocalTemplateRepository implements TemplateRepository {
       if (dbTemplates.isEmpty) return [];
 
       // 2. Fetch all template tasks in one query
-      final allTasks = await _templateDao.db.select(_templateDao.templateTasks).get();
-      
+      final allTasks =
+          await _templateDao.db.select(_templateDao.templateTasks).get();
+
       // 3. Fetch all active days in one query
-      final allActiveDays = await _templateDao.db.select(_templateDao.templateActiveDays).get();
+      final allActiveDays =
+          await _templateDao.db.select(_templateDao.templateActiveDays).get();
 
       // 4. Group tasks and active days by template ID
       final tasksByTemplate = <String, List<domain.TemplateTask>>{};
       for (final t in allTasks) {
-        tasksByTemplate.putIfAbsent(t.templateId, () => []).add(_dbTemplateTaskToModel(t));
+        tasksByTemplate
+            .putIfAbsent(t.templateId, () => [])
+            .add(_dbTemplateTaskToModel(t));
       }
 
       final daysByTemplate = <String, List<int>>{};
@@ -65,23 +70,28 @@ class LocalTemplateRepository implements TemplateRepository {
   Future<Result<void>> addTemplate(domain.PlanTemplate template) async {
     return _wrap(() async {
       await _templateDao.db.transaction(() async {
-        await _templateDao.insertTemplate(PlanTemplatesCompanion(
-          id: Value(template.id),
-          name: Value(template.name),
-          description: Value(template.description),
-        ),);
+        await _templateDao.insertTemplate(
+          PlanTemplatesCompanion(
+            id: Value(template.id),
+            name: Value(template.name),
+            description: Value(template.description),
+          ),
+        );
 
         if (template.tasks.isNotEmpty) {
           await _templateDao.insertTemplateTasks(
-            template.tasks.map((t) => _modelTaskToCompanion(t, template.id)).toList(),
+            template.tasks
+                .map((t) => _modelTaskToCompanion(t, template.id))
+                .toList(),
           );
         }
 
         if (template.activeDays.isNotEmpty) {
           for (final day in template.activeDays) {
             await _templateDao.db.into(_templateDao.templateActiveDays).insert(
-              TemplateActiveDaysCompanion.insert(templateId: template.id, dayIndex: day),
-            );
+                  TemplateActiveDaysCompanion.insert(
+                      templateId: template.id, dayIndex: day,),
+                );
           }
         }
       });
@@ -89,12 +99,16 @@ class LocalTemplateRepository implements TemplateRepository {
   }
 
   @override
-  Future<Result<void>> updateTemplate(String templateId,
-      {String? name, String? description,}) {
+  Future<Result<void>> updateTemplate(
+    String templateId, {
+    String? name,
+    String? description,
+  }) {
     return _wrap(() async {
       final updates = PlanTemplatesCompanion(
         name: name != null ? Value(name) : const Value.absent(),
-        description: description != null ? Value(description) : const Value.absent(),
+        description:
+            description != null ? Value(description) : const Value.absent(),
       );
       await _templateDao.updateTemplate(templateId, updates);
     });
@@ -108,15 +122,20 @@ class LocalTemplateRepository implements TemplateRepository {
   }
 
   @override
-  Future<Result<void>> addTaskToTemplate(String templateId, domain.TemplateTask task) {
+  Future<Result<void>> addTaskToTemplate(
+      String templateId, domain.TemplateTask task,) {
     return _wrap(() async {
-      await _templateDao.insertTemplateTask(_modelTaskToCompanion(task, templateId));
+      await _templateDao
+          .insertTemplateTask(_modelTaskToCompanion(task, templateId));
     });
   }
 
   @override
   Future<Result<void>> updateTaskInTemplate(
-      String templateId, String taskId, domain.TemplateTask updatedTask,) {
+    String templateId,
+    String taskId,
+    domain.TemplateTask updatedTask,
+  ) {
     return _wrap(() async {
       await _templateDao.updateTemplateTask(
         taskId,
@@ -126,26 +145,29 @@ class LocalTemplateRepository implements TemplateRepository {
   }
 
   @override
-  Future<Result<void>> removeTaskFromTemplate(String templateId, String taskId) {
+  Future<Result<void>> removeTaskFromTemplate(
+      String templateId, String taskId,) {
     return _wrap(() async {
       await _templateDao.deleteTemplateTask(taskId);
     });
   }
 
   @override
-  Future<Result<void>> updateTemplateActiveDays(String templateId, List<int> days) {
+  Future<Result<void>> updateTemplateActiveDays(
+      String templateId, List<int> days,) {
     return _wrap(() async {
       await _templateDao.db.transaction(() async {
         // Delete old days
         await (_templateDao.db.delete(_templateDao.templateActiveDays)
               ..where((t) => t.templateId.equals(templateId)))
             .go();
-        
+
         // Insert new days
         for (final day in days) {
           await _templateDao.db.into(_templateDao.templateActiveDays).insert(
-            TemplateActiveDaysCompanion.insert(templateId: templateId, dayIndex: day),
-          );
+                TemplateActiveDaysCompanion.insert(
+                    templateId: templateId, dayIndex: day,),
+              );
         }
       });
     });
@@ -170,7 +192,9 @@ class LocalTemplateRepository implements TemplateRepository {
 
       final tasksByTemplate = <String, List<domain.TemplateTask>>{};
       for (final t in allTasks) {
-        tasksByTemplate.putIfAbsent(t.templateId, () => []).add(_dbTemplateTaskToModel(t));
+        tasksByTemplate
+            .putIfAbsent(t.templateId, () => [])
+            .add(_dbTemplateTaskToModel(t));
       }
 
       final daysByTemplate = <String, List<int>>{};
@@ -217,7 +241,9 @@ class LocalTemplateRepository implements TemplateRepository {
   }
 
   TemplateTasksCompanion _modelTaskToCompanion(
-      domain.TemplateTask task, String templateId,) {
+    domain.TemplateTask task,
+    String templateId,
+  ) {
     return TemplateTasksCompanion(
       id: Value(task.id),
       templateId: Value(templateId),
