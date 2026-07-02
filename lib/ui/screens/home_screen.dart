@@ -78,8 +78,12 @@ class _ChronosHomeState extends State<ChronosHome> {
                       position: Tween<Offset>(
                         begin: const Offset(0.02, 0),
                         end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                          parent: animation, curve: Curves.easeOutCubic,),),
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        ),
+                      ),
                       child: child,
                     ),
                   );
@@ -117,14 +121,21 @@ class _ChronosHomeState extends State<ChronosHome> {
                     unselectedFontSize: 12,
                     items: const [
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.calendar_today), label: 'Schedule',),
+                        icon: Icon(Icons.calendar_today),
+                        label: 'Schedule',
+                      ),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.layers_outlined), label: 'Plans',),
+                        icon: Icon(Icons.layers_outlined),
+                        label: 'Plans',
+                      ),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.pie_chart_outline),
-                          label: 'Insights',),
+                        icon: Icon(Icons.pie_chart_outline),
+                        label: 'Insights',
+                      ),
                       BottomNavigationBarItem(
-                          icon: Icon(Icons.check_box_outlined), label: 'Tasks',),
+                        icon: Icon(Icons.check_box_outlined),
+                        label: 'Tasks',
+                      ),
                     ],
                   ),
                 ),
@@ -168,8 +179,11 @@ class _DesktopSidebar extends StatelessWidget {
                     gradient: AppGradients.primaryBlue,
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                  child: const Icon(Icons.access_time_filled,
-                      color: Colors.white, size: 20,),
+                  child: const Icon(
+                    Icons.access_time_filled,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -188,8 +202,12 @@ class _DesktopSidebar extends StatelessWidget {
                 backgroundColor: AppColors.neonBlue.withValues(alpha: 0.1),
                 foregroundColor: AppColors.neonCyan,
                 minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                side: BorderSide(color: AppColors.neonBlue.withValues(alpha: 0.3)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                side: BorderSide(
+                  color: AppColors.neonBlue.withValues(alpha: 0.3),
+                ),
               ),
               onPressed: onToggleFocus,
               icon: const Icon(Icons.bolt, size: 18),
@@ -198,29 +216,33 @@ class _DesktopSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _SidebarItem(
-              index: 0,
-              icon: Icons.calendar_today,
-              label: 'Schedule',
-              isSelected: currentIndex == 0,
-              onTap: () => onSelect(0),),
+            index: 0,
+            icon: Icons.calendar_today,
+            label: 'Schedule',
+            isSelected: currentIndex == 0,
+            onTap: () => onSelect(0),
+          ),
           _SidebarItem(
-              index: 1,
-              icon: Icons.layers_outlined,
-              label: 'WorkPlans',
-              isSelected: currentIndex == 1,
-              onTap: () => onSelect(1),),
+            index: 1,
+            icon: Icons.layers_outlined,
+            label: 'WorkPlans',
+            isSelected: currentIndex == 1,
+            onTap: () => onSelect(1),
+          ),
           _SidebarItem(
-              index: 2,
-              icon: Icons.pie_chart_outline,
-              label: 'Analytics',
-              isSelected: currentIndex == 2,
-              onTap: () => onSelect(2),),
+            index: 2,
+            icon: Icons.pie_chart_outline,
+            label: 'Analytics',
+            isSelected: currentIndex == 2,
+            onTap: () => onSelect(2),
+          ),
           _SidebarItem(
-              index: 3,
-              icon: Icons.check_box_outlined,
-              label: 'Tasks',
-              isSelected: currentIndex == 3,
-              onTap: () => onSelect(3),),
+            index: 3,
+            icon: Icons.check_box_outlined,
+            label: 'Tasks',
+            isSelected: currentIndex == 3,
+            onTap: () => onSelect(3),
+          ),
           const Spacer(),
           // Footer
           Padding(
@@ -266,48 +288,55 @@ class _SidebarItemState extends State<_SidebarItem> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: AppAnimDurations.fast,
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: showHighlight
-                ? AppColors.neonBlue.withValues(alpha: isActive ? 0.15 : 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: Row(
-            children: [
-              // Active indicator bar
-              AnimatedContainer(
-                duration: AppAnimDurations.fast,
-                width: 3,
-                height: isActive ? 24 : 0,
-                decoration: BoxDecoration(
-                  color: AppColors.neonBlue,
-                  borderRadius: BorderRadius.circular(2),
+      child: Semantics(
+        button: true,
+        selected: isActive,
+        label: widget.label,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: AppAnimDurations.fast,
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: showHighlight
+                  ? AppColors.neonBlue.withValues(alpha: isActive ? 0.15 : 0.08)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              children: [
+                // Active indicator bar
+                AnimatedContainer(
+                  duration: AppAnimDurations.fast,
+                  width: 3,
+                  height: isActive ? 24 : 0,
+                  decoration: BoxDecoration(
+                    color: AppColors.neonBlue,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              SizedBox(width: isActive ? 12 : 0),
-              Icon(widget.icon,
+                SizedBox(width: isActive ? 12 : 0),
+                Icon(
+                  widget.icon,
                   color: isActive
                       ? AppColors.neonBlue
                       : (_isHovered ? Colors.white70 : Colors.grey),
-                  size: 20,),
-              const SizedBox(width: 12),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: isActive
-                      ? Colors.white
-                      : (_isHovered ? Colors.white70 : Colors.grey),
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 14,
+                  size: 20,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: isActive
+                        ? Colors.white
+                        : (_isHovered ? Colors.white70 : Colors.grey),
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

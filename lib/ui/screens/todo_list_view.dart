@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
@@ -125,38 +126,44 @@ class _TodoListViewState extends State<TodoListView> {
         children: List.generate(tabs.length, (i) {
           final isSelected = _selectedTab == i;
           return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedTab = i),
-              child: AnimatedContainer(
-                duration: AppAnimDurations.fast,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      tabs[i].icon,
-                      size: 16,
-                      color:
-                          isSelected ? Colors.white : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      tabs[i].label,
-                      style: TextStyle(
+            child: Semantics(
+              button: true,
+              selected: isSelected,
+              label: '${tabs[i].label} tab',
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedTab = i),
+                child: AnimatedContainer(
+                  duration: AppAnimDurations.fast,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        tabs[i].icon,
+                        size: 16,
                         color:
                             isSelected ? Colors.white : AppColors.textSecondary,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                        fontSize: 13,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        tabs[i].label,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -286,6 +293,16 @@ class _NoteCard extends StatelessWidget {
   final VoidCallback onTap;
   const _NoteCard({required this.note, required this.onTap});
 
+  String _relativeTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return DateFormat.MMMd().format(time);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GlassContainer(
@@ -314,9 +331,9 @@ class _NoteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Saved just now', // Simplified for now
+            _relativeTime(note.createdAt),
             style: AppTextStyles.label
-                .copyWith(fontSize: 9, color: Colors.white12),
+                .copyWith(fontSize: 9, color: Colors.white24),
           ),
         ],
       ),

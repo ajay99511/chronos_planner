@@ -107,6 +107,47 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
     }
   }
 
+  /// Persists completion/checklist changes made outside edit mode, which
+  /// otherwise only live in widget state and are lost on close.
+  void _persistViewModeChange() {
+    final todo = widget.todo;
+    if (_isEditing || todo == null) return;
+    context.read<TodoProvider>().updateTodo(
+          todo.copyWith(completed: _completed, checklist: _checklist),
+        );
+  }
+
+  Future<void> _confirmDelete() async {
+    final todo = widget.todo;
+    if (todo == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text('Delete "${todo.title}"?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await context.read<TodoProvider>().deleteTodo(todo.id);
+    if (mounted) Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final itemType = widget.todo?.itemType ?? domain.TodoItemType.note;
@@ -121,11 +162,21 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (widget.todo != null && !_isEditing)
+          if (widget.todo != null && !_isEditing) ...[
             IconButton(
               icon: const Icon(Icons.edit_rounded, color: Colors.white70),
+              tooltip: 'Edit',
               onPressed: () => setState(() => _isEditing = true),
             ),
+            IconButton(
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              tooltip: 'Delete',
+              onPressed: _confirmDelete,
+            ),
+          ],
           if (_isEditing)
             TextButton(
               onPressed: _save,
@@ -202,7 +253,10 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
 
   Widget _buildCompletionToggle() {
     return InkWell(
-      onTap: () => setState(() => _completed = !_completed),
+      onTap: () {
+        setState(() => _completed = !_completed);
+        _persistViewModeChange();
+      },
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -351,6 +405,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
                     setState(() {
                       _checklist[index] = item.copyWith(done: val ?? false);
                     });
+                    _persistViewModeChange();
                   },
             activeColor: AppColors.health,
           ),

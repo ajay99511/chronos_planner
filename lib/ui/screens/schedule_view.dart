@@ -66,9 +66,11 @@ class _ScheduleViewState extends State<ScheduleView> {
                   editingTask: task,
                   showDateControls: false,
                   onAdd: (_, __) {},
-                  onUpdate: (updatedTask) => context
-                      .read<ScheduleStateProvider>()
-                      .updateTask(task.id, updatedTask),
+                  onUpdate: (updatedTask) => _updateTaskWithOverlapCheck(
+                    context.read<ScheduleStateProvider>(),
+                    task.id,
+                    updatedTask,
+                  ),
                 ),
               );
             },
@@ -105,6 +107,35 @@ class _ScheduleViewState extends State<ScheduleView> {
   ) {
     final overlaps = provider.overlappingTasks(task, date);
     provider.addTask(task, date);
+    if (overlaps.isNotEmpty && mounted) {
+      final first = overlaps.first;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.surfaceLight,
+          content: Text(
+            overlaps.length == 1
+                ? 'Heads up: overlaps with "${first.title}" (${first.startTime}–${first.endTime})'
+                : 'Heads up: overlaps with ${overlaps.length} other tasks',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Mirrors the add-path overlap warning for edits, excluding the task's own
+  /// previous slot so it never flags against itself.
+  void _updateTaskWithOverlapCheck(
+    ScheduleStateProvider provider,
+    String taskId,
+    Task updatedTask,
+  ) {
+    final overlaps = provider.overlappingTasks(
+      updatedTask,
+      provider.selectedDay.date,
+      excludeId: taskId,
+    );
+    provider.updateTask(taskId, updatedTask);
     if (overlaps.isNotEmpty && mounted) {
       final first = overlaps.first;
       ScaffoldMessenger.of(context).clearSnackBars();
@@ -249,96 +280,103 @@ class _ScheduleViewState extends State<ScheduleView> {
                     final progress =
                         hasTasks ? completedCount / day.tasks.length : 0.0;
 
-                    return GestureDetector(
-                      onTap: () => provider.selectDay(index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        width: itemWidth,
-                        margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          gradient: isSelected
-                              ? const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    AppColors.neonBlue,
-                                    Color(0xFF6366F1),
-                                  ],
-                                )
-                              : null,
-                          color: isSelected ? null : AppColors.surface,
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          border: Border.all(
-                            color: isSelected
-                                ? Colors.white.withValues(alpha: 0.2)
-                                : AppColors.glassBorder,
+                    return Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label:
+                          '${day.dayOfWeek}, ${day.dateStr}, $completedCount of ${day.tasks.length} tasks completed',
+                      child: GestureDetector(
+                        onTap: () => provider.selectDay(index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          width: itemWidth,
+                          margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      AppColors.neonBlue,
+                                      Color(0xFF6366F1),
+                                    ],
+                                  )
+                                : null,
+                            color: isSelected ? null : AppColors.surface,
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.2)
+                                  : AppColors.glassBorder,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.neonBlue
+                                          .withValues(alpha: 0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : [],
                           ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: AppColors.neonBlue
-                                        .withValues(alpha: 0.4),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              day.dayOfWeek.substring(0, 3).toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
-                                color: isSelected
-                                    ? Colors.white.withValues(alpha: 0.9)
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              day.dateStr.split(' ').length > 1
-                                  ? day.dateStr.split(' ')[1]
-                                  : day.dateStr,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            if (isSelected && hasTasks)
-                              SizedBox(
-                                width: 24,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    backgroundColor: Colors.black26,
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    minHeight: 3,
-                                  ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                day.dayOfWeek.substring(0, 3).toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  color: isSelected
+                                      ? Colors.white.withValues(alpha: 0.9)
+                                      : AppColors.textSecondary,
                                 ),
-                              )
-                            else if (!isSelected && hasTasks)
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.neonPurple,
-                                  shape: BoxShape.circle,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                day.dateStr.split(' ').length > 1
+                                    ? day.dateStr.split(' ')[1]
+                                    : day.dateStr,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
                                 ),
-                              )
-                            else
-                              const SizedBox(height: 5),
-                          ],
+                              ),
+                              const SizedBox(height: 4),
+                              if (isSelected && hasTasks)
+                                SizedBox(
+                                  width: 24,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(2),
+                                    child: LinearProgressIndicator(
+                                      value: progress,
+                                      backgroundColor: Colors.black26,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.8),
+                                      minHeight: 3,
+                                    ),
+                                  ),
+                                )
+                              else if (!isSelected && hasTasks)
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.neonPurple,
+                                    shape: BoxShape.circle,
+                                  ),
+                                )
+                              else
+                                const SizedBox(height: 5),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -540,8 +578,12 @@ class _ScheduleViewState extends State<ScheduleView> {
                                         editingTask: task,
                                         showDateControls: false,
                                         onAdd: (_, __) {},
-                                        onUpdate: (updatedTask) => provider
-                                            .updateTask(task.id, updatedTask),
+                                        onUpdate: (updatedTask) =>
+                                            _updateTaskWithOverlapCheck(
+                                          provider,
+                                          task.id,
+                                          updatedTask,
+                                        ),
                                       ),
                                     );
                                   },
@@ -641,17 +683,20 @@ class _ScheduleViewState extends State<ScheduleView> {
                             _closeTaskDetail();
                           },
                           onEdit: () {
+                            final editingTask = _selectedTask!;
                             _closeTaskDetail();
                             showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
                               backgroundColor: Colors.transparent,
                               builder: (_) => AddTaskSheet(
-                                editingTask: _selectedTask!,
+                                editingTask: editingTask,
                                 showDateControls: false,
                                 onAdd: (_, __) {},
-                                onUpdate: (updatedTask) => provider.updateTask(
-                                  _selectedTask!.id,
+                                onUpdate: (updatedTask) =>
+                                    _updateTaskWithOverlapCheck(
+                                  provider,
+                                  editingTask.id,
                                   updatedTask,
                                 ),
                               ),
