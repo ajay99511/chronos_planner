@@ -103,6 +103,8 @@ class LocalTodoRepository implements TodoRepository {
           .map((i) => domain.ChecklistItem.fromJson(i as Map<String, dynamic>))
           .toList(),
       audioFilePath: dbTodo.audioFilePath,
+      scheduledAt: dbTodo.scheduledAt,
+      enabled: dbTodo.enabled,
     );
   }
 
@@ -119,6 +121,8 @@ class LocalTodoRepository implements TodoRepository {
       checklistJson:
           Value(jsonEncode(todo.checklist.map((i) => i.toJson()).toList())),
       audioFilePath: Value(todo.audioFilePath),
+      scheduledAt: Value(todo.scheduledAt),
+      enabled: Value(todo.enabled),
     );
   }
 
@@ -134,6 +138,8 @@ class LocalTodoRepository implements TodoRepository {
       durationMinutes: todo.durationMinutes,
       checklistJson: jsonEncode(todo.checklist.map((i) => i.toJson()).toList()),
       audioFilePath: todo.audioFilePath,
+      scheduledAt: todo.scheduledAt,
+      enabled: todo.enabled,
     );
   }
 }

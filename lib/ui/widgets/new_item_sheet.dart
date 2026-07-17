@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -6,12 +7,12 @@ import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 
-/// Bottom sheet dialog for creating Notes, Timers, or Lists.
+/// Bottom sheet dialog for creating Notes, Timers, Alarms, or Lists.
 ///
-/// Displays a segmented tab bar (Note | Timer | List) and shows
+/// Displays a segmented tab bar (Note | Timer | Alarm | List) and shows
 /// the appropriate form inputs for each item type.
 class NewItemSheet extends StatefulWidget {
-  /// Which tab to open initially: 0 = Note, 1 = Timer, 2 = List
+  /// Which tab to open initially: 0 = Note, 1 = Timer, 2 = Alarm, 3 = List
   final int initialTab;
 
   const NewItemSheet({super.key, this.initialTab = 0});
@@ -40,6 +41,10 @@ class _NewItemSheetState extends State<NewItemSheet> {
   final _durationController = TextEditingController(text: '25');
   String? _audioFilePath;
   String? _audioFileName;
+
+  // Alarm
+  DateTime? _alarmDate;
+  TimeOfDay? _alarmTime;
 
   // List
   final List<String> _checklistItems = [];
@@ -114,7 +119,32 @@ class _NewItemSheetState extends State<NewItemSheet> {
           audioFilePath: _audioFilePath ?? '',
         );
         break;
-      case 2: // List
+      case 2: // Alarm
+        final date = _alarmDate;
+        final time = _alarmTime;
+        if (date == null || time == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Pick a date and time for the alarm')),
+          );
+          return;
+        }
+        final scheduledAt = DateTime(
+          date.year, date.month, date.day, time.hour, time.minute,
+        );
+        if (!scheduledAt.isAfter(DateTime.now())) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Alarm time must be in the future')),
+          );
+          return;
+        }
+        provider.addAlarm(
+          title,
+          description: desc,
+          scheduledAt: scheduledAt,
+          audioFilePath: _audioFilePath ?? '',
+        );
+        break;
+      case 3: // List
         final checklist = _checklistItems
             .map((text) => domain.ChecklistItem(text: text))
             .toList();
@@ -216,7 +246,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
 
                 // Type-specific fields
                 if (_selectedTab == 1) ..._buildTimerFields(),
-                if (_selectedTab == 2) ..._buildListFields(),
+                if (_selectedTab == 2) ..._buildAlarmFields(),
+                if (_selectedTab == 3) ..._buildListFields(),
 
                 const SizedBox(height: AppSpacing.lg),
 
@@ -248,6 +279,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
       case 1:
         return 'Focus Session Title';
       case 2:
+        return 'Alarm Title';
+      case 3:
         return 'List Title';
       default:
         return 'Title';
@@ -261,6 +294,8 @@ class _NewItemSheetState extends State<NewItemSheet> {
       case 1:
         return 'Save Timer';
       case 2:
+        return 'Save Alarm';
+      case 3:
         return 'Save List';
       default:
         return 'Save';
@@ -271,6 +306,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
     const tabs = [
       (icon: Icons.description_outlined, label: 'Note'),
       (icon: Icons.timer_outlined, label: 'Timer'),
+      (icon: Icons.alarm_outlined, label: 'Alarm'),
       (icon: Icons.checklist_outlined, label: 'List'),
     ];
 
@@ -356,63 +392,124 @@ class _NewItemSheetState extends State<NewItemSheet> {
         style: AppTextStyles.subtitle,
       ),
       const SizedBox(height: AppSpacing.sm),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final button = GestureDetector(
-            onTap: _pickAudioFile,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.music_note,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Select Local Audio',
-                    style: AppTextStyles.body
-                        .copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
+      _buildAudioPicker(),
+    ];
+  }
+
+  List<Widget> _buildAlarmFields() {
+    final date = _alarmDate;
+    final time = _alarmTime;
+    return [
+      const Divider(color: Colors.white10, height: 32),
+      Text('Alarm Date & Time', style: AppTextStyles.subtitle),
+      const SizedBox(height: AppSpacing.sm),
+      Row(
+        children: [
+          Expanded(
+            child: _AlarmPickerButton(
+              icon: Icons.calendar_today_rounded,
+              label: date != null
+                  ? DateFormat('EEE, MMM d, yyyy').format(date)
+                  : 'Pick date',
+              onTap: _pickAlarmDate,
             ),
-          );
-          final fileLabel = Text(
-            _audioFileName ?? 'No file selected',
-            style: AppTextStyles.bodySmall,
-            overflow: TextOverflow.ellipsis,
-          );
-          if (constraints.maxWidth < 380) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _AlarmPickerButton(
+              icon: Icons.access_time_rounded,
+              label: time != null ? time.format(context) : 'Pick time',
+              onTap: _pickAlarmTime,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      Text(
+        'Alarm Sound (Optional)',
+        style: AppTextStyles.subtitle,
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      _buildAudioPicker(),
+    ];
+  }
+
+  Future<void> _pickAlarmDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _alarmDate ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _alarmDate = picked);
+  }
+
+  Future<void> _pickAlarmTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _alarmTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) setState(() => _alarmTime = picked);
+  }
+
+  Widget _buildAudioPicker() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final button = GestureDetector(
+          onTap: _pickAudioFile,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                button,
-                const SizedBox(height: AppSpacing.sm),
-                fileLabel,
+                const Icon(
+                  Icons.music_note,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Select Local Audio',
+                  style: AppTextStyles.body
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
               ],
-            );
-          }
-          return Row(
+            ),
+          ),
+        );
+        final fileLabel = Text(
+          _audioFileName ?? 'No file selected',
+          style: AppTextStyles.bodySmall,
+          overflow: TextOverflow.ellipsis,
+        );
+        if (constraints.maxWidth < 380) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               button,
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: fileLabel),
+              const SizedBox(height: AppSpacing.sm),
+              fileLabel,
             ],
           );
-        },
-      ),
-    ];
+        }
+        return Row(
+          children: [
+            button,
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(child: fileLabel),
+          ],
+        );
+      },
+    );
   }
 
   List<Widget> _buildListFields() {
@@ -484,5 +581,48 @@ class _NewItemSheetState extends State<NewItemSheet> {
         ],
       ),
     ];
+  }
+}
+
+class _AlarmPickerButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _AlarmPickerButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

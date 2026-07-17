@@ -32,6 +32,8 @@ part 'app_database.g.dart';
 /// - **v4→v5**: Added itemType/durationMinutes/checklistJson/audioFilePath to TodoItems
 /// - **v5→v6**: Cleanup of legacy columns from partial v5 migrations
 /// - **v6→v7**: Added `updatedAt` to TodoItems (backfilled from createdAt)
+/// - **v7→v8**: Merged duplicate DayPlans rows, made `day_plans.date` unique,
+///   added `scheduledAt`/`enabled` to TodoItems for alarms
 ///
 /// ## Tables:
 /// | Table | Purpose |
@@ -86,7 +88,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -308,6 +310,59 @@ class AppDatabase extends _$AppDatabase {
               await customStatement(
                 'UPDATE todo_items SET updated_at = created_at',
               );
+            }
+          }
+          if (from < 8) {
+            Future<bool> tableExists(String name) async {
+              final result = await customSelect(
+                "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?",
+                variables: [Variable.withString(name)],
+              ).get();
+              return (result.first.read<int>('cnt')) > 0;
+            }
+
+            // Historically nothing stopped two day_plans rows from sharing a
+            // date; when that happened only one was ever read back, so tasks
+            // attached to the others silently disappeared. Merge duplicates
+            // into the oldest row per date, then enforce uniqueness.
+            if (await tableExists('day_plans') && await tableExists('tasks')) {
+              await customStatement(
+              'UPDATE tasks SET day_plan_id = ('
+              '  SELECT dp_keep.id FROM day_plans dp_keep'
+              '  WHERE dp_keep.date = ('
+              '    SELECT dp.date FROM day_plans dp WHERE dp.id = tasks.day_plan_id'
+              '  )'
+              '  ORDER BY dp_keep.rowid LIMIT 1'
+              ') WHERE day_plan_id IN ('
+              '  SELECT id FROM day_plans WHERE rowid NOT IN ('
+              '    SELECT MIN(rowid) FROM day_plans GROUP BY date'
+              '  )'
+              ')',
+              );
+              await customStatement(
+                'DELETE FROM day_plans WHERE rowid NOT IN ('
+                '  SELECT MIN(rowid) FROM day_plans GROUP BY date'
+                ')',
+              );
+              await customStatement('DROP INDEX IF EXISTS idx_day_plans_date');
+              await m.createIndex(idxDayPlansDate);
+            }
+
+            if (await tableExists('todo_items')) {
+              final todoCols =
+                  await customSelect('PRAGMA table_info(todo_items)').get();
+              final todoColNames =
+                  todoCols.map((c) => c.read<String>('name')).toSet();
+              if (!todoColNames.contains('scheduled_at')) {
+                await customStatement(
+                  'ALTER TABLE todo_items ADD COLUMN scheduled_at INTEGER',
+                );
+              }
+              if (!todoColNames.contains('enabled')) {
+                await customStatement(
+                  'ALTER TABLE todo_items ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1',
+                );
+              }
             }
           }
         },

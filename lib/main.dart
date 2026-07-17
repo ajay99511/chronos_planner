@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/local/app_database.dart';
@@ -15,6 +16,7 @@ import 'package:chronosky/data/repositories/local/local_preference_repository.da
 import 'package:chronosky/data/repositories/local/local_schedule_repository.dart';
 import 'package:chronosky/data/repositories/local/local_template_repository.dart';
 import 'package:chronosky/data/repositories/local/local_todo_repository.dart';
+import 'package:chronosky/data/repositories/preference_repository.dart';
 import 'package:chronosky/data/repositories/todo_repository.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
@@ -69,6 +71,7 @@ void main() async {
     scheduleStateProvider: scheduleStateProvider,
     scheduleRepo: scheduleRepo,
     todoRepo: todoRepo,
+    prefRepo: prefRepo,
     logger: logger,
   ),);
 }
@@ -79,7 +82,7 @@ class _WindowHandler extends WindowListener {
 
   @override
   void onWindowClose() async {
-    stateProvider.flushState();
+    await stateProvider.flushState();
   }
 }
 
@@ -87,6 +90,7 @@ class MyApp extends StatelessWidget {
   final ScheduleStateProvider scheduleStateProvider;
   final LocalScheduleRepository scheduleRepo;
   final TodoRepository todoRepo;
+  final PreferenceRepository prefRepo;
   final Logger logger;
 
   const MyApp({
@@ -94,6 +98,7 @@ class MyApp extends StatelessWidget {
     required this.scheduleStateProvider,
     required this.scheduleRepo,
     required this.todoRepo,
+    required this.prefRepo,
     required this.logger,
   });
 
@@ -106,7 +111,11 @@ class MyApp extends StatelessWidget {
           create: (_) => AnalyticsProvider(scheduleStateProvider, scheduleRepo),
         ),
         ChangeNotifierProvider(
-          create: (_) => TodoProvider(todoRepo),
+          create: (_) => TodoProvider(todoRepo, prefRepo: prefRepo),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AlarmSchedulerService(todoRepo, logger),
+          lazy: false, // Alarms must arm at startup, not on first UI access.
         ),
       ],
       child: MaterialApp(

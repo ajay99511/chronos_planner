@@ -22,14 +22,15 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
         .watch();
   }
 
-  /// Insert a single task.
+  /// Insert a single task. Upserts on id so a retried write cannot fail with
+  /// a UNIQUE violation and abort the surrounding transaction.
   Future<void> insertTask(TasksCompanion task) {
-    return into(tasks).insert(task);
+    return into(tasks).insertOnConflictUpdate(task);
   }
 
-  /// Insert multiple tasks at once (within a transaction).
+  /// Insert multiple tasks at once (within a transaction), upserting on id.
   Future<void> insertTasks(List<TasksCompanion> taskList) {
-    return batch((b) => b.insertAll(tasks, taskList));
+    return batch((b) => b.insertAllOnConflictUpdate(tasks, taskList));
   }
 
   /// Update a task by its id.

@@ -30,6 +30,7 @@ void main() {
     registerFallbackValue(FakeTask());
     registerFallbackValue(FakeTemplate());
     registerFallbackValue(DateTime.now());
+    registerFallbackValue(<Task>[]);
   });
 
   setUp(() {
@@ -112,9 +113,66 @@ void main() {
       await provider.loadData();
 
       await provider.deleteTask('t1');
-      
+
       expect(provider.weekPlan[0].tasks.length, 1);
       expect(provider.errorMessage, 'Delete failed');
+    });
+
+    test('applyTemplateToDays maps weekday indices to the correct dates',
+        () async {
+      // Rolling week starting today — whatever weekday that is.
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final week = List.generate(
+        7,
+        (i) => DayPlan(
+          id: 'd$i',
+          date: today.add(Duration(days: i)),
+          tasks: [],
+        ),
+      );
+      when(() => mockScheduleRepo.getUpcomingDays(any()))
+          .thenAnswer((_) async => Success(week));
+
+      final appliedDates = <DateTime>[];
+      when(() => mockScheduleRepo.addTasksToDate(any(), any()))
+          .thenAnswer((inv) async {
+        appliedDates.add(inv.positionalArguments[0] as DateTime);
+        return const Success(null);
+      });
+
+      provider = ScheduleStateProvider(
+        scheduleRepo: mockScheduleRepo,
+        templateRepo: mockTemplateRepo,
+        prefRepo: mockPrefRepo,
+        logger: mockLogger,
+      );
+      await provider.loadData();
+
+      final template = PlanTemplate(
+        id: 'tmpl1',
+        name: 'Plan',
+        description: '',
+        tasks: [
+          TemplateTask(
+            id: 'tt1',
+            templateId: 'tmpl1',
+            title: 'Task',
+            startTime: '09:00',
+            endTime: '10:00',
+            type: TaskType.work,
+          ),
+        ],
+      );
+
+      // Select Monday (0) and Wednesday (2) — the dialog's day-chip encoding.
+      await provider.applyTemplateToDays(template, [0, 2]);
+
+      expect(appliedDates.length, 2);
+      expect(
+        appliedDates.map((d) => d.weekday).toSet(),
+        {DateTime.monday, DateTime.wednesday},
+      );
     });
   });
 }

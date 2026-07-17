@@ -10,7 +10,19 @@ import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockDayPlanDao extends Mock implements DayPlanDao {}
+/// Runs transactions inline so repository logic can be tested against mocks.
+class _FakeDb extends Fake implements AppDatabase {
+  @override
+  Future<T> transaction<T>(Future<T> Function() action,
+      {bool requireNew = false,}) =>
+      action();
+}
+
+class MockDayPlanDao extends Mock implements DayPlanDao {
+  @override
+  AppDatabase get attachedDatabase => _FakeDb();
+}
+
 class MockTaskDao extends Mock implements TaskDao {}
 
 void main() {
@@ -18,45 +30,87 @@ void main() {
   late MockDayPlanDao mockDayPlanDao;
   late MockTaskDao mockTaskDao;
 
+  /// In-memory day plan rows; insertDayPlans appends so the re-read after
+  /// insert (id re-resolution) sees the created rows, as the real DB would.
+  late List<DayPlan> stored;
+
+  void stubStatefulDao() {
+    when(() => mockDayPlanDao.getDayPlansFrom(any(), any()))
+        .thenAnswer((_) async => List.of(stored));
+    when(() => mockDayPlanDao.insertDayPlans(any())).thenAnswer((inv) async {
+      final plans = inv.positionalArguments[0] as List<DayPlansCompanion>;
+      for (final p in plans) {
+        stored.add(
+          DayPlan(id: p.id.value, date: p.date.value, weekKey: p.weekKey.value),
+        );
+      }
+    });
+    when(() => mockTaskDao.getTasksForDay(any())).thenAnswer((_) async => []);
+  }
+
   setUp(() {
     mockDayPlanDao = MockDayPlanDao();
     mockTaskDao = MockTaskDao();
     repository = LocalScheduleRepository(mockDayPlanDao, mockTaskDao);
-    
+    stored = [];
+
     registerFallbackValue(const DayPlansCompanion());
     registerFallbackValue(const TasksCompanion());
   });
 
   group('LocalScheduleRepository', () {
     test('getUpcomingDays(7) returns exactly 7 DayPlan objects', () async {
-      when(() => mockDayPlanDao.getDayPlansFrom(any(), any()))
-          .thenAnswer((_) async => []);
-      when(() => mockDayPlanDao.insertDayPlans(any()))
-          .thenAnswer((_) async => []);
+      stubStatefulDao();
 
       final result = await repository.getUpcomingDays(7);
 
       expect(result, isA<Success<List<domain.DayPlan>>>());
       final list = (result as Success<List<domain.DayPlan>>).value;
       expect(list.length, 7);
+      // Every returned id must correspond to a persisted row.
+      final storedIds = stored.map((p) => p.id).toSet();
+      expect(list.every((p) => storedIds.contains(p.id)), isTrue);
+    });
+
+    test('getUpcomingDays reuses existing rows instead of duplicating',
+        () async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      stored = [DayPlan(id: 'existing-id', date: today, weekKey: 'w')];
+      stubStatefulDao();
+
+      final result = await repository.getUpcomingDays(1);
+
+      final list = (result as Success<List<domain.DayPlan>>).value;
+      expect(list.single.id, 'existing-id');
+      expect(stored.length, 1);
     });
 
     test('retry logic fires on FileSystemException', () async {
-      int calls = 0;
-      when(() => mockDayPlanDao.getDayPlansFrom(any(), any())).thenAnswer((_) async {
-        calls++;
-        if (calls < 3) {
+      int failures = 0;
+      when(() => mockDayPlanDao.getDayPlansFrom(any(), any()))
+          .thenAnswer((_) async {
+        if (failures < 2) {
+          failures++;
           throw const FileSystemException('Busy');
         }
-        return [];
+        return List.of(stored);
       });
-      when(() => mockDayPlanDao.insertDayPlans(any()))
-          .thenAnswer((_) async => []);
+      when(() => mockDayPlanDao.insertDayPlans(any())).thenAnswer((inv) async {
+        final plans = inv.positionalArguments[0] as List<DayPlansCompanion>;
+        for (final p in plans) {
+          stored.add(
+            DayPlan(
+                id: p.id.value, date: p.date.value, weekKey: p.weekKey.value,),
+          );
+        }
+      });
+      when(() => mockTaskDao.getTasksForDay(any())).thenAnswer((_) async => []);
 
       final result = await repository.getUpcomingDays(1);
 
       expect(result, isA<Success>());
-      expect(calls, 3);
+      expect(failures, 2);
     });
 
     test('DriftWrappedException returns Failure(DatabaseFailure)', () async {

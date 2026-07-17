@@ -182,6 +182,85 @@ void main() {
 
       await database.close();
     });
+
+    test(
+        'v7 to v8 merges duplicate day_plans, enforces date uniqueness, '
+        'and adds alarm columns to todo_items', () async {
+      final executor = NativeDatabase.memory();
+      await executor.ensureOpen(_FakeUser());
+
+      await executor.runCustom('''
+        CREATE TABLE day_plans (
+          id TEXT NOT NULL PRIMARY KEY,
+          date INTEGER NOT NULL,
+          week_key TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          day_plan_id TEXT NOT NULL REFERENCES day_plans (id)
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE todo_items (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL DEFAULT 0
+        );
+      ''');
+
+      // Two day plans for the same date — the historic duplication bug.
+      final date = DateTime(2026, 7, 17).millisecondsSinceEpoch ~/ 1000;
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-old', date, '2026-W29'],
+      );
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-dup', date, '2026-W29'],
+      );
+      await executor.runCustom(
+        'INSERT INTO tasks (id, title, day_plan_id) VALUES (?, ?, ?)',
+        ['t-orphan', 'Task on duplicate', 'dp-dup'],
+      );
+
+      final database = TestDatabase(executor);
+      final m = database.createMigrator();
+      await database.migration.onUpgrade(m, 7, 8);
+
+      // Duplicate merged into the oldest row; task re-pointed, not lost.
+      final plans =
+          await database.customSelect('SELECT id FROM day_plans').get();
+      expect(plans.map((r) => r.read<String>('id')).toList(), ['dp-old']);
+      final task = await database
+          .customSelect('SELECT day_plan_id FROM tasks WHERE id = ?',
+              variables: [Variable.withString('t-orphan')],)
+          .get();
+      expect(task.first.read<String>('day_plan_id'), 'dp-old');
+
+      // Date uniqueness is now enforced.
+      expect(
+        () => database.customStatement(
+          'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+          ['dp-new', date, '2026-W29'],
+        ),
+        throwsException,
+      );
+
+      // Alarm columns exist on todo_items.
+      final todoInfo =
+          await database.customSelect('PRAGMA table_info(todo_items)').get();
+      final todoCols = todoInfo.map((c) => c.read<String>('name')).toSet();
+      expect(todoCols, containsAll(['scheduled_at', 'enabled']));
+
+      // Re-running the migration must be a no-op, not an error.
+      await database.migration.onUpgrade(m, 7, 8);
+
+      await database.close();
+    });
   });
 }
 

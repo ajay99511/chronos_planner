@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// Type of todo item.
-enum TodoItemType { note, timer, list }
+enum TodoItemType { note, timer, list, alarm }
 
 /// Represents a single item in a checklist.
 @immutable
@@ -64,6 +64,12 @@ class TodoItem {
   final List<ChecklistItem> checklist;
   final String audioFilePath;
 
+  /// Wall-clock moment an alarm item should fire. Null for non-alarm items.
+  final DateTime? scheduledAt;
+
+  /// Whether an alarm is armed. One-shot alarms flip to false after firing.
+  final bool enabled;
+
   TodoItem({
     required this.id,
     required this.title,
@@ -75,6 +81,8 @@ class TodoItem {
     this.durationMinutes = 0,
     this.checklist = const [],
     this.audioFilePath = '',
+    this.scheduledAt,
+    this.enabled = true,
   }) : updatedAt = updatedAt ?? createdAt {
     assert(title.isNotEmpty && title.length <= 200,
         'Title must be 1-200 characters',);
@@ -91,6 +99,8 @@ class TodoItem {
     int? durationMinutes,
     List<ChecklistItem>? checklist,
     String? audioFilePath,
+    DateTime? scheduledAt,
+    bool? enabled,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -103,6 +113,8 @@ class TodoItem {
       durationMinutes: durationMinutes ?? this.durationMinutes,
       checklist: checklist ?? this.checklist,
       audioFilePath: audioFilePath ?? this.audioFilePath,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      enabled: enabled ?? this.enabled,
     );
   }
 
@@ -117,6 +129,8 @@ class TodoItem {
         'durationMinutes': durationMinutes,
         'checklist': checklist.map((i) => i.toJson()).toList(),
         'audioFilePath': audioFilePath,
+        'scheduledAt': scheduledAt?.toIso8601String(),
+        'enabled': enabled,
       };
 
   factory TodoItem.fromJson(Map<String, dynamic> json) {
@@ -142,6 +156,10 @@ class TodoItem {
             const [],
       ),
       audioFilePath: (json['audioFilePath'] ?? '') as String,
+      scheduledAt: json['scheduledAt'] != null
+          ? DateTime.parse(json['scheduledAt'] as String)
+          : null,
+      enabled: (json['enabled'] ?? true) as bool,
     );
   }
 
@@ -159,7 +177,9 @@ class TodoItem {
           itemType == other.itemType &&
           durationMinutes == other.durationMinutes &&
           listEquals(checklist, other.checklist) &&
-          audioFilePath == other.audioFilePath;
+          audioFilePath == other.audioFilePath &&
+          scheduledAt == other.scheduledAt &&
+          enabled == other.enabled;
 
   @override
   int get hashCode =>
@@ -172,5 +192,7 @@ class TodoItem {
       itemType.hashCode ^
       durationMinutes.hashCode ^
       checklist.hashCode ^
-      audioFilePath.hashCode;
+      audioFilePath.hashCode ^
+      scheduledAt.hashCode ^
+      enabled.hashCode;
 }

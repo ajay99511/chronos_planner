@@ -19,7 +19,7 @@ class TodoListView extends StatefulWidget {
 }
 
 class _TodoListViewState extends State<TodoListView> {
-  int _selectedTab = 0; // 0 = Notes, 1 = Timers, 2 = Lists
+  int _selectedTab = 0; // 0 = Notes, 1 = Timers, 2 = Alarms, 3 = Lists
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
 
@@ -82,7 +82,7 @@ class _TodoListViewState extends State<TodoListView> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Notes, Timers, and Checklists',
+                        'Notes, Timers, Alarms, and Checklists',
                         style: AppTextStyles.bodySmall,
                       ),
                     ],
@@ -167,6 +167,11 @@ class _TodoListViewState extends State<TodoListView> {
                   case 1:
                     return _buildTimersList(_filtered(provider.timers));
                   case 2:
+                    return _buildAlarmsList(
+                      provider,
+                      _filtered(provider.alarms),
+                    );
+                  case 3:
                     return _buildChecklistsList(_filtered(provider.lists));
                   default:
                     return const SizedBox.shrink();
@@ -183,6 +188,7 @@ class _TodoListViewState extends State<TodoListView> {
     const tabs = [
       (icon: Icons.description_rounded, label: 'Notes'),
       (icon: Icons.timer_rounded, label: 'Timers'),
+      (icon: Icons.alarm_rounded, label: 'Alarms'),
       (icon: Icons.checklist_rounded, label: 'Lists'),
     ];
 
@@ -340,6 +346,132 @@ class _TodoListViewState extends State<TodoListView> {
     );
   }
 
+  static const _alarmSortLabels = {
+    AlarmSort.upcomingAsc: 'Upcoming (soonest first)',
+    AlarmSort.upcomingDesc: 'Upcoming (latest first)',
+    AlarmSort.addedDesc: 'Date added (newest first)',
+    AlarmSort.addedAsc: 'Date added (oldest first)',
+  };
+
+  Widget _buildAlarmsList(TodoProvider provider, List<domain.TodoItem> alarms) {
+    final sortBar = Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.pagePadding(context),
+        0,
+        AppResponsive.pagePadding(context),
+        AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sort_rounded, size: 16, color: Colors.white38),
+          const SizedBox(width: 8),
+          PopupMenuButton<AlarmSort>(
+            initialValue: provider.alarmSort,
+            color: AppColors.surface,
+            tooltip: 'Sort alarms',
+            onSelected: provider.setAlarmSort,
+            itemBuilder: (context) => AlarmSort.values
+                .map(
+                  (s) => PopupMenuItem(
+                    value: s,
+                    child: Text(
+                      _alarmSortLabels[s]!,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                )
+                .toList(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _alarmSortLabels[provider.alarmSort]!,
+                  style: AppTextStyles.bodySmall
+                      .copyWith(color: AppColors.textSecondary),
+                ),
+                const Icon(
+                  Icons.arrow_drop_down_rounded,
+                  color: Colors.white38,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (alarms.isEmpty) {
+      return Column(
+        children: [
+          sortBar,
+          Expanded(
+            child: _query.isNotEmpty
+                ? _buildEmptyState(Icons.search_off_rounded, 'No matches')
+                : _buildEmptyState(Icons.alarm_outlined, 'No alarms yet'),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        sortBar,
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.fromLTRB(
+              AppResponsive.pagePadding(context),
+              0,
+              AppResponsive.pagePadding(context),
+              AppSpacing.xl,
+            ),
+            itemCount: alarms.length,
+            itemBuilder: (context, index) => _AlarmCard(
+              alarm: alarms[index],
+              onToggle: (enabled) => provider.updateTodo(
+                alarms[index].copyWith(enabled: enabled),
+              ),
+              onEditTime: () => _editAlarmTime(provider, alarms[index]),
+              onDelete: () => provider.deleteTodo(alarms[index].id),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Reschedules [alarm] via date + time pickers and re-arms it.
+  Future<void> _editAlarmTime(
+    TodoProvider provider,
+    domain.TodoItem alarm,
+  ) async {
+    final now = DateTime.now();
+    final current = alarm.scheduledAt ?? now;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current.isAfter(now) ? current : now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+    );
+    if (time == null || !mounted) return;
+
+    final scheduledAt =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (!scheduledAt.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Alarm time must be in the future')),
+      );
+      return;
+    }
+    await provider.updateTodo(
+      alarm.copyWith(scheduledAt: scheduledAt, enabled: true),
+    );
+  }
+
   Widget _buildChecklistsList(List<domain.TodoItem> lists) {
     if (lists.isEmpty) {
       return _query.isNotEmpty
@@ -465,6 +597,86 @@ class _TimerCard extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => TimerView(timer: timer)),
               ),
               child: const Text('START', style: TextStyle(fontSize: 10)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlarmCard extends StatelessWidget {
+  final domain.TodoItem alarm;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onEditTime;
+  final VoidCallback onDelete;
+
+  const _AlarmCard({
+    required this.alarm,
+    required this.onToggle,
+    required this.onEditTime,
+    required this.onDelete,
+  });
+
+  String _countdown(DateTime at) {
+    final diff = at.difference(DateTime.now());
+    if (diff.isNegative) return 'expired';
+    if (diff.inMinutes < 1) return 'in less than a minute';
+    if (diff.inHours < 1) return 'in ${diff.inMinutes}m';
+    if (diff.inDays < 1) return 'in ${diff.inHours}h ${diff.inMinutes % 60}m';
+    return 'in ${diff.inDays}d ${diff.inHours % 24}h';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final at = alarm.scheduledAt;
+    final isExpired = at == null || !at.isAfter(DateTime.now());
+    final active = alarm.enabled && !isExpired;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassContainer(
+        onTap: onEditTime,
+        child: Row(
+          children: [
+            Icon(
+              Icons.alarm_rounded,
+              color: active ? AppColors.neonBlue : Colors.white24,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    alarm.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: active ? Colors.white : Colors.white38,
+                    ),
+                  ),
+                  if (at != null)
+                    Text(
+                      '${DateFormat('EEE, MMM d • HH:mm').format(at)}'
+                      '${active ? ' • ${_countdown(at)}' : isExpired ? ' • expired' : ' • off'}',
+                      style: AppTextStyles.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+            Switch(
+              value: alarm.enabled,
+              activeThumbColor: AppColors.neonBlue,
+              onChanged: onToggle,
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 20,
+                color: Colors.white38,
+              ),
+              tooltip: 'Delete alarm',
+              onPressed: onDelete,
             ),
           ],
         ),

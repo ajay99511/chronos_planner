@@ -58,21 +58,48 @@ class LocalScheduleRepository implements ScheduleRepository {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
-      final dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
-      final List<domain.DayPlan> fullList = [];
-      final List<DayPlansCompanion> newDays = [];
+      // Run the read-create-read cycle atomically so concurrent callers
+      // cannot each decide a day is missing and insert competing rows.
+      return _dayPlanDao.attachedDatabase.transaction(() async {
+        DayPlan? findByDate(List<DayPlan> plans, DateTime date) =>
+            plans.cast<DayPlan?>().firstWhere(
+                  (p) =>
+                      p!.date.year == date.year &&
+                      p.date.month == date.month &&
+                      p.date.day == date.day,
+                  orElse: () => null,
+                );
 
-      for (int i = 0; i < count; i++) {
-        final date = today.add(Duration(days: i));
-        final existing = dbPlans.cast<DayPlan?>().firstWhere(
-              (p) =>
-                  p!.date.year == date.year &&
-                  p.date.month == date.month &&
-                  p.date.day == date.day,
-              orElse: () => null,
+        var dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
+
+        final List<DayPlansCompanion> newDays = [];
+        for (int i = 0; i < count; i++) {
+          final date = today.add(Duration(days: i));
+          if (findByDate(dbPlans, date) == null) {
+            newDays.add(
+              DayPlansCompanion(
+                id: Value(const Uuid().v4()),
+                date: Value(date),
+                weekKey: Value(_calculateWeekKey(date)),
+              ),
             );
+          }
+        }
 
-        if (existing != null) {
+        if (newDays.isNotEmpty) {
+          // insertOrIgnore: if a row for the date appeared meanwhile, keep it.
+          await _dayPlanDao.insertDayPlans(newDays);
+          // Re-read so returned ids always match the rows that actually won.
+          dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
+        }
+
+        final List<domain.DayPlan> fullList = [];
+        for (int i = 0; i < count; i++) {
+          final date = today.add(Duration(days: i));
+          final existing = findByDate(dbPlans, date);
+          if (existing == null) {
+            throw StateError('Day plan missing after insert for $date');
+          }
           final dbTasks = await _taskDao.getTasksForDay(existing.id);
           fullList.add(
             domain.DayPlan(
@@ -82,56 +109,43 @@ class LocalScheduleRepository implements ScheduleRepository {
                 ..sort((a, b) => a.startTime.compareTo(b.startTime)),
             ),
           );
-        } else {
-          final id = const Uuid().v4();
-          final weekKey = _calculateWeekKey(date);
-
-          newDays.add(
-            DayPlansCompanion(
-              id: Value(id),
-              date: Value(date),
-              weekKey: Value(weekKey),
-            ),
-          );
-
-          fullList.add(
-            domain.DayPlan(
-              id: id,
-              date: date,
-              tasks: [],
-            ),
-          );
         }
-      }
 
-      if (newDays.isNotEmpty) {
-        await _dayPlanDao.insertDayPlans(newDays);
-      }
-
-      return fullList;
+        return fullList;
+      });
     });
+  }
+
+  /// Returns the id of the day plan for [targetDate], creating the row if it
+  /// does not exist yet. The insert uses `INSERT OR IGNORE`, so under a race
+  /// the id is re-resolved to whichever row survived.
+  Future<String> _ensureDayPlanId(DateTime targetDate) async {
+    final existing = await _dayPlanDao.getDayPlanId(targetDate);
+    if (existing != null) return existing;
+
+    await _dayPlanDao.insertDayPlan(
+      DayPlansCompanion(
+        id: Value(const Uuid().v4()),
+        date: Value(targetDate),
+        weekKey: Value(_calculateWeekKey(targetDate)),
+      ),
+    );
+
+    final id = await _dayPlanDao.getDayPlanId(targetDate);
+    if (id == null) {
+      throw StateError('Failed to create day plan for $targetDate');
+    }
+    return id;
   }
 
   @override
   Future<Result<void>> addTaskToDate(DateTime date, domain.Task task) async {
     return _wrap(() async {
       final targetDate = DateTime(date.year, date.month, date.day);
-      String? dayPlanId = await _dayPlanDao.getDayPlanId(targetDate);
-
-      if (dayPlanId == null) {
-        dayPlanId = const Uuid().v4();
-        final weekKey = _calculateWeekKey(targetDate);
-
-        await _dayPlanDao.insertDayPlan(
-          DayPlansCompanion(
-            id: Value(dayPlanId),
-            date: Value(targetDate),
-            weekKey: Value(weekKey),
-          ),
-        );
-      }
-
-      await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
+      await _dayPlanDao.attachedDatabase.transaction(() async {
+        final dayPlanId = await _ensureDayPlanId(targetDate);
+        await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
+      });
     });
   }
 
@@ -143,24 +157,12 @@ class LocalScheduleRepository implements ScheduleRepository {
     return _wrap(() async {
       if (tasksToAdd.isEmpty) return;
       final targetDate = DateTime(date.year, date.month, date.day);
-      String? dayPlanId = await _dayPlanDao.getDayPlanId(targetDate);
-
-      if (dayPlanId == null) {
-        dayPlanId = const Uuid().v4();
-        final weekKey = _calculateWeekKey(targetDate);
-        await _dayPlanDao.insertDayPlan(
-          DayPlansCompanion(
-            id: Value(dayPlanId),
-            date: Value(targetDate),
-            weekKey: Value(weekKey),
-          ),
+      await _dayPlanDao.attachedDatabase.transaction(() async {
+        final dayPlanId = await _ensureDayPlanId(targetDate);
+        await _taskDao.insertTasks(
+          tasksToAdd.map((t) => _modelTaskToCompanion(t, dayPlanId)).toList(),
         );
-      }
-
-      final planId = dayPlanId;
-      await _taskDao.insertTasks(
-        tasksToAdd.map((t) => _modelTaskToCompanion(t, planId)).toList(),
-      );
+      });
     });
   }
 

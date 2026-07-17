@@ -2102,6 +2102,22 @@ class $TodoItemsTable extends TodoItems
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
+  static const VerificationMeta _scheduledAtMeta =
+      const VerificationMeta('scheduledAt');
+  @override
+  late final GeneratedColumn<DateTime> scheduledAt = GeneratedColumn<DateTime>(
+      'scheduled_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _enabledMeta =
+      const VerificationMeta('enabled');
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+      'enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'),
+      defaultValue: const Constant(true));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2113,7 +2129,9 @@ class $TodoItemsTable extends TodoItems
         itemType,
         durationMinutes,
         checklistJson,
-        audioFilePath
+        audioFilePath,
+        scheduledAt,
+        enabled
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2176,6 +2194,16 @@ class $TodoItemsTable extends TodoItems
           audioFilePath.isAcceptableOrUnknown(
               data['audio_file_path']!, _audioFilePathMeta));
     }
+    if (data.containsKey('scheduled_at')) {
+      context.handle(
+          _scheduledAtMeta,
+          scheduledAt.isAcceptableOrUnknown(
+              data['scheduled_at']!, _scheduledAtMeta));
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(_enabledMeta,
+          enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
+    }
     return context;
   }
 
@@ -2205,6 +2233,10 @@ class $TodoItemsTable extends TodoItems
           .read(DriftSqlType.string, data['${effectivePrefix}checklist_json'])!,
       audioFilePath: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}audio_file_path'])!,
+      scheduledAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}scheduled_at']),
+      enabled: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
     );
   }
 
@@ -2225,6 +2257,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final int durationMinutes;
   final String checklistJson;
   final String audioFilePath;
+  final DateTime? scheduledAt;
+  final bool enabled;
   const TodoItem(
       {required this.id,
       required this.title,
@@ -2235,7 +2269,9 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       required this.itemType,
       required this.durationMinutes,
       required this.checklistJson,
-      required this.audioFilePath});
+      required this.audioFilePath,
+      this.scheduledAt,
+      required this.enabled});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2249,6 +2285,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
     map['duration_minutes'] = Variable<int>(durationMinutes);
     map['checklist_json'] = Variable<String>(checklistJson);
     map['audio_file_path'] = Variable<String>(audioFilePath);
+    if (!nullToAbsent || scheduledAt != null) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt);
+    }
+    map['enabled'] = Variable<bool>(enabled);
     return map;
   }
 
@@ -2264,6 +2304,10 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       durationMinutes: Value(durationMinutes),
       checklistJson: Value(checklistJson),
       audioFilePath: Value(audioFilePath),
+      scheduledAt: scheduledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduledAt),
+      enabled: Value(enabled),
     );
   }
 
@@ -2281,6 +2325,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       durationMinutes: serializer.fromJson<int>(json['durationMinutes']),
       checklistJson: serializer.fromJson<String>(json['checklistJson']),
       audioFilePath: serializer.fromJson<String>(json['audioFilePath']),
+      scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
     );
   }
   @override
@@ -2297,6 +2343,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       'durationMinutes': serializer.toJson<int>(durationMinutes),
       'checklistJson': serializer.toJson<String>(checklistJson),
       'audioFilePath': serializer.toJson<String>(audioFilePath),
+      'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
+      'enabled': serializer.toJson<bool>(enabled),
     };
   }
 
@@ -2310,7 +2358,9 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           String? itemType,
           int? durationMinutes,
           String? checklistJson,
-          String? audioFilePath}) =>
+          String? audioFilePath,
+          Value<DateTime?> scheduledAt = const Value.absent(),
+          bool? enabled}) =>
       TodoItem(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -2322,6 +2372,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
         durationMinutes: durationMinutes ?? this.durationMinutes,
         checklistJson: checklistJson ?? this.checklistJson,
         audioFilePath: audioFilePath ?? this.audioFilePath,
+        scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
+        enabled: enabled ?? this.enabled,
       );
   TodoItem copyWithCompanion(TodoItemsCompanion data) {
     return TodoItem(
@@ -2342,6 +2394,9 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       audioFilePath: data.audioFilePath.present
           ? data.audioFilePath.value
           : this.audioFilePath,
+      scheduledAt:
+          data.scheduledAt.present ? data.scheduledAt.value : this.scheduledAt,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
     );
   }
 
@@ -2357,14 +2412,27 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ..write('itemType: $itemType, ')
           ..write('durationMinutes: $durationMinutes, ')
           ..write('checklistJson: $checklistJson, ')
-          ..write('audioFilePath: $audioFilePath')
+          ..write('audioFilePath: $audioFilePath, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('enabled: $enabled')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, title, description, completed, createdAt,
-      updatedAt, itemType, durationMinutes, checklistJson, audioFilePath);
+  int get hashCode => Object.hash(
+      id,
+      title,
+      description,
+      completed,
+      createdAt,
+      updatedAt,
+      itemType,
+      durationMinutes,
+      checklistJson,
+      audioFilePath,
+      scheduledAt,
+      enabled);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2378,7 +2446,9 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           other.itemType == this.itemType &&
           other.durationMinutes == this.durationMinutes &&
           other.checklistJson == this.checklistJson &&
-          other.audioFilePath == this.audioFilePath);
+          other.audioFilePath == this.audioFilePath &&
+          other.scheduledAt == this.scheduledAt &&
+          other.enabled == this.enabled);
 }
 
 class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
@@ -2392,6 +2462,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
   final Value<int> durationMinutes;
   final Value<String> checklistJson;
   final Value<String> audioFilePath;
+  final Value<DateTime?> scheduledAt;
+  final Value<bool> enabled;
   final Value<int> rowid;
   const TodoItemsCompanion({
     this.id = const Value.absent(),
@@ -2404,6 +2476,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.durationMinutes = const Value.absent(),
     this.checklistJson = const Value.absent(),
     this.audioFilePath = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.enabled = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TodoItemsCompanion.insert({
@@ -2417,6 +2491,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.durationMinutes = const Value.absent(),
     this.checklistJson = const Value.absent(),
     this.audioFilePath = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.enabled = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title);
@@ -2431,6 +2507,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     Expression<int>? durationMinutes,
     Expression<String>? checklistJson,
     Expression<String>? audioFilePath,
+    Expression<DateTime>? scheduledAt,
+    Expression<bool>? enabled,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2444,6 +2522,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       if (durationMinutes != null) 'duration_minutes': durationMinutes,
       if (checklistJson != null) 'checklist_json': checklistJson,
       if (audioFilePath != null) 'audio_file_path': audioFilePath,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (enabled != null) 'enabled': enabled,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2459,6 +2539,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       Value<int>? durationMinutes,
       Value<String>? checklistJson,
       Value<String>? audioFilePath,
+      Value<DateTime?>? scheduledAt,
+      Value<bool>? enabled,
       Value<int>? rowid}) {
     return TodoItemsCompanion(
       id: id ?? this.id,
@@ -2471,6 +2553,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       durationMinutes: durationMinutes ?? this.durationMinutes,
       checklistJson: checklistJson ?? this.checklistJson,
       audioFilePath: audioFilePath ?? this.audioFilePath,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      enabled: enabled ?? this.enabled,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2508,6 +2592,12 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     if (audioFilePath.present) {
       map['audio_file_path'] = Variable<String>(audioFilePath.value);
     }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2527,6 +2617,8 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
           ..write('durationMinutes: $durationMinutes, ')
           ..write('checklistJson: $checklistJson, ')
           ..write('audioFilePath: $audioFilePath, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('enabled: $enabled, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2549,7 +2641,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index idxDayPlansWeekKey = Index('idx_day_plans_week_key',
       'CREATE INDEX idx_day_plans_week_key ON day_plans (week_key)');
   late final Index idxDayPlansDate = Index('idx_day_plans_date',
-      'CREATE INDEX idx_day_plans_date ON day_plans (date)');
+      'CREATE UNIQUE INDEX idx_day_plans_date ON day_plans (date)');
   late final Index idxTemplateTasksTemplateId = Index(
       'idx_template_tasks_template_id',
       'CREATE INDEX idx_template_tasks_template_id ON template_tasks (template_id)');
@@ -4236,6 +4328,8 @@ typedef $$TodoItemsTableCreateCompanionBuilder = TodoItemsCompanion Function({
   Value<int> durationMinutes,
   Value<String> checklistJson,
   Value<String> audioFilePath,
+  Value<DateTime?> scheduledAt,
+  Value<bool> enabled,
   Value<int> rowid,
 });
 typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
@@ -4249,6 +4343,8 @@ typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
   Value<int> durationMinutes,
   Value<String> checklistJson,
   Value<String> audioFilePath,
+  Value<DateTime?> scheduledAt,
+  Value<bool> enabled,
   Value<int> rowid,
 });
 
@@ -4291,6 +4387,12 @@ class $$TodoItemsTableFilterComposer
 
   ColumnFilters<String> get audioFilePath => $composableBuilder(
       column: $table.audioFilePath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get scheduledAt => $composableBuilder(
+      column: $table.scheduledAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+      column: $table.enabled, builder: (column) => ColumnFilters(column));
 }
 
 class $$TodoItemsTableOrderingComposer
@@ -4334,6 +4436,12 @@ class $$TodoItemsTableOrderingComposer
   ColumnOrderings<String> get audioFilePath => $composableBuilder(
       column: $table.audioFilePath,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get scheduledAt => $composableBuilder(
+      column: $table.scheduledAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+      column: $table.enabled, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TodoItemsTableAnnotationComposer
@@ -4374,6 +4482,12 @@ class $$TodoItemsTableAnnotationComposer
 
   GeneratedColumn<String> get audioFilePath => $composableBuilder(
       column: $table.audioFilePath, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get scheduledAt => $composableBuilder(
+      column: $table.scheduledAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
 }
 
 class $$TodoItemsTableTableManager extends RootTableManager<
@@ -4409,6 +4523,8 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<int> durationMinutes = const Value.absent(),
             Value<String> checklistJson = const Value.absent(),
             Value<String> audioFilePath = const Value.absent(),
+            Value<DateTime?> scheduledAt = const Value.absent(),
+            Value<bool> enabled = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion(
@@ -4422,6 +4538,8 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             durationMinutes: durationMinutes,
             checklistJson: checklistJson,
             audioFilePath: audioFilePath,
+            scheduledAt: scheduledAt,
+            enabled: enabled,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4435,6 +4553,8 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<int> durationMinutes = const Value.absent(),
             Value<String> checklistJson = const Value.absent(),
             Value<String> audioFilePath = const Value.absent(),
+            Value<DateTime?> scheduledAt = const Value.absent(),
+            Value<bool> enabled = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion.insert(
@@ -4448,6 +4568,8 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             durationMinutes: durationMinutes,
             checklistJson: checklistJson,
             audioFilePath: audioFilePath,
+            scheduledAt: scheduledAt,
+            enabled: enabled,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

@@ -1,9 +1,13 @@
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/ui/screens/analytics_view.dart';
 import 'package:chronosky/ui/screens/schedule_view.dart';
 import 'package:chronosky/ui/screens/work_plans_view.dart';
@@ -48,6 +52,22 @@ class _ChronosHomeState extends State<ChronosHome> {
 
   @override
   Widget build(BuildContext context) {
+    // The ringing overlay sits above everything (including focus mode) so an
+    // alarm can always be dismissed no matter where the user is.
+    final ringing = context.watch<AlarmSchedulerService>().ringing;
+    return Stack(
+      children: [
+        _buildMain(context),
+        if (ringing != null)
+          _AlarmRingingOverlay(
+            alarm: ringing,
+            onDismiss: () => context.read<AlarmSchedulerService>().dismiss(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMain(BuildContext context) {
     if (_isFocusMode) {
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -141,6 +161,90 @@ class _ChronosHomeState extends State<ChronosHome> {
                 ),
               ),
             ),
+    );
+  }
+}
+
+// ─── Alarm ringing overlay ──────────────────────
+class _AlarmRingingOverlay extends StatelessWidget {
+  final domain.TodoItem alarm;
+  final VoidCallback onDismiss;
+
+  const _AlarmRingingOverlay({required this.alarm, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheduled = alarm.scheduledAt;
+    return Material(
+      color: Colors.black.withValues(alpha: 0.75),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          constraints: const BoxConstraints(maxWidth: 380),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(
+              color: AppColors.neonBlue.withValues(alpha: 0.4),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neonBlue.withValues(alpha: 0.3),
+                blurRadius: 40,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.alarm_rounded,
+                color: AppColors.neonBlue,
+                size: 56,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                alarm.title,
+                style: AppTextStyles.heading3,
+                textAlign: TextAlign.center,
+              ),
+              if (alarm.description.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  alarm.description,
+                  style: AppTextStyles.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              if (scheduled != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  DateFormat('EEE, MMM d • HH:mm').format(scheduled),
+                  style: AppTextStyles.bodySmall
+                      .copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.neonBlue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                ),
+                onPressed: onDismiss,
+                child: const Text(
+                  'DISMISS',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -221,9 +221,15 @@ class ScheduleStateProvider extends ChangeNotifier {
   }
 
   Future<void> _persistDismissals() async {
-    await _prefRepo.set(
+    final result = await _prefRepo.set(
       _dismissalPrefKey,
       jsonEncode(_dismissedRecurring.toList()),
+    );
+    result.fold(
+      onSuccess: (_) => null,
+      onFailure: (f) => _logger.error(
+        'Failed to persist recurring dismissals: ${f.message}',
+      ),
     );
   }
 
@@ -352,7 +358,9 @@ class ScheduleStateProvider extends ChangeNotifier {
     if (removedTask.sourceTemplateId.isNotEmpty) {
       _dismissedRecurring.add(
           _dismissalKey(removedTask.sourceTemplateId, _weekPlan[planIdx].date),);
-      unawaited(_persistDismissals());
+      // Awaited: losing this marker resurrects the deleted instance on the
+      // next load, which reads as data corruption to the user.
+      await _persistDismissals();
     }
 
     _addToUndoStack(
@@ -399,7 +407,7 @@ class ScheduleStateProvider extends ChangeNotifier {
                 _weekPlan[action.dayIndex].date,
               ),
             );
-            unawaited(_persistDismissals());
+            await _persistDismissals();
           }
           await addTask(action.task!, _weekPlan[action.dayIndex].date);
         }
@@ -571,7 +579,7 @@ class ScheduleStateProvider extends ChangeNotifier {
 
     // Explicitly (re)enabling recurrence overrides any prior per-day dismissals.
     _dismissedRecurring.removeWhere((key) => key.startsWith('$templateId|'));
-    unawaited(_persistDismissals());
+    await _persistDismissals();
 
     final result =
         await _templateRepo.updateTemplateActiveDays(templateId, days);
@@ -589,11 +597,20 @@ class ScheduleStateProvider extends ChangeNotifier {
     await setTemplateRecurring(templateId, []);
   }
 
+  /// Applies [template] to every loaded day whose weekday is listed in
+  /// [weekdayIndices] (0-indexed, 0 = Monday … 6 = Sunday — the encoding the
+  /// plan dialog's day chips use).
+  ///
+  /// The rolling week in [_weekPlan] starts at *today*, not Monday, so the
+  /// selected weekdays must be mapped to their actual positions; treating
+  /// them as list indices only lines up when today happens to be Monday.
   Future<void> applyTemplateToDays(
-      PlanTemplate template, List<int> dayIndices,) async {
-    for (final dayIdx in dayIndices) {
-      if (dayIdx >= 0 && dayIdx < _weekPlan.length) {
-        await applyTemplate(template, dayIdx);
+      PlanTemplate template, List<int> weekdayIndices,) async {
+    final wanted = weekdayIndices.toSet();
+    for (int i = 0; i < _weekPlan.length; i++) {
+      final weekday = _weekPlan[i].date.weekday - 1; // 0-indexed Mon=0
+      if (wanted.contains(weekday)) {
+        await applyTemplate(template, i);
       }
     }
   }
@@ -662,8 +679,11 @@ class ScheduleStateProvider extends ChangeNotifier {
     }
   }
 
-  void flushState() {
+  /// Best-effort final persistence before the window closes. All task/plan
+  /// writes are already awaited at their call sites; the dismissal set is the
+  /// only state that could still be in flight, so flush it here.
+  Future<void> flushState() async {
     _logger.info('Flushing state on window close');
-    // Implement any final persistence if needed
+    await _persistDismissals();
   }
 }

@@ -36,13 +36,19 @@ class DayPlanDao extends DatabaseAccessor<AppDatabase> with _$DayPlanDaoMixin {
   }
 
   /// Insert a single day plan.
+  ///
+  /// Uses `INSERT OR IGNORE` so a concurrent insert for the same date never
+  /// creates a duplicate (dates are unique as of schema v8); callers must
+  /// re-resolve the id by date afterwards.
   Future<void> insertDayPlan(DayPlansCompanion plan) {
-    return into(dayPlans).insert(plan);
+    return into(dayPlans).insert(plan, mode: InsertMode.insertOrIgnore);
   }
 
-  /// Insert all 7 day plans for a week.
+  /// Insert all 7 day plans for a week, skipping dates that already exist.
   Future<void> insertDayPlans(List<DayPlansCompanion> plans) {
-    return batch((b) => b.insertAll(dayPlans, plans));
+    return batch(
+      (b) => b.insertAll(dayPlans, plans, mode: InsertMode.insertOrIgnore),
+    );
   }
 
   /// Update a day plan.

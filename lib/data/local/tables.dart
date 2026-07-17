@@ -25,8 +25,11 @@ class Tasks extends Table {
 }
 
 /// Represents one day in the weekly schedule.
+///
+/// v8: `date` is unique — exactly one plan may exist per calendar day.
+/// Duplicate rows (a historic source of "lost" tasks) are merged on upgrade.
 @TableIndex(name: 'idx_day_plans_week_key', columns: {#weekKey})
-@TableIndex(name: 'idx_day_plans_date', columns: {#date})
+@TableIndex(name: 'idx_day_plans_date', columns: {#date}, unique: true)
 class DayPlans extends Table {
   TextColumn get id => text()();
   // v5: Removed dateStr and dayOfWeek (now computed)
@@ -102,6 +105,10 @@ class TodoItems extends Table {
   IntColumn get durationMinutes => integer().withDefault(const Constant(0))();
   TextColumn get checklistJson => text().withDefault(const Constant(''))();
   TextColumn get audioFilePath => text().withDefault(const Constant(''))();
+  // v8: Added — wall-clock trigger moment for alarm items (null otherwise)
+  DateTimeColumn get scheduledAt => dateTime().nullable()();
+  // v8: Added — whether an alarm is armed; one-shot alarms flip to false on fire
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
 
   @override
   Set<Column> get primaryKey => {id};
