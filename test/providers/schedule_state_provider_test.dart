@@ -118,6 +118,24 @@ void main() {
       expect(provider.errorMessage, 'Delete failed');
     });
 
+    test('refreshIfDateChanged is a no-op when the date has not changed',
+        () async {
+      provider = ScheduleStateProvider(
+        scheduleRepo: mockScheduleRepo,
+        templateRepo: mockTemplateRepo,
+        prefRepo: mockPrefRepo,
+        logger: mockLogger,
+      );
+      await provider.loadData();
+
+      clearInteractions(mockScheduleRepo);
+
+      // Same calendar day → must not re-hit the repository.
+      await provider.refreshIfDateChanged();
+
+      verifyNever(() => mockScheduleRepo.getUpcomingDays(any()));
+    });
+
     test('applyTemplateToDays maps weekday indices to the correct dates',
         () async {
       // Rolling week starting today — whatever weekday that is.

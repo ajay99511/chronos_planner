@@ -45,6 +45,11 @@ class ScheduleStateProvider extends ChangeNotifier {
   static const String _dismissalPrefKey = 'recurring_dismissals';
   Set<String> _dismissedRecurring = {};
 
+  /// The `today` the currently loaded rolling window was built for. Used to
+  /// detect a date rollover (the app left open past midnight) so the window
+  /// can auto-advance instead of showing stale days. Null until first load.
+  DateTime? _windowAnchorDate;
+
   Completer<void>? _loadingCompleter;
 
   List<DayPlan> get weekPlan => _weekPlan;
@@ -96,6 +101,11 @@ class ScheduleStateProvider extends ChangeNotifier {
       // If week data failed, bail out early — schedule is unusable
       if (_errorMessage != null) return;
 
+      // Week loaded successfully; anchor the window to today so a later
+      // rollover can be detected and auto-advanced.
+      final now = DateTime.now();
+      _windowAnchorDate = DateTime(now.year, now.month, now.day);
+
       final templateResult = await _templateRepo.getAllTemplates();
       final prefResult = await _prefRepo.get('sort_order');
       final dismissResult = await _prefRepo.get(_dismissalPrefKey);
@@ -143,6 +153,22 @@ class ScheduleStateProvider extends ChangeNotifier {
       _loadingCompleter = null;
       notifyListeners();
     }
+  }
+
+  /// Reloads the schedule only if the calendar day has advanced since the
+  /// window was last built (e.g. the desktop app was left open past midnight).
+  ///
+  /// Safe to call on every window focus / app resume: it no-ops when the date
+  /// is unchanged, so it costs nothing in the common case but guarantees the
+  /// rolling window advances and recurring templates repopulate the new day
+  /// without waiting for a full relaunch.
+  Future<void> refreshIfDateChanged() async {
+    if (_isLoading) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_windowAnchorDate == today) return;
+    _logger.info('Date changed ($_windowAnchorDate → $today); refreshing week');
+    await loadData();
   }
 
   Future<void> _seedDefaultTemplates() async {
@@ -615,7 +641,18 @@ class ScheduleStateProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> applyTemplate(PlanTemplate template, [int? index]) async {
+  /// Applies [template] to the day at [index] (or the selected day).
+  ///
+  /// [surfaceErrors] controls failure handling: user-initiated applies surface
+  /// a fatal [errorMessage] (which the schedule screen renders as a full error
+  /// view). Background recurrence passes `false` so a transient write failure
+  /// is logged and the optimistic tasks are rolled back, but the whole
+  /// schedule is never blanked out by an auto-apply the user didn't request.
+  Future<void> applyTemplate(
+    PlanTemplate template, [
+    int? index,
+    bool surfaceErrors = true,
+  ]) async {
     final dayIdx = index ?? _selectedDayIndex;
     if (dayIdx < 0 || dayIdx >= _weekPlan.length) return;
     final dayPlan = _weekPlan[dayIdx];
@@ -652,7 +689,13 @@ class ScheduleStateProvider extends ChangeNotifier {
       ),
       onFailure: (f) {
         _weekPlan = originalPlan;
-        _errorMessage = f.message;
+        if (surfaceErrors) {
+          _errorMessage = f.message;
+        } else {
+          _logger.warning(
+            'Background apply of template ${template.id} failed: ${f.message}',
+          );
+        }
         notifyListeners();
       },
     );
@@ -672,7 +715,9 @@ class ScheduleStateProvider extends ChangeNotifier {
           final alreadyApplied =
               _weekPlan[i].tasks.any((t) => t.sourceTemplateId == tmpl.id);
           if (!alreadyApplied) {
-            await applyTemplate(tmpl, i);
+            // Background auto-apply: never blank the schedule on a transient
+            // failure — log and roll back instead.
+            await applyTemplate(tmpl, i, false);
           }
         }
       }

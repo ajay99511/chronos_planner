@@ -84,6 +84,14 @@ class _WindowHandler extends WindowListener {
   void onWindowClose() async {
     await stateProvider.flushState();
   }
+
+  // Re-focusing the window is the desktop equivalent of an app "resume": if the
+  // app was left open past midnight, advance the rolling week so recurring
+  // templates repopulate the new day. No-ops when the date is unchanged.
+  @override
+  void onWindowFocus() {
+    stateProvider.refreshIfDateChanged();
+  }
 }
 
 class MyApp extends StatelessWidget {

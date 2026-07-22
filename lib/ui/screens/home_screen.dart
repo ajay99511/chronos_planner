@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
+import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/ui/screens/analytics_view.dart';
 import 'package:chronosky/ui/screens/schedule_view.dart';
 import 'package:chronosky/ui/screens/work_plans_view.dart';
@@ -21,7 +22,8 @@ class ChronosHome extends StatefulWidget {
   State<ChronosHome> createState() => _ChronosHomeState();
 }
 
-class _ChronosHomeState extends State<ChronosHome> {
+class _ChronosHomeState extends State<ChronosHome>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _isFocusMode = false;
 
@@ -31,6 +33,29 @@ class _ChronosHomeState extends State<ChronosHome> {
     AnalyticsView(),
     TodoListView(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // On resume (foreground again), advance the rolling week if the calendar
+    // day changed while the app was backgrounded. Covers mobile; on desktop
+    // the window-focus listener in main.dart does the same. Both no-op when
+    // the date is unchanged.
+    if (state == AppLifecycleState.resumed) {
+      context.read<ScheduleStateProvider>().refreshIfDateChanged();
+    }
+  }
 
   Future<void> _toggleFocusMode() async {
     setState(() {
