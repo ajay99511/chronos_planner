@@ -141,7 +141,11 @@ class WorkPlansView extends StatelessWidget {
                             child: NeoButton(
                               height: 36,
                               onPressed: () {
-                                provider.applyTemplate(tmpl);
+                                // Index 0 is always today (the rolling week
+                                // starts at today); the default would apply to
+                                // whichever day is selected on the Schedule
+                                // tab, contradicting the snackbar.
+                                provider.applyTemplate(tmpl, 0);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Plan applied to today'),

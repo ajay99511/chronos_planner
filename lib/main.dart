@@ -44,6 +44,10 @@ void main() async {
       await windowManager.show();
       await windowManager.focus();
     });
+    // Intercept the close so pending state (recurring dismissals) is flushed
+    // to disk before the process exits; the handler destroys the window once
+    // the flush completes.
+    await windowManager.setPreventClose(true);
   }
 
   // Initialize database & run one-time migration from SharedPreferences
@@ -82,7 +86,16 @@ class _WindowHandler extends WindowListener {
 
   @override
   void onWindowClose() async {
-    await stateProvider.flushState();
+    // preventClose is enabled, so the window stays open until we explicitly
+    // destroy it — giving the async flush time to finish.
+    if (await windowManager.isPreventClose()) {
+      try {
+        await stateProvider.flushState();
+      } finally {
+        await windowManager.setPreventClose(false);
+        await windowManager.destroy();
+      }
+    }
   }
 
   // Re-focusing the window is the desktop equivalent of an app "resume": if the

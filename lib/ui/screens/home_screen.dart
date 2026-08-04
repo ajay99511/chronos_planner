@@ -114,29 +114,13 @@ class _ChronosHomeState extends State<ChronosHome>
             ),
           Expanded(
             child: SafeArea(
-              child: AnimatedSwitcher(
-                duration: AppAnimDurations.normal,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0.02, 0),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                        ),
-                      ),
-                      child: child,
-                    ),
-                  );
-                },
-                child: KeyedSubtree(
-                  key: ValueKey(_currentIndex),
-                  child: _screens[_currentIndex],
-                ),
+              // IndexedStack keeps every tab alive so per-screen state
+              // (selected task, view mode, sub-tabs, search queries) survives
+              // navigation. Trades the switch animation for state retention,
+              // which is the standard pattern for primary navigation.
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
               ),
             ),
           ),

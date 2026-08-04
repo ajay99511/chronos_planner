@@ -36,7 +36,16 @@ class ScheduleStateProvider extends ChangeNotifier {
   List<PlanTemplate> _templates = [];
   int _selectedDayIndex = 0;
   bool _isLoading = false;
+
+  /// Fatal load error only (set by [loadData]). While non-null the schedule
+  /// screen shows a full error view with Retry, since there is no data to show.
   String? _errorMessage;
+
+  /// One-shot error from a failed CRUD operation. The operation's optimistic
+  /// change is already rolled back when this is set; the UI reads it via
+  /// [takeTransientError] and shows a snackbar over the (intact) schedule
+  /// instead of replacing the whole screen.
+  String? _transientError;
   final List<UndoAction> _undoStack = [];
   SortOrder _sortOrder = SortOrder.asc;
 
@@ -57,6 +66,14 @@ class ScheduleStateProvider extends ChangeNotifier {
   int get selectedDayIndex => _selectedDayIndex;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  /// Returns and clears the pending operation error, if any. Read-and-clear
+  /// so the same failure is only ever surfaced once.
+  String? takeTransientError() {
+    final error = _transientError;
+    _transientError = null;
+    return error;
+  }
   bool get canUndo => _undoStack.isNotEmpty;
   SortOrder get sortOrder => _sortOrder;
 
@@ -330,7 +347,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => _logger.debug('Task added: ${task.id}'),
       onFailure: (f) {
         if (originalPlan != null) _weekPlan = originalPlan;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -361,7 +378,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _weekPlan = originalPlan;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -405,7 +422,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _weekPlan = originalPlan;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -456,7 +473,7 @@ class ScheduleStateProvider extends ChangeNotifier {
     final result = await _templateRepo.addTemplate(template);
     if (result is Failure) {
       _templates.remove(template);
-      _errorMessage = (result).failure.message;
+      _transientError = (result).failure.message;
       notifyListeners();
     }
   }
@@ -471,7 +488,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => _logger.debug('Template removed: $id'),
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -493,7 +510,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -528,7 +545,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -550,7 +567,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -589,7 +606,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => null,
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -613,7 +630,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onSuccess: (_) => unawaited(_applyRecurringTemplates()),
       onFailure: (f) {
         _templates = original;
-        _errorMessage = f.message;
+        _transientError = f.message;
         notifyListeners();
       },
     );
@@ -643,11 +660,11 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   /// Applies [template] to the day at [index] (or the selected day).
   ///
-  /// [surfaceErrors] controls failure handling: user-initiated applies surface
-  /// a fatal [errorMessage] (which the schedule screen renders as a full error
-  /// view). Background recurrence passes `false` so a transient write failure
-  /// is logged and the optimistic tasks are rolled back, but the whole
-  /// schedule is never blanked out by an auto-apply the user didn't request.
+  /// [surfaceErrors] controls failure handling: user-initiated applies roll
+  /// back the optimistic tasks and report a [takeTransientError] the schedule
+  /// screen shows as a snackbar. Background recurrence passes `false` so a
+  /// transient write failure is only logged and rolled back — never surfaced,
+  /// since the user didn't request that apply.
   Future<void> applyTemplate(
     PlanTemplate template, [
     int? index,
@@ -690,7 +707,7 @@ class ScheduleStateProvider extends ChangeNotifier {
       onFailure: (f) {
         _weekPlan = originalPlan;
         if (surfaceErrors) {
-          _errorMessage = f.message;
+          _transientError = f.message;
         } else {
           _logger.warning(
             'Background apply of template ${template.id} failed: ${f.message}',

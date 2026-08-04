@@ -188,9 +188,28 @@ class _ScheduleViewState extends State<ScheduleView> {
     );
   }
 
+  /// Shows a one-shot snackbar for any operation-level failure (e.g. a failed
+  /// task write) without replacing the whole screen. The provider rolls back
+  /// the optimistic change itself; this only surfaces the error to the user.
+  void _consumeTransientError(ScheduleStateProvider provider) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final error = provider.takeTransientError();
+      if (error == null) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.surfaceLight,
+          content: Text("Couldn't save that change. Please try again."),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScheduleStateProvider>(context);
+    _consumeTransientError(provider);
 
     if (provider.isLoading) {
       return const Center(

@@ -115,7 +115,10 @@ void main() {
       await provider.deleteTask('t1');
 
       expect(provider.weekPlan[0].tasks.length, 1);
-      expect(provider.errorMessage, 'Delete failed');
+      // Operation failures surface transiently (a snackbar) and must NOT set
+      // the fatal errorMessage, which would blank the whole schedule screen.
+      expect(provider.errorMessage, isNull);
+      expect(provider.takeTransientError(), 'Delete failed');
     });
 
     test('refreshIfDateChanged is a no-op when the date has not changed',

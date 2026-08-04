@@ -118,7 +118,9 @@ class _TaskCardState extends State<TaskCard>
         onDismissed: (_) => widget.onDelete(),
         background: _buildDismissBackground(),
         child: GestureDetector(
-          onTap: widget.onTap,
+          // Tap is handled by the body's InkWell so it opens the detail view;
+          // completion has its own explicit toggle control instead of the
+          // whole card surface, so a stray tap can't flip task state.
           onLongPressStart: (details) =>
               _showContextMenu(context, details.globalPosition),
           child: ScaleTransition(
@@ -177,7 +179,7 @@ class _TaskCardState extends State<TaskCard>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.xl),
-          onTap: widget.onToggle,
+          onTap: widget.onTap ?? widget.onToggle,
           child: Padding(
             padding: const EdgeInsets.all(16),
             // Use IntrinsicHeight to allow the left strip to fill the column's height
@@ -231,12 +233,7 @@ class _TaskCardState extends State<TaskCard>
                                   ),
                                 ),
                               ),
-                              if (widget.task.completed)
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 18,
-                                  color: AppColors.health,
-                                ),
+                              _buildToggleButton(),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -293,6 +290,24 @@ class _TaskCardState extends State<TaskCard>
     );
   }
 
+  /// Explicit completion control shown on every card so completing a task is
+  /// always a deliberate tap, while tapping the card body opens details.
+  Widget _buildToggleButton() {
+    final completed = widget.task.completed;
+    return IconButton(
+      onPressed: widget.onToggle,
+      tooltip: completed ? 'Mark as incomplete' : 'Mark as complete',
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        completed
+            ? Icons.check_circle_rounded
+            : Icons.radio_button_unchecked_rounded,
+        size: 22,
+        color: completed ? AppColors.health : Colors.white38,
+      ),
+    );
+  }
+
   Widget _buildListView() {
     final color = _getTypeColor(widget.task.type);
 
@@ -304,10 +319,18 @@ class _TaskCardState extends State<TaskCard>
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: ListTile(
-        onTap: widget.onToggle,
-        leading: Icon(
-          widget.task.completed ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-          color: widget.task.completed ? AppColors.health : Colors.white24,
+        onTap: widget.onTap ?? widget.onToggle,
+        leading: IconButton(
+          onPressed: widget.onToggle,
+          tooltip: widget.task.completed
+              ? 'Mark as incomplete'
+              : 'Mark as complete',
+          icon: Icon(
+            widget.task.completed
+                ? Icons.check_box_rounded
+                : Icons.check_box_outline_blank_rounded,
+            color: widget.task.completed ? AppColors.health : Colors.white24,
+          ),
         ),
         title: Text(
           widget.task.title,

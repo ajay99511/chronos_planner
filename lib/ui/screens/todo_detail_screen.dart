@@ -24,6 +24,12 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
   bool _isEditing = false;
   late bool _completed;
 
+  /// The latest saved version of the item. Starts as [widget.todo] and is
+  /// re-assigned after every save, so later partial updates (checkbox toggles
+  /// outside edit mode) never copy from a stale snapshot and silently revert
+  /// edits made earlier in this session. Null only when creating a new item.
+  domain.TodoItem? _current;
+
   String? _audioFilePath;
   String? _audioFileName;
   List<domain.ChecklistItem> _checklist = [];
@@ -31,6 +37,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _current = widget.todo;
     _titleController = TextEditingController(text: widget.todo?.title ?? '');
     _descController =
         TextEditingController(text: widget.todo?.description ?? '');
@@ -65,10 +72,10 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
     final provider = context.read<TodoProvider>();
     final description = _descController.text.trim();
 
-    if (widget.todo == null) {
+    if (_current == null) {
       provider.addNote(title, description: description);
     } else {
-      final updated = widget.todo!.copyWith(
+      final updated = _current!.copyWith(
         title: title,
         description: description,
         completed: _completed,
@@ -77,9 +84,10 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
         checklist: _checklist,
       );
       provider.updateTodo(updated);
+      _current = updated;
     }
     setState(() => _isEditing = false);
-    if (widget.todo == null) Navigator.pop(context);
+    if (_current == null) Navigator.pop(context);
   }
 
   Future<void> _pickAudioFile() async {
@@ -110,15 +118,15 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
   /// Persists completion/checklist changes made outside edit mode, which
   /// otherwise only live in widget state and are lost on close.
   void _persistViewModeChange() {
-    final todo = widget.todo;
+    final todo = _current;
     if (_isEditing || todo == null) return;
-    context.read<TodoProvider>().updateTodo(
-          todo.copyWith(completed: _completed, checklist: _checklist),
-        );
+    final updated = todo.copyWith(completed: _completed, checklist: _checklist);
+    _current = updated;
+    context.read<TodoProvider>().updateTodo(updated);
   }
 
   Future<void> _confirmDelete() async {
-    final todo = widget.todo;
+    final todo = _current;
     if (todo == null) return;
 
     final confirmed = await showDialog<bool>(
@@ -150,7 +158,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final itemType = widget.todo?.itemType ?? domain.TodoItemType.note;
+    final itemType = _current?.itemType ?? domain.TodoItemType.note;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -162,7 +170,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (widget.todo != null && !_isEditing) ...[
+          if (_current != null && !_isEditing) ...[
             IconButton(
               icon: const Icon(Icons.edit_rounded, color: Colors.white70),
               tooltip: 'Edit',
@@ -199,7 +207,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.todo != null &&
+            if (_current != null &&
                 itemType == domain.TodoItemType.note) ...[
               _buildCompletionToggle(),
               const SizedBox(height: 24),
@@ -344,7 +352,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => TimerView(timer: widget.todo!),
+                builder: (_) => TimerView(timer: _current!),
               ),
             );
           },
