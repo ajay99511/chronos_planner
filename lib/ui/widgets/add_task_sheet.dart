@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/core/services/intelligence_service.dart';
@@ -661,9 +662,14 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
         final estimatedCost = double.tryParse(_costCtrl.text.trim())
                 ?.clamp(0.0, double.maxFinite) ??
             0.0;
-        final t = Task(
+
+        // The model validates rather than the form: the invariants live with
+        // the type, and unlike the constructor's asserts these survive into
+        // release builds. Anything rejected here is shown in the existing
+        // form error line instead of being persisted.
+        final built = Task.create(
           id: _isEditing ? widget.editingTask!.id : const Uuid().v4(),
-          title: _titleCtrl.text,
+          title: _titleCtrl.text.trim(),
           startTime: _startTime,
           endTime: _endTime,
           type: _selectedType,
@@ -671,9 +677,15 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
           energyLevel: _selectedEnergy,
           estimatedCost: estimatedCost,
           actualCost: _isEditing ? widget.editingTask!.actualCost : 0.0,
-          description: _descCtrl.text,
+          description: _descCtrl.text.trim(),
           completed: _isEditing ? widget.editingTask!.completed : false,
         );
+        if (built is Failure<Task>) {
+          setState(() => _formError = built.failure.message);
+          return;
+        }
+        final t = (built as Success<Task>).value;
+
         if (_isEditing) {
           widget.onUpdate?.call(t);
         } else if (widget.showDateControls &&
