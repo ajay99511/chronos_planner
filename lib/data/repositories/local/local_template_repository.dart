@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/repositories/local/db_guard.dart';
 import 'package:chronosky/data/models/plan_template_model.dart' as domain;
 import 'package:chronosky/data/models/task_model.dart' as domain;
 import 'package:chronosky/data/local/app_database.dart';
@@ -13,21 +14,9 @@ class LocalTemplateRepository implements TemplateRepository {
 
   LocalTemplateRepository(this._templateDao);
 
-  Future<Result<T>> _wrap<T>(Future<T> Function() action) async {
-    try {
-      final value = await action();
-      return Success(value);
-    } on DriftWrappedException catch (e) {
-      return Failure(
-          DatabaseFailure('Database operation failed', e.toString()),);
-    } on Exception catch (e) {
-      return Failure(UnknownFailure('Unexpected error', e.toString()));
-    }
-  }
-
   @override
   Future<Result<List<domain.PlanTemplate>>> getAllTemplates() async {
-    return _wrap(() async {
+    return guardDb(() async {
       // 1. Fetch all templates
       final dbTemplates = await _templateDao.getAllTemplates();
       if (dbTemplates.isEmpty) return [];
@@ -68,7 +57,7 @@ class LocalTemplateRepository implements TemplateRepository {
 
   @override
   Future<Result<void>> addTemplate(domain.PlanTemplate template) async {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao.db.transaction(() async {
         await _templateDao.insertTemplate(
           PlanTemplatesCompanion(
@@ -104,7 +93,7 @@ class LocalTemplateRepository implements TemplateRepository {
     String? name,
     String? description,
   }) {
-    return _wrap(() async {
+    return guardDb(() async {
       final updates = PlanTemplatesCompanion(
         name: name != null ? Value(name) : const Value.absent(),
         description:
@@ -116,7 +105,7 @@ class LocalTemplateRepository implements TemplateRepository {
 
   @override
   Future<Result<void>> deleteTemplate(String templateId) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao.deleteTemplate(templateId);
     });
   }
@@ -124,7 +113,7 @@ class LocalTemplateRepository implements TemplateRepository {
   @override
   Future<Result<void>> addTaskToTemplate(
       String templateId, domain.TemplateTask task,) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao
           .insertTemplateTask(_modelTaskToCompanion(task, templateId));
     });
@@ -136,7 +125,7 @@ class LocalTemplateRepository implements TemplateRepository {
     String taskId,
     domain.TemplateTask updatedTask,
   ) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao.updateTemplateTask(
         taskId,
         _modelTaskToCompanion(updatedTask, templateId),
@@ -147,7 +136,7 @@ class LocalTemplateRepository implements TemplateRepository {
   @override
   Future<Result<void>> removeTaskFromTemplate(
       String templateId, String taskId,) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao.deleteTemplateTask(taskId);
     });
   }
@@ -155,7 +144,7 @@ class LocalTemplateRepository implements TemplateRepository {
   @override
   Future<Result<void>> updateTemplateActiveDays(
       String templateId, List<int> days,) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _templateDao.db.transaction(() async {
         // Delete old days
         await (_templateDao.db.delete(_templateDao.templateActiveDays)
@@ -175,7 +164,7 @@ class LocalTemplateRepository implements TemplateRepository {
 
   @override
   Future<Result<List<domain.PlanTemplate>>> getRecurringTemplates() async {
-    return _wrap(() async {
+    return guardDb(() async {
       final dbTemplates = await _templateDao.getRecurringTemplates();
       if (dbTemplates.isEmpty) return [];
 

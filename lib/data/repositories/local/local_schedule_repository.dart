@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/repositories/local/db_guard.dart';
 import 'package:chronosky/data/models/day_plan_model.dart' as domain;
 import 'package:chronosky/data/models/task_model.dart' as domain;
 import 'package:chronosky/data/local/app_database.dart';
@@ -40,17 +41,9 @@ class LocalScheduleRepository implements ScheduleRepository {
     }
   }
 
-  Future<Result<T>> _wrap<T>(Future<T> Function() action) async {
-    try {
-      final value = await _retry(action);
-      return Success(value);
-    } on DriftWrappedException catch (e) {
-      return Failure(
-          DatabaseFailure('Database operation failed', e.toString()),);
-    } on Exception catch (e) {
-      return Failure(UnknownFailure('Unexpected error', e.toString()));
-    }
-  }
+  /// Retries transient filesystem contention, then maps failures via [guardDb].
+  Future<Result<T>> _wrap<T>(Future<T> Function() action) =>
+      guardDb(() => _retry(action));
 
   @override
   Future<Result<List<domain.DayPlan>>> getUpcomingDays(int count) async {
