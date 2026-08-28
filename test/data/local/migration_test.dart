@@ -262,6 +262,68 @@ void main() {
       await database.close();
     });
 
+    test('v7 to v8 preserves the pre-merge state before deleting rows',
+        () async {
+      final executor = NativeDatabase.memory();
+      await executor.ensureOpen(_FakeUser());
+
+      await executor.runCustom('''
+        CREATE TABLE day_plans (
+          id TEXT NOT NULL PRIMARY KEY,
+          date INTEGER NOT NULL,
+          week_key TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          day_plan_id TEXT NOT NULL REFERENCES day_plans (id)
+        );
+      ''');
+
+      final date = DateTime(2026, 7, 17).millisecondsSinceEpoch ~/ 1000;
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-old', date, '2026-W29'],
+      );
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-dup', date, '2026-W29'],
+      );
+      await executor.runCustom(
+        'INSERT INTO tasks (id, title, day_plan_id) VALUES (?, ?, ?)',
+        ['t-1', 'On the duplicate', 'dp-dup'],
+      );
+
+      final database = TestDatabase(executor);
+
+      // Before the merge runs, the doomed row still owns a task — this is the
+      // condition the migration must resolve rather than delete through.
+      expect(await database.tasksStrandedByMerge(), 1);
+
+      await database.migration.onUpgrade(database.createMigrator(), 7, 8);
+
+      // Afterwards nothing points at a row that was removed.
+      expect(await database.tasksStrandedByMerge(), 0);
+
+      // Both tables were snapshotted before the destructive step, so the
+      // merge is reversible.
+      final backedUpPlans = await database
+          .customSelect('SELECT id FROM day_plans_backup_v7 ORDER BY id')
+          .get();
+      expect(
+        backedUpPlans.map((r) => r.read<String>('id')).toList(),
+        ['dp-dup', 'dp-old'],
+      );
+      final backedUpTasks = await database
+          .customSelect('SELECT day_plan_id FROM tasks_backup_v7')
+          .get();
+      expect(backedUpTasks.single.read<String>('day_plan_id'), 'dp-dup');
+
+      await database.close();
+    });
+
     test('v8 to v9 sweeps rows orphaned while foreign keys were off', () async {
       final executor = NativeDatabase.memory();
       await executor.ensureOpen(_FakeUser());

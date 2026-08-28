@@ -148,6 +148,25 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Counts tasks still attached to a `day_plans` row that the v8 duplicate
+  /// merge is about to delete.
+  ///
+  /// The merge reparents tasks onto the surviving row per date and then drops
+  /// the duplicates. This is the invariant that has to hold in between: once
+  /// reparenting is done, nothing may still point at a doomed row. A non-zero
+  /// result means the delete would strand user data.
+  @visibleForTesting
+  Future<int> tasksStrandedByMerge() async {
+    final row = await customSelect(
+      'SELECT COUNT(*) AS cnt FROM tasks WHERE day_plan_id IN ('
+      '  SELECT id FROM day_plans WHERE rowid NOT IN ('
+      '    SELECT MIN(rowid) FROM day_plans GROUP BY date'
+      '  )'
+      ')',
+    ).getSingle();
+    return row.read<int>('cnt');
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
@@ -393,6 +412,19 @@ class AppDatabase extends _$AppDatabase {
             // attached to the others silently disappeared. Merge duplicates
             // into the oldest row per date, then enforce uniqueness.
             if (await tableExists('day_plans') && await tableExists('tasks')) {
+              // Snapshot both tables before a destructive, non-reversible
+              // merge. Cheap — day_plans holds roughly seven rows per week —
+              // and it is the only route back if the reparenting below turns
+              // out to be wrong on a shape we have not seen.
+              await customStatement(
+                'CREATE TABLE IF NOT EXISTS day_plans_backup_v7 '
+                'AS SELECT * FROM day_plans',
+              );
+              await customStatement(
+                'CREATE TABLE IF NOT EXISTS tasks_backup_v7 '
+                'AS SELECT * FROM tasks',
+              );
+
               await customStatement(
               'UPDATE tasks SET day_plan_id = ('
               '  SELECT dp_keep.id FROM day_plans dp_keep'
@@ -406,6 +438,21 @@ class AppDatabase extends _$AppDatabase {
               '  )'
               ')',
               );
+
+              // Fail closed: refuse to delete rows that still own tasks
+              // rather than silently dropping the user's schedule. Should be
+              // unreachable — the reparent above covers every duplicate — so
+              // reaching it means the merge does not understand the data.
+              final stranded = await tasksStrandedByMerge();
+              if (stranded > 0) {
+                throw StateError(
+                  'v8 migration aborted: $stranded task(s) still reference a '
+                  'duplicate day_plans row after reparenting. No rows were '
+                  'deleted; the pre-migration state is preserved in '
+                  'day_plans_backup_v7 and tasks_backup_v7.',
+                );
+              }
+
               await customStatement(
                 'DELETE FROM day_plans WHERE rowid NOT IN ('
                 '  SELECT MIN(rowid) FROM day_plans GROUP BY date'
