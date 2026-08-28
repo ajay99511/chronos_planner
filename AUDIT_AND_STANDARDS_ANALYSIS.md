@@ -315,7 +315,10 @@ expensive ones to retrofit.
   }
   ```
 
-  **After** (extract once into `lib/core/result.dart` and delete all four copies — see M-1)
+  **After** (extract once and delete all four copies — see M-1). *Implementation note: this
+  landed in `lib/data/repositories/local/db_guard.dart`, not `core/result.dart` — putting it in
+  `core` would make the shared `Result` primitive import drift, inverting the
+  volatile-depends-on-stable rule in `design-judgment.md` §3.*
   ```dart
   /// Runs [action], mapping any throwable into the [Result] taxonomy.
   ///
@@ -362,18 +365,23 @@ expensive ones to retrofit.
 
 ---
 
-#### H-1. `DayPlan` violates the `hashCode`/`==` contract
+#### H-1. Three models violate the `hashCode`/`==` contract
 
-- **Location:** `lib/data/models/day_plan_model.dart` (Lines 55–65)
+- **Location:** `lib/data/models/day_plan_model.dart` (Lines 55–65), `lib/data/models/todo_item_model.dart` (Lines 166–197), `lib/data/models/plan_template_model.dart` (Lines 234–251)
 - **Observation:** `operator ==` compares tasks structurally with `listEquals(tasks, other.tasks)`
   (`:62`), but `hashCode` uses `tasks.hashCode` (`:65`) — which for a Dart `List` is **identity-based**.
   Two `DayPlan`s that are `==` will therefore have different hash codes whenever their task lists are
   distinct objects, which is always the case here: every mutation path builds a fresh list
   (`schedule_state_provider.dart:340, 370, 395, 698`).
 
-  `Task` gets this right by comparing scalar fields only; `TodoItem.hashCode`
-  (`todo_item_model.dart:194`) has the same latent bug with `checklist.hashCode` versus
-  `listEquals(checklist, ...)` at `:179`.
+  `TodoItem.hashCode` (`todo_item_model.dart:194`) has the same bug with `checklist.hashCode`
+  versus `listEquals(checklist, ...)` at `:179`, and so does `PlanTemplate.hashCode`
+  (`plan_template_model.dart:250-251`) on **both** `tasks` and `activeDays`. Only `Task` gets it
+  right, by comparing scalar fields only.
+
+  > **Correction (found during Phase 1 implementation):** this finding originally named two
+  > affected types. `PlanTemplate` is a third. It was missed because the audit read that file for
+  > its validation asserts and did not re-check its equality pair.
 - **Impact:** `DayPlan` cannot be used in a `Set`, as a `Map` key, or in any hash-based
   memoization/diffing — lookups miss for objects that compare equal. It is a latent correctness trap
   for the exact refactor recommended in H-4.
@@ -813,8 +821,8 @@ expensive ones to retrofit.
   The C-3 defect is a direct consequence: the `on Exception` bug exists in all four copies and would
   need four separate fixes.
 - **Impact:** Divergence risk on the app's single most safety-critical helper.
-- **Remediation:** Extract to a top-level `guard<T>` in `lib/core/result.dart` (full implementation
-  given under C-3) and delete all four private copies. `local_schedule_repository.dart` keeps its
+- **Remediation:** Extract to a shared `guardDb<T>` in the data layer (full implementation given
+  under C-3) and delete all four private copies. `local_schedule_repository.dart` keeps its
   `_retry` (`:28-41`) as a composed inner call: `guard(() => _retry(action))`.
 
 ---
