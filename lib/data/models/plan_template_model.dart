@@ -242,11 +242,14 @@ class PlanTemplate {
           listEquals(tasks, other.tasks) &&
           listEquals(activeDays, other.activeDays);
 
+  // Both collections are compared with listEquals above, so both must be
+  // hashed by content. See the note on DayPlan.hashCode.
   @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      description.hashCode ^
-      tasks.hashCode ^
-      activeDays.hashCode;
+  int get hashCode => Object.hash(
+        id,
+        name,
+        description,
+        Object.hashAll(tasks),
+        Object.hashAll(activeDays),
+      );
 }

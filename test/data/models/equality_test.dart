@@ -1,4 +1,5 @@
 import 'package:chronosky/data/models/day_plan_model.dart';
+import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/todo_item_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +65,38 @@ void main() {
 
       expect(a, isNot(equals(b)));
       expect(a.hashCode, isNot(equals(b.hashCode)));
+    });
+  });
+
+  group('PlanTemplate', () {
+    PlanTemplate template({List<int> activeDays = const [4]}) => PlanTemplate(
+          id: 'tmpl-1',
+          name: 'Deep Work Friday',
+          description: 'Focused coding schedule',
+          tasks: [
+            TemplateTask(
+              id: 'ttask-1',
+              templateId: 'tmpl-1',
+              title: 'Deep Work Block',
+              startTime: '09:00',
+              endTime: '12:00',
+              type: TaskType.work,
+            ),
+          ],
+          activeDays: activeDays,
+        );
+
+    test('equal templates built from separate lists share a hash code', () {
+      expect(template(), equals(template()));
+      expect(template().hashCode, equals(template().hashCode));
+      expect({template(), template()}, hasLength(1));
+    });
+
+    test('templates differing only in active days hash differently', () {
+      expect(template(activeDays: const [4]),
+          isNot(equals(template(activeDays: const [1]))),);
+      expect(template(activeDays: const [4]).hashCode,
+          isNot(equals(template(activeDays: const [1]).hashCode)),);
     });
   });
 
