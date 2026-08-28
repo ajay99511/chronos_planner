@@ -261,6 +261,85 @@ void main() {
 
       await database.close();
     });
+
+    test('v8 to v9 sweeps rows orphaned while foreign keys were off', () async {
+      final executor = NativeDatabase.memory();
+      await executor.ensureOpen(_FakeUser());
+
+      await executor.runCustom('''
+        CREATE TABLE day_plans (
+          id TEXT NOT NULL PRIMARY KEY,
+          date INTEGER NOT NULL,
+          week_key TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          day_plan_id TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE plan_templates (
+          id TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE template_active_days (
+          template_id TEXT NOT NULL,
+          day_index INTEGER NOT NULL,
+          PRIMARY KEY (template_id, day_index)
+        );
+      ''');
+
+      final date = DateTime(2026, 8, 24).millisecondsSinceEpoch ~/ 1000;
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-live', date, '2026-W35'],
+      );
+      // One task on a real day plan, one left behind by a delete that ran
+      // while cascades were inert.
+      await executor.runCustom(
+        'INSERT INTO tasks (id, title, day_plan_id) VALUES (?, ?, ?)',
+        ['t-live', 'Still scheduled', 'dp-live'],
+      );
+      await executor.runCustom(
+        'INSERT INTO tasks (id, title, day_plan_id) VALUES (?, ?, ?)',
+        ['t-orphan', 'Day plan long gone', 'dp-deleted'],
+      );
+      await executor.runCustom(
+        'INSERT INTO template_active_days (template_id, day_index) '
+        'VALUES (?, ?)',
+        ['tmpl-deleted', 3],
+      );
+
+      final database = TestDatabase(executor);
+      final m = database.createMigrator();
+      await database.migration.onUpgrade(m, 8, 9);
+
+      // The orphan is gone; the reachable task is untouched.
+      final remaining =
+          await database.customSelect('SELECT id FROM tasks').get();
+      expect(remaining.map((r) => r.read<String>('id')).toList(), ['t-live']);
+
+      final days = await database
+          .customSelect('SELECT template_id FROM template_active_days')
+          .get();
+      expect(days, isEmpty);
+
+      // Removal is reversible: orphans are preserved before deletion.
+      final backup = await database
+          .customSelect('SELECT id FROM tasks_orphaned_v8')
+          .get();
+      expect(backup.map((r) => r.read<String>('id')).toList(), ['t-orphan']);
+
+      // Re-running the migration must be a no-op, not an error.
+      await database.migration.onUpgrade(m, 8, 9);
+
+      await database.close();
+    });
   });
 }
 

@@ -24,7 +24,7 @@ part 'app_database.g.dart';
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
 ///
-/// ## Schema Version: 5
+/// ## Schema Version: 9
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
@@ -34,6 +34,8 @@ part 'app_database.g.dart';
 /// - **v6→v7**: Added `updatedAt` to TodoItems (backfilled from createdAt)
 /// - **v7→v8**: Merged duplicate DayPlans rows, made `day_plans.date` unique,
 ///   added `scheduledAt`/`enabled` to TodoItems for alarms
+/// - **v8→v9**: Swept rows orphaned while `PRAGMA foreign_keys` was off (see
+///   [_sweepOrphans]); enforcement is now enabled in `beforeOpen`
 ///
 /// ## Tables:
 /// | Table | Purpose |
@@ -88,12 +90,77 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
+
+  /// Tables whose child rows could be orphaned while foreign keys were off,
+  /// paired with the parent they must reference.
+  ///
+  /// `(child table, child column, parent table, parent column)`.
+  ///
+  /// These identifiers are interpolated into SQL by [_sweepOrphans] because
+  /// SQL cannot parameterize table or column names. That is safe only because
+  /// this list is a private compile-time constant — never widen it to accept
+  /// runtime input.
+  static const List<(String, String, String, String)> _childToParent = [
+    ('tasks', 'day_plan_id', 'day_plans', 'id'),
+    ('template_tasks', 'template_id', 'plan_templates', 'id'),
+    ('template_active_days', 'template_id', 'plan_templates', 'id'),
+  ];
+
+  /// Removes rows whose parent no longer exists.
+  ///
+  /// `ON DELETE CASCADE` was declared from schema v5 but never enforced,
+  /// because SQLite defaults `PRAGMA foreign_keys` to OFF per connection and
+  /// nothing turned it on. Any delete performed before v9 therefore left its
+  /// children behind. Enabling enforcement does not clean those up — SQLite
+  /// only validates rows it touches — so they are swept once here.
+  ///
+  /// Orphans are copied to `<table>_orphaned_v8` before deletion. They are
+  /// unreachable by the app (every read joins through the missing parent), but
+  /// they are still user-authored rows, so the removal stays reversible.
+  Future<void> _sweepOrphans() async {
+    Future<bool> tableExists(String name) async {
+      final result = await customSelect(
+        "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type='table' AND name=?",
+        variables: [Variable.withString(name)],
+      ).getSingle();
+      return result.read<int>('cnt') > 0;
+    }
+
+    for (final (child, childCol, parent, parentCol) in _childToParent) {
+      // A partially-built schema is normal here: onUpgrade steps are gated on
+      // `from` alone, so this runs against databases that predate some of
+      // these tables. Matches the existence checks in the v5 and v8 steps.
+      if (!await tableExists(child) || !await tableExists(parent)) continue;
+
+      final orphanFilter = '$childCol NOT IN (SELECT $parentCol FROM $parent)';
+
+      final count = await customSelect(
+        'SELECT COUNT(*) AS cnt FROM $child WHERE $orphanFilter',
+      ).getSingle();
+      if (count.read<int>('cnt') == 0) continue;
+
+      await customStatement(
+        'CREATE TABLE IF NOT EXISTS ${child}_orphaned_v8 '
+        'AS SELECT * FROM $child WHERE $orphanFilter',
+      );
+      await customStatement('DELETE FROM $child WHERE $orphanFilter');
+    }
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+        },
+        // SQLite defaults `foreign_keys` to OFF on every connection, which
+        // silently turns the ON DELETE CASCADE clauses in tables.dart into
+        // no-ops. Set here rather than in onUpgrade because migrations run
+        // inside a transaction (the pragma is a no-op there) and because
+        // TableMigration's create-copy-drop-rename cycle would trip the
+        // constraints it is in the middle of rebuilding.
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON');
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -364,6 +431,12 @@ class AppDatabase extends _$AppDatabase {
                 );
               }
             }
+          }
+          if (from < 9) {
+            // Clears the backlog left by v5–v8 deletes that ran without
+            // foreign key enforcement. Safe to re-run: the sweep is a no-op
+            // once no orphans remain.
+            await _sweepOrphans();
           }
         },
       );
