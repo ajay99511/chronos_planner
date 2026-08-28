@@ -61,6 +61,10 @@ class DayPlan {
           date == other.date &&
           listEquals(tasks, other.tasks);
 
+  // Hashes the task contents to match the listEquals in operator ==.
+  // List.hashCode is identity-based, so equal plans backed by distinct List
+  // objects — the normal case, since every mutation rebuilds the list — hashed
+  // differently and broke Set/Map membership.
   @override
-  int get hashCode => id.hashCode ^ date.hashCode ^ tasks.hashCode;
+  int get hashCode => Object.hash(id, date, Object.hashAll(tasks));
 }
