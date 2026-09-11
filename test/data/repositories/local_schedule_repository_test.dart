@@ -5,6 +5,7 @@ import 'package:chronosky/data/local/app_database.dart';
 import 'package:chronosky/data/local/daos/day_plan_dao.dart';
 import 'package:chronosky/data/local/daos/task_dao.dart';
 import 'package:chronosky/data/models/day_plan_model.dart' as domain;
+import 'package:chronosky/data/models/task_model.dart' as domain;
 import 'package:chronosky/data/repositories/local/local_schedule_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,6 +122,48 @@ void main() {
 
       expect(result, isA<Failure>());
       expect((result as Failure).failure, isA<DatabaseFailure>());
+    });
+
+    // `Error` does not implement `Exception`, so a catch clause written as
+    // `on Exception` lets StateError/RangeError escape the Result envelope
+    // entirely. The caller's rollback never runs and the write is lost with
+    // no trace. See C-3 in AUDIT_AND_STANDARDS_ANALYSIS.md.
+    test('an Error thrown by a DAO is captured as Failure, not rethrown',
+        () async {
+      when(() => mockDayPlanDao.getDayPlansFrom(any(), any()))
+          .thenThrow(StateError('database in an impossible state'));
+
+      final result = await repository.getUpcomingDays(1);
+
+      expect(result, isA<Failure>());
+      expect((result as Failure).failure, isA<UnknownFailure>());
+    });
+
+    test('addTaskToDate reports a Failure when the day plan cannot be resolved',
+        () async {
+      // Reproduces the real path: the INSERT OR IGNORE is ignored because
+      // another row already claims the date, so the id re-read returns null
+      // and _ensureDayPlanId throws StateError.
+      when(() => mockDayPlanDao.getDayPlanId(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockDayPlanDao.insertDayPlan(any())).thenAnswer((_) async {});
+
+      final result = await repository.addTaskToDate(
+        DateTime(2026, 8, 24),
+        domain.Task(
+          id: 'task-1',
+          title: 'Write the audit',
+          startTime: '09:00',
+          endTime: '11:00',
+          type: domain.TaskType.work,
+        ),
+      );
+
+      expect(
+        result,
+        isA<Failure>(),
+        reason: 'the caller must be able to roll back its optimistic update',
+      );
     });
   });
 }

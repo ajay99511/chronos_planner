@@ -1,5 +1,44 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:chronosky/core/result.dart';
+
+/// Matches a 24-hour `HH:mm` clock time.
+///
+/// Shared by [Task] and `TemplateTask`; both persist times as strings, and
+/// sorting relies on lexical order matching chronological order, which only
+/// holds while every value is zero-padded and in range.
+final RegExp kClockTimeFormat = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+
+/// Validates the fields common to a task and a template task.
+///
+/// Returns the first [ValidationFailure] found, or null when everything is
+/// legal. Kept as a shared function because the two models express the same
+/// invariants and must not drift apart.
+ValidationFailure? validateTaskFields({
+  required String title,
+  required String startTime,
+  required String endTime,
+  required double estimatedCost,
+  double actualCost = 0,
+}) {
+  if (title.isEmpty || title.length > 200) {
+    return const ValidationFailure('Title must be 1-200 characters.');
+  }
+  if (!kClockTimeFormat.hasMatch(startTime)) {
+    return ValidationFailure('Invalid start time: "$startTime". Use HH:mm.');
+  }
+  if (!kClockTimeFormat.hasMatch(endTime)) {
+    return ValidationFailure('Invalid end time: "$endTime". Use HH:mm.');
+  }
+  if (estimatedCost < 0 || !estimatedCost.isFinite) {
+    return const ValidationFailure('Estimated cost must be zero or more.');
+  }
+  if (actualCost < 0 || !actualCost.isFinite) {
+    return const ValidationFailure('Actual cost must be zero or more.');
+  }
+  return null;
+}
+
 /// Categorization of tasks by life domain.
 enum TaskType { work, personal, health, leisure }
 
@@ -49,6 +88,56 @@ class Task {
         'estimatedCost must be >= 0.0 and finite',);
     assert(actualCost >= 0.0 && actualCost.isFinite,
         'actualCost must be >= 0.0 and finite',);
+  }
+
+  /// Validates [title], the clock times and the costs, returning either the
+  /// task or the reason it was rejected.
+  ///
+  /// Use this for anything originating outside the database — user input, an
+  /// import, a template being materialised. The unnamed constructor asserts
+  /// the same invariants, but asserts are compiled out of release builds, so
+  /// they document intent rather than enforce it. This returns a [Result]
+  /// instead of throwing because invalid input is an expected outcome that
+  /// belongs in the contract, not an exceptional one.
+  static Result<Task> create({
+    required String id,
+    required String title,
+    required String startTime,
+    required String endTime,
+    required TaskType type,
+    TaskPriority priority = TaskPriority.medium,
+    TaskEnergyLevel energyLevel = TaskEnergyLevel.medium,
+    double estimatedCost = 0.0,
+    double actualCost = 0.0,
+    String description = '',
+    String sourceTemplateId = '',
+    bool completed = false,
+  }) {
+    final failure = validateTaskFields(
+      title: title,
+      startTime: startTime,
+      endTime: endTime,
+      estimatedCost: estimatedCost,
+      actualCost: actualCost,
+    );
+    if (failure != null) return Failure(failure);
+
+    return Success(
+      Task(
+        id: id,
+        title: title,
+        startTime: startTime,
+        endTime: endTime,
+        type: type,
+        priority: priority,
+        energyLevel: energyLevel,
+        estimatedCost: estimatedCost,
+        actualCost: actualCost,
+        description: description,
+        sourceTemplateId: sourceTemplateId,
+        completed: completed,
+      ),
+    );
   }
 
   Task copyWith({
