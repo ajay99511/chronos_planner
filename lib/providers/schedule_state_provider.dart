@@ -11,6 +11,7 @@ import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
 import 'package:chronosky/data/repositories/template_repository.dart';
 import 'package:chronosky/data/repositories/preference_repository.dart';
+import 'package:chronosky/domain/clock_time.dart';
 
 enum UndoType { deleteTask, clearDay }
 
@@ -276,20 +277,16 @@ class ScheduleStateProvider extends ChangeNotifier {
     );
   }
 
-  /// Parses an "HH:mm" string into minutes-since-midnight (0 on failure).
-  static int _toMinutes(String time) {
-    final parts = time.split(':');
-    if (parts.length != 2) return 0;
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = int.tryParse(parts[1]) ?? 0;
-    return h * 60 + m;
-  }
-
   /// Returns existing tasks on [date] whose time range overlaps [task].
   ///
-  /// Overnight ranges (end <= start) are normalized by adding 24h. Tasks
-  /// sharing [task]'s id (or [excludeId]) are ignored so editing a task does
-  /// not flag it against itself. Used to warn the user about double-booking.
+  /// Overnight ranges are handled by [TimeRange]. Tasks sharing [task]'s id
+  /// (or [excludeId]) are ignored so editing a task does not flag it against
+  /// itself. Used to warn the user about double-booking.
+  ///
+  /// A task whose stored times cannot be parsed is skipped rather than
+  /// compared. Previously an unparseable time silently became 00:00, which
+  /// normalised to a full-day span and reported an overlap against every
+  /// other task on the day.
   List<Task> overlappingTasks(Task task, DateTime date, {String? excludeId}) {
     final idx = _weekPlan.indexWhere(
       (p) =>
@@ -299,17 +296,15 @@ class ScheduleStateProvider extends ChangeNotifier {
     );
     if (idx == -1) return const [];
 
+    final subject = TimeRange.tryParse(task.startTime, task.endTime);
+    if (subject == null) return const [];
     final skipId = excludeId ?? task.id;
-    var aStart = _toMinutes(task.startTime);
-    var aEnd = _toMinutes(task.endTime);
-    if (aEnd <= aStart) aEnd += 24 * 60;
 
     return _weekPlan[idx].tasks.where((t) {
       if (t.id == skipId) return false;
-      var bStart = _toMinutes(t.startTime);
-      var bEnd = _toMinutes(t.endTime);
-      if (bEnd <= bStart) bEnd += 24 * 60;
-      return aStart < bEnd && bStart < aEnd;
+      final other = TimeRange.tryParse(t.startTime, t.endTime);
+      if (other == null) return false;
+      return subject.overlaps(other);
     }).toList();
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/task_model.dart';
+import 'package:chronosky/domain/clock_time.dart';
 
 /// Premium task detail panel widget.
 ///
@@ -328,11 +329,17 @@ class TaskDetailPanel extends StatelessWidget {
   }
 
   Widget _buildTimelineCard(Color typeColor, String duration) {
-    final endTime = _parseTime(task.endTime);
+    // A task whose stored end time is unparseable is never treated as
+    // overdue. The previous version called int.parse directly here, outside
+    // any guard, so a malformed value threw during build.
+    final endTime = ClockTime.tryParse(task.endTime);
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-    final taskEnd = todayStart.add(Duration(minutes: endTime));
-    final isOverdue = taskEnd.isBefore(now) && !task.completed;
+    final isOverdue = endTime != null &&
+        todayStart
+            .add(Duration(minutes: endTime.minutesSinceMidnight))
+            .isBefore(now) &&
+        !task.completed;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -767,34 +774,13 @@ class TaskDetailPanel extends StatelessWidget {
   }
 
   String _calculateDuration() {
-    try {
-      final start = _parseTime(task.startTime);
-      final end = _parseTime(task.endTime);
-      final diff = end - start;
+    final range = TimeRange.tryParse(task.startTime, task.endTime);
+    if (range == null) return 'Unknown';
+    final hours = range.duration.inHours;
+    final minutes = range.duration.inMinutes % 60;
 
-      if (diff < 0) {
-        // Overnight task
-        final overnight = diff + (24 * 60);
-        final hours = overnight ~/ 60;
-        final minutes = overnight % 60;
-        return '${hours}h ${minutes}m';
-      }
-
-      final hours = diff ~/ 60;
-      final minutes = diff % 60;
-
-      if (hours > 0) {
-        return '${hours}h ${minutes}m';
-      }
-      return '${minutes}m';
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
-
-  int _parseTime(String time) {
-    final parts = time.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    if (hours > 0) return '${hours}h ${minutes}m';
+    return '${minutes}m';
   }
 
   Color _getEnergyColor(TaskEnergyLevel level) {

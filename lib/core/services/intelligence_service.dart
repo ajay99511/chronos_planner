@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:chronosky/data/models/task_model.dart';
+import 'package:chronosky/domain/clock_time.dart';
 
 /// Analytics and recommendation engine for productivity insights.
 class IntelligenceService {
@@ -32,41 +33,25 @@ class IntelligenceService {
     final completedTasks = history.where((t) => t.completed);
 
     for (final task in completedTasks) {
-      final start = _parseTime(task.startTime);
-      final end = _parseTime(task.endTime);
-      if (start == null || end == null) continue;
+      final range = TimeRange.tryParse(task.startTime, task.endTime);
+      if (range == null) continue;
 
-      double current = start;
-      double finish = end;
-      if (finish <= current) finish += 24; // Handle overnight
+      // Intensity weight based on priority and energy level
+      double weight = 1.0;
+      if (task.priority == TaskPriority.high) weight += 0.5;
+      if (task.energyLevel == TaskEnergyLevel.high) weight += 0.5;
 
-      while (current < finish) {
-        final hour = (current.floor() % 24);
-        final nextHour = (current.floor() + 1).toDouble();
-        final durationInThisHour = (nextHour < finish ? nextHour : finish) - current;
-
-        // Intensity weight based on priority and energy level
-        double weight = 1.0;
-        if (task.priority == TaskPriority.high) weight += 0.5;
-        if (task.energyLevel == TaskEnergyLevel.high) weight += 0.5;
-
-        hourlyIntensity[hour] = (hourlyIntensity[hour] ?? 0.0) + (durationInThisHour * weight);
-        current = nextHour;
+      for (var hour = 0; hour < 24; hour++) {
+        final minutes = range.minutesInHour(hour);
+        if (minutes == 0) continue;
+        hourlyIntensity[hour] =
+            (hourlyIntensity[hour] ?? 0.0) + (minutes / 60.0) * weight;
       }
     }
 
     // Normalize: divide by total number of days in history to get "average daily intensity"
     // For now, we'll just return raw aggregated intensity as relative peaks.
     return hourlyIntensity;
-  }
-
-  static double? _parseTime(String time) {
-    final parts = time.split(':');
-    if (parts.length != 2) return null;
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    if (h == null || m == null) return null;
-    return h + (m / 60.0);
   }
 
   /// Recommends an optimal time for a task based on its energy requirement.
