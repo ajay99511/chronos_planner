@@ -70,7 +70,7 @@ void main() async {
 
   // Initialize database & run one-time migration from SharedPreferences
   final db = AppDatabase.instance;
-  await MigrationHelper.migrateIfNeeded(db);
+  await MigrationHelper.migrateIfNeeded(db, logger);
 
   // Create local repositories
   final scheduleRepo = LocalScheduleRepository(db.dayPlanDao, db.taskDao);
