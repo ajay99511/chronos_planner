@@ -830,7 +830,14 @@ class _ScheduleViewState extends State<ScheduleView> {
           ),
         ],
       ),
-    );
+      // These controllers outlive the builder closure, so they have to be
+      // released when the route pops — otherwise every open of this dialog
+      // leaks two ChangeNotifiers and their IME connections, which matters in
+      // a desktop session designed to stay open for days.
+    ).whenComplete(() {
+      nameCtrl.dispose();
+      descCtrl.dispose();
+    });
   }
 }
 

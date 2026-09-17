@@ -181,18 +181,21 @@ class TodoItem {
           scheduledAt == other.scheduledAt &&
           enabled == other.enabled;
 
+  // Object.hashAll over the checklist to match the listEquals in operator ==;
+  // List.hashCode is identity-based. See the note on DayPlan.hashCode.
   @override
-  int get hashCode =>
-      id.hashCode ^
-      title.hashCode ^
-      description.hashCode ^
-      completed.hashCode ^
-      createdAt.hashCode ^
-      updatedAt.hashCode ^
-      itemType.hashCode ^
-      durationMinutes.hashCode ^
-      checklist.hashCode ^
-      audioFilePath.hashCode ^
-      scheduledAt.hashCode ^
-      enabled.hashCode;
+  int get hashCode => Object.hash(
+        id,
+        title,
+        description,
+        completed,
+        createdAt,
+        updatedAt,
+        itemType,
+        durationMinutes,
+        Object.hashAll(checklist),
+        audioFilePath,
+        scheduledAt,
+        enabled,
+      );
 }

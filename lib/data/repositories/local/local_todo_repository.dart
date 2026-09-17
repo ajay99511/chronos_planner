@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import 'package:chronosky/core/result.dart';
+import 'package:chronosky/data/repositories/local/db_guard.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/data/local/app_database.dart';
 import 'package:chronosky/data/local/daos/todo_item_dao.dart';
@@ -13,21 +14,9 @@ class LocalTodoRepository implements TodoRepository {
 
   LocalTodoRepository(this._todoItemDao);
 
-  Future<Result<T>> _wrap<T>(Future<T> Function() action) async {
-    try {
-      final value = await action();
-      return Success(value);
-    } on DriftWrappedException catch (e) {
-      return Failure(
-          DatabaseFailure('Database operation failed', e.toString()),);
-    } on Exception catch (e) {
-      return Failure(UnknownFailure('Unexpected error', e.toString()));
-    }
-  }
-
   @override
   Future<Result<List<domain.TodoItem>>> loadTodos() {
-    return _wrap(() async {
+    return guardDb(() async {
       final dbItems = await _todoItemDao.getAllTodos();
       return dbItems.map(_dbTodoToModel).toList();
     });
@@ -49,7 +38,7 @@ class LocalTodoRepository implements TodoRepository {
 
   @override
   Future<Result<void>> addTodo(domain.TodoItem todo) {
-    return _wrap(() async {
+    return guardDb(() async {
       // Validate title 1-200 chars as per Task 5.4
       if (todo.title.isEmpty || todo.title.length > 200) {
         throw Exception('Invalid title length');
@@ -61,7 +50,7 @@ class LocalTodoRepository implements TodoRepository {
 
   @override
   Future<Result<void>> updateTodo(domain.TodoItem todo) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _todoItemDao.db
           .update(_todoItemDao.todoItems)
           .replace(_modelTodoToDataClass(todo));
@@ -70,7 +59,7 @@ class LocalTodoRepository implements TodoRepository {
 
   @override
   Future<Result<void>> deleteTodo(String id) {
-    return _wrap(() async {
+    return guardDb(() async {
       await _todoItemDao.deleteTodoById(id);
     });
   }

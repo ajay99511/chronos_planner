@@ -27,7 +27,25 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Logger
-  final logger = kDebugMode ? const ConsoleLogger() : const NoOpLogger();
+  final logger = createLogger(debugMode: kDebugMode);
+
+  // Nothing may fail silently. Several write paths are fired from UI callbacks
+  // without awaiting, so a throw that escapes a repository surfaces here and
+  // nowhere else — previously it was discarded and the user was left looking
+  // at an optimistic update that never persisted.
+  FlutterError.onError = (details) {
+    logger.error(
+      'Uncaught framework error',
+      details.exception,
+      details.stack,
+    );
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    logger.error('Uncaught async error', error, stack);
+    return true; // handled: reporting it is the recovery
+  };
+
   logger.info('App starting...');
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {

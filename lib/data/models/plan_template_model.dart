@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:chronosky/core/result.dart';
 import 'package:chronosky/data/models/task_model.dart';
 
 /// Core domain model representing a task within a template.
@@ -35,6 +36,47 @@ class TemplateTask {
     assert(timeRegex.hasMatch(endTime), 'Invalid endTime format: $endTime');
     assert(estimatedCost >= 0.0 && estimatedCost.isFinite,
         'estimatedCost must be >= 0.0 and finite',);
+  }
+
+  /// Validates the same invariants as [Task.create], returning either the
+  /// template task or the reason it was rejected.
+  ///
+  /// See [Task.create] for why this returns a [Result] rather than throwing,
+  /// and why the constructor's asserts are not sufficient on their own.
+  static Result<TemplateTask> create({
+    required String id,
+    required String templateId,
+    required String title,
+    required String startTime,
+    required String endTime,
+    required TaskType type,
+    TaskPriority priority = TaskPriority.medium,
+    TaskEnergyLevel energyLevel = TaskEnergyLevel.medium,
+    double estimatedCost = 0.0,
+    String description = '',
+  }) {
+    final failure = validateTaskFields(
+      title: title,
+      startTime: startTime,
+      endTime: endTime,
+      estimatedCost: estimatedCost,
+    );
+    if (failure != null) return Failure(failure);
+
+    return Success(
+      TemplateTask(
+        id: id,
+        templateId: templateId,
+        title: title,
+        startTime: startTime,
+        endTime: endTime,
+        type: type,
+        priority: priority,
+        energyLevel: energyLevel,
+        estimatedCost: estimatedCost,
+        description: description,
+      ),
+    );
   }
 
   TemplateTask copyWith({
@@ -200,11 +242,14 @@ class PlanTemplate {
           listEquals(tasks, other.tasks) &&
           listEquals(activeDays, other.activeDays);
 
+  // Both collections are compared with listEquals above, so both must be
+  // hashed by content. See the note on DayPlan.hashCode.
   @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      description.hashCode ^
-      tasks.hashCode ^
-      activeDays.hashCode;
+  int get hashCode => Object.hash(
+        id,
+        name,
+        description,
+        Object.hashAll(tasks),
+        Object.hashAll(activeDays),
+      );
 }

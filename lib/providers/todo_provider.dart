@@ -74,8 +74,31 @@ class TodoProvider extends ChangeNotifier {
   StreamSubscription<List<domain.TodoItem>>? _listsSub;
   StreamSubscription<List<domain.TodoItem>>? _alarmsSub;
 
-  TodoProvider(this._repository, {PreferenceRepository? prefRepo})
-      : _prefRepo = prefRepo {
+  /// Maximum resubscribe attempts before the provider gives up and leaves
+  /// [errorMessage] set. Bounded so a permanently failing stream cannot retry
+  /// forever in the background.
+  static const int maxSubscribeRetries = 5;
+
+  /// First backoff interval; each attempt doubles it.
+  ///
+  /// Injectable so tests do not have to wait real seconds — the clock is a
+  /// boundary, not something this provider should reach for directly.
+  final Duration _retryBaseDelay;
+
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
+  bool _disposed = false;
+
+  /// Resubscribe attempts made since the last successful emission.
+  @visibleForTesting
+  int get retryAttempts => _retryAttempt;
+
+  TodoProvider(
+    this._repository, {
+    PreferenceRepository? prefRepo,
+    Duration retryBaseDelay = const Duration(seconds: 1),
+  })  : _prefRepo = prefRepo,
+        _retryBaseDelay = retryBaseDelay {
     _subscribe();
     _loadAlarmSort();
   }
@@ -113,47 +136,60 @@ class TodoProvider extends ChangeNotifier {
     _alarmsSub?.cancel();
 
     _notesSub = _repository.watchByType(domain.TodoItemType.note).listen(
-      (items) {
-        _notes = items;
-        notifyListeners();
-      },
-      onError: (e) => _handleStreamError('Notes', e),
+      (items) => _apply(() => _notes = items),
+      onError: (Object e) => _handleStreamError('Notes', e),
     );
 
     _timersSub = _repository.watchByType(domain.TodoItemType.timer).listen(
-      (items) {
-        _timers = items;
-        notifyListeners();
-      },
-      onError: (e) => _handleStreamError('Timers', e),
+      (items) => _apply(() => _timers = items),
+      onError: (Object e) => _handleStreamError('Timers', e),
     );
 
     _listsSub = _repository.watchByType(domain.TodoItemType.list).listen(
-      (items) {
-        _lists = items;
-        notifyListeners();
-      },
-      onError: (e) => _handleStreamError('Lists', e),
+      (items) => _apply(() => _lists = items),
+      onError: (Object e) => _handleStreamError('Lists', e),
     );
 
     _alarmsSub = _repository.watchByType(domain.TodoItemType.alarm).listen(
-      (items) {
-        _alarms = items;
-        notifyListeners();
-      },
-      onError: (e) => _handleStreamError('Alarms', e),
+      (items) => _apply(() => _alarms = items),
+      onError: (Object e) => _handleStreamError('Alarms', e),
     );
   }
 
-  void _handleStreamError(String type, dynamic error) {
+  /// Applies a stream emission. A successful emission means the stream
+  /// recovered, so the backoff counter resets and the next outage gets a full
+  /// retry budget again.
+  void _apply(void Function() assign) {
+    if (_disposed) return;
+    assign();
+    _retryAttempt = 0;
+    notifyListeners();
+  }
+
+  void _handleStreamError(String type, Object error) {
+    if (_disposed) return;
     _errorMessage = 'Error loading $type: $error';
     notifyListeners();
-    // Recovery: retry subscription after delay
-    Future.delayed(const Duration(seconds: 5), _subscribe);
+
+    if (_retryAttempt >= maxSubscribeRetries) return;
+
+    // Held in a cancellable Timer rather than Future.delayed: an uncancellable
+    // retry outlives dispose(), resubscribes to all four streams (leaking
+    // them, since dispose has already run) and notifies a disposed
+    // ChangeNotifier. Backoff doubles each attempt instead of hammering a
+    // failing stream at a fixed interval.
+    final delay = _retryBaseDelay * (1 << _retryAttempt);
+    _retryAttempt++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (!_disposed) _subscribe();
+    });
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _retryTimer?.cancel();
     _notesSub?.cancel();
     _timersSub?.cancel();
     _listsSub?.cancel();

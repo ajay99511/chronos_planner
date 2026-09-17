@@ -281,6 +281,10 @@ class WorkPlansView extends StatelessWidget {
           ),
         ],
       ),
-    );
+      // Released on pop; the controllers outlive the builder closure.
+    ).whenComplete(() {
+      nameCtrl.dispose();
+      descCtrl.dispose();
+    });
   }
 }
