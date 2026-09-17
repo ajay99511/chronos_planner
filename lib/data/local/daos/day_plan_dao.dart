@@ -9,14 +9,6 @@ part 'day_plan_dao.g.dart';
 class DayPlanDao extends DatabaseAccessor<AppDatabase> with _$DayPlanDaoMixin {
   DayPlanDao(super.db);
 
-  /// Get all day plans for a given week key (e.g. "2026-W07").
-  Future<List<DayPlan>> getDayPlansForWeek(String weekKey) {
-    return (select(dayPlans)
-          ..where((d) => d.weekKey.equals(weekKey))
-          ..orderBy([(d) => OrderingTerm.asc(d.date)]))
-        .get();
-  }
-
   /// Get day plans starting from a specific date with a limit.
   Future<List<DayPlan>> getDayPlansFrom(DateTime date, int limit) {
     return (select(dayPlans)
@@ -49,16 +41,6 @@ class DayPlanDao extends DatabaseAccessor<AppDatabase> with _$DayPlanDaoMixin {
     return batch(
       (b) => b.insertAll(dayPlans, plans, mode: InsertMode.insertOrIgnore),
     );
-  }
-
-  /// Update a day plan.
-  Future<void> updateDayPlan(String planId, DayPlansCompanion updates) {
-    return (update(dayPlans)..where((d) => d.id.equals(planId))).write(updates);
-  }
-
-  /// Delete all day plans for a week.
-  Future<int> deleteDayPlansForWeek(String weekKey) {
-    return (delete(dayPlans)..where((d) => d.weekKey.equals(weekKey))).go();
   }
 
   /// Check if a week already exists.

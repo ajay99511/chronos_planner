@@ -10,8 +10,6 @@ class TodoItemDao extends DatabaseAccessor<AppDatabase>
     with _$TodoItemDaoMixin {
   TodoItemDao(super.db);
 
-  Future<List<TodoItem>> getAllTodos() => select(todoItems).get();
-
   Stream<List<TodoItem>> watchAllTodos() => (select(todoItems)
         ..orderBy([
           (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),

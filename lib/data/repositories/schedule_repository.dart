@@ -14,9 +14,6 @@ abstract class ScheduleRepository {
   /// applying a template so a whole plan is one write instead of N).
   Future<Result<void>> addTasksToDate(DateTime date, List<Task> tasks);
 
-  /// Persist a full day plan (all tasks for one day).
-  Future<Result<void>> saveDayPlan(DayPlan dayPlan);
-
   /// Add a task to a day plan.
   Future<Result<void>> addTask(String dayPlanId, Task task);
 
@@ -26,9 +23,6 @@ abstract class ScheduleRepository {
 
   /// Delete a task by id.
   Future<Result<void>> deleteTask(String dayPlanId, String taskId);
-
-  /// Delete all tasks for a day plan.
-  Future<Result<void>> clearDay(String dayPlanId);
 
   /// Get every task scheduled on or after [since], across all day plans.
   ///

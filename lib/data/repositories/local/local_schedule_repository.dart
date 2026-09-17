@@ -160,20 +160,6 @@ class LocalScheduleRepository implements ScheduleRepository {
   }
 
   @override
-  Future<Result<void>> saveDayPlan(domain.DayPlan dayPlan) async {
-    return _wrap(() async {
-      await _taskDao.deleteTasksForDay(dayPlan.id);
-      if (dayPlan.tasks.isNotEmpty) {
-        await _taskDao.insertTasks(
-          dayPlan.tasks
-              .map((t) => _modelTaskToCompanion(t, dayPlan.id))
-              .toList(),
-        );
-      }
-    });
-  }
-
-  @override
   Future<Result<void>> addTask(String dayPlanId, domain.Task task) {
     return _wrap(() async {
       await _taskDao.insertTask(_modelTaskToCompanion(task, dayPlanId));
@@ -198,13 +184,6 @@ class LocalScheduleRepository implements ScheduleRepository {
   Future<Result<void>> deleteTask(String dayPlanId, String taskId) {
     return _wrap(() async {
       await _taskDao.deleteTaskById(taskId);
-    });
-  }
-
-  @override
-  Future<Result<void>> clearDay(String dayPlanId) {
-    return _wrap(() async {
-      await _taskDao.deleteTasksForDay(dayPlanId);
     });
   }
 
