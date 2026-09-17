@@ -318,32 +318,39 @@ class _TaskCardState extends State<TaskCard>
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
-      child: ListTile(
-        onTap: widget.onTap ?? widget.onToggle,
-        leading: IconButton(
-          onPressed: widget.onToggle,
-          tooltip: widget.task.completed
-              ? 'Mark as incomplete'
-              : 'Mark as complete',
-          icon: Icon(
-            widget.task.completed
-                ? Icons.check_box_rounded
-                : Icons.check_box_outline_blank_rounded,
-            color: widget.task.completed ? AppColors.health : Colors.white24,
+      // ListTile paints its ink on the nearest Material ancestor. Without
+      // a transparent Material inside this decorated Container the splash
+      // renders behind the Container's own background and is invisible --
+      // and Flutter asserts about it in debug.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          onTap: widget.onTap ?? widget.onToggle,
+          leading: IconButton(
+            onPressed: widget.onToggle,
+            tooltip: widget.task.completed
+                ? 'Mark as incomplete'
+                : 'Mark as complete',
+            icon: Icon(
+              widget.task.completed
+                  ? Icons.check_box_rounded
+                  : Icons.check_box_outline_blank_rounded,
+              color: widget.task.completed ? AppColors.health : Colors.white24,
+            ),
           ),
-        ),
-        title: Text(
-          widget.task.title,
-          style: TextStyle(
-            decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-            color: widget.task.completed ? Colors.white30 : Colors.white,
+          title: Text(
+            widget.task.title,
+            style: TextStyle(
+              decoration: widget.task.completed ? TextDecoration.lineThrough : null,
+              color: widget.task.completed ? Colors.white30 : Colors.white,
+            ),
           ),
+          subtitle: Text(
+            '${widget.task.startTime} - ${widget.task.endTime} • ${widget.task.type.name}',
+            style: AppTextStyles.bodySmall,
+          ),
+          trailing: Icon(_getTypeIcon(widget.task.type), color: color.withValues(alpha: 0.5), size: 18),
         ),
-        subtitle: Text(
-          '${widget.task.startTime} - ${widget.task.endTime} • ${widget.task.type.name}',
-          style: AppTextStyles.bodySmall,
-        ),
-        trailing: Icon(_getTypeIcon(widget.task.type), color: color.withValues(alpha: 0.5), size: 18),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:chronosky/core/result.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/ui/screens/schedule_view.dart';
+import 'package:chronosky/ui/widgets/task_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -130,6 +131,120 @@ void main() {
 
       expect(find.text('Write the audit'), findsOneWidget);
       expect(find.text('Review the diff'), findsOneWidget);
+    });
+  });
+
+  // These guard the rebuild scoping introduced in 2.3. Provider's Selector
+  // hands back a cached child when the selected value is unchanged, so any
+  // widget state captured in a builder closure — the view mode, the selected
+  // day — can silently stop propagating. Each of these would catch that.
+  group('ScheduleView interaction', () {
+    testWidgets('toggling the view mode updates the toolbar affordance',
+        (tester) async {
+      stubScheduleRepoSuccess(
+        scheduleRepo,
+        days: sevenEmptyDays(tasksOnFirstDay: [taskFixture()]),
+      );
+
+      await pumpWithProviders(
+        tester,
+        const ScheduleView(),
+        scheduleProvider: build(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Switch to List View'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Switch to List View'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Switch to Card View'), findsOneWidget);
+      expect(find.byTooltip('Switch to List View'), findsNothing);
+    });
+
+    testWidgets('selecting another day swaps the rendered tasks',
+        (tester) async {
+      final today = DateTime.now();
+      final start = DateTime(today.year, today.month, today.day);
+      stubScheduleRepoSuccess(
+        scheduleRepo,
+        days: [
+          dayPlanFixture(
+            id: 'day-0',
+            date: start,
+            tasks: [taskFixture(id: 't0', title: 'Task for today')],
+          ),
+          dayPlanFixture(
+            id: 'day-1',
+            date: start.add(const Duration(days: 1)),
+            tasks: [taskFixture(id: 't1', title: 'Task for tomorrow')],
+          ),
+        ],
+      );
+
+      await pumpWithProviders(
+        tester,
+        const ScheduleView(),
+        scheduleProvider: build(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Task for today'), findsOneWidget);
+      expect(find.text('Task for tomorrow'), findsNothing);
+
+      provider.selectDay(1);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Task for today'), findsNothing);
+      expect(find.text('Task for tomorrow'), findsOneWidget);
+    });
+
+    testWidgets('an empty day shows the empty state, not a bare list',
+        (tester) async {
+      stubScheduleRepoSuccess(scheduleRepo);
+
+      await pumpWithProviders(
+        tester,
+        const ScheduleView(),
+        scheduleProvider: build(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('No plans for'), findsOneWidget);
+    });
+
+    testWidgets('toggling sort order reverses the rendered task order',
+        (tester) async {
+      stubScheduleRepoSuccess(
+        scheduleRepo,
+        days: sevenEmptyDays(
+          tasksOnFirstDay: [
+            taskFixture(id: 'early', title: 'Early', startTime: '08:00'),
+            taskFixture(id: 'late', title: 'Late', startTime: '17:00'),
+          ],
+        ),
+      );
+
+      await pumpWithProviders(
+        tester,
+        const ScheduleView(),
+        scheduleProvider: build(),
+      );
+      await tester.pumpAndSettle();
+
+      // Assert tree order rather than geometry: on a wide surface the cards
+      // lay out side by side in a Wrap, so both share a y coordinate.
+      List<String> renderedOrder() => tester
+          .widgetList<TaskCard>(find.byType(TaskCard))
+          .map((card) => card.task.title)
+          .toList();
+
+      expect(renderedOrder(), ['Early', 'Late']);
+
+      await provider.toggleSortOrder();
+      await tester.pumpAndSettle();
+
+      expect(renderedOrder(), ['Late', 'Early']);
     });
   });
 
