@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/ui/widgets/add_task_sheet.dart';
@@ -23,6 +24,34 @@ class ScheduleView extends StatefulWidget {
 class _ScheduleViewState extends State<ScheduleView> {
   TaskCardViewMode _currentViewMode = TaskCardViewMode.card;
   Task? _selectedTask;
+
+  /// The provider this screen is listening to, so the listener can be removed
+  /// again. Error reporting is driven from here rather than from build():
+  /// showing a snackbar is a side effect, and build may run for reasons that
+  /// have nothing to do with a state change -- a theme switch, a media query
+  /// change, a hot reload.
+  ScheduleStateProvider? _observed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<ScheduleStateProvider>();
+    if (provider != _observed) {
+      _observed?.removeListener(_onProviderChanged);
+      _observed = provider..addListener(_onProviderChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _observed?.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    final provider = _observed;
+    if (provider != null) _consumeTransientError(provider);
+  }
 
   void _toggleViewMode() {
     setState(() {
@@ -206,36 +235,75 @@ class _ScheduleViewState extends State<ScheduleView> {
     });
   }
 
+  /// Opens the add-task sheet for [dayPlan].
+  void _openAddTaskSheet(ScheduleStateProvider provider, DayPlan dayPlan) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddTaskSheet(
+        defaultDate: dayPlan.date,
+        availableDates: provider.weekPlan.map((day) => day.date).toList(),
+        onAdd: (t, d) => _addTaskWithOverlapCheck(provider, t, d),
+        onAddToDates: (t, dates) =>
+            _addTaskToDatesWithOverlapCheck(provider, t, dates),
+      ),
+    );
+  }
+
+  void _openEditTaskSheet(ScheduleStateProvider provider, Task task) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddTaskSheet(
+        editingTask: task,
+        showDateControls: false,
+        onAdd: (_, __) {},
+        onUpdate: (updatedTask) =>
+            _updateTaskWithOverlapCheck(provider, task.id, updatedTask),
+      ),
+    );
+  }
+
+  /// Deletes [task] and offers an undo, which is the only route back.
+  void _deleteTaskWithUndo(ScheduleStateProvider provider, Task task) {
+    provider.deleteTask(task.id);
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deleted "${task.title}"'),
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: AppColors.neonBlue,
+          onPressed: () => provider.undo(),
+        ),
+      ),
+    );
+  }
+
+  _TaskActions _taskActions(ScheduleStateProvider provider) => _TaskActions(
+        onToggle: (task) => provider.updateTask(
+          task.id,
+          task.copyWith(completed: !task.completed),
+        ),
+        onDelete: (task) => _deleteTaskWithUndo(provider, task),
+        onEdit: (task) => _openEditTaskSheet(provider, task),
+        onDuplicate: (task) => provider.addTask(
+          task.copyWith(id: const Uuid().v4(), completed: false),
+        ),
+        onTap: _openTaskDetail,
+      );
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScheduleStateProvider>(context);
-    _consumeTransientError(provider);
 
-    if (provider.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.neonBlue),
-      );
-    }
+    if (provider.isLoading) return const _ScheduleLoading();
 
-    if (provider.errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              provider.errorMessage!,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: provider.loadData,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
+    final error = provider.errorMessage;
+    if (error != null) {
+      return _ScheduleErrorView(message: error, onRetry: provider.loadData);
     }
 
     final dayPlan = provider.selectedDay;
@@ -243,500 +311,65 @@ class _ScheduleViewState extends State<ScheduleView> {
 
     return Stack(
       children: [
-        // Ambient Background Glows
-        Positioned(
-          top: -100,
-          right: -50,
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.neonPurple.withValues(alpha: 0.15),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 100,
-          left: -100,
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.neonBlue.withValues(alpha: 0.15),
-              ),
-            ),
-          ),
-        ),
-
+        // Static decoration: isolated so the expensive blur does not repaint
+        // with the schedule above it.
+        const RepaintBoundary(child: _AmbientGlowBackdrop()),
         Column(
           children: [
             const SizedBox(height: 10),
-
-            // ── Day Selector (Adaptive Width) ──
-            SizedBox(
-              height: 90,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 600;
-                  final narrowItemWidth =
-                      (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
-                  final itemWidth =
-                      isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
-
-                  Widget buildDayCard(int index) {
-                    final day = provider.weekPlan[index];
-                    final isSelected = index == provider.selectedDayIndex;
-                    final hasTasks = day.tasks.isNotEmpty;
-                    final completedCount =
-                        day.tasks.where((t) => t.completed).length;
-                    final progress =
-                        hasTasks ? completedCount / day.tasks.length : 0.0;
-
-                    return Semantics(
-                      button: true,
-                      selected: isSelected,
-                      label:
-                          '${day.dayOfWeek}, ${day.dateStr}, $completedCount of ${day.tasks.length} tasks completed',
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => provider.selectDay(index),
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          focusColor:
-                              AppColors.neonBlue.withValues(alpha: 0.15),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutCubic,
-                            width: itemWidth,
-                            margin: EdgeInsets.only(right: index == 6 ? 0 : 8),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              gradient: isSelected
-                                  ? const LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        AppColors.neonBlue,
-                                        Color(0xFF6366F1),
-                                      ],
-                                    )
-                                  : null,
-                              color: isSelected ? null : AppColors.surface,
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.white.withValues(alpha: 0.2)
-                                    : AppColors.glassBorder,
-                              ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: AppColors.neonBlue
-                                            .withValues(alpha: 0.4),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ]
-                                  : [],
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  day.dayOfWeek.substring(0, 3).toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.5,
-                                    color: isSelected
-                                        ? Colors.white.withValues(alpha: 0.9)
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  day.dateStr.split(' ').length > 1
-                                      ? day.dateStr.split(' ')[1]
-                                      : day.dateStr,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                if (isSelected && hasTasks)
-                                  SizedBox(
-                                    width: 24,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(2),
-                                      child: LinearProgressIndicator(
-                                        value: progress,
-                                        backgroundColor: Colors.black26,
-                                        color:
-                                            Colors.white.withValues(alpha: 0.8),
-                                        minHeight: 3,
-                                      ),
-                                    ),
-                                  )
-                                else if (!isSelected && hasTasks)
-                                  Container(
-                                    width: 5,
-                                    height: 5,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.neonPurple,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  )
-                                else
-                                  const SizedBox(height: 5),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (isWide) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children:
-                          List.generate(7, (index) => buildDayCard(index)),
-                    );
-                  } else {
-                    return ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      itemCount: 7,
-                      itemBuilder: (context, index) => buildDayCard(index),
-                    );
-                  }
-                },
-              ),
+            _DaySelectorStrip(
+              weekPlan: provider.weekPlan,
+              selectedIndex: provider.selectedDayIndex,
+              onSelect: provider.selectDay,
             ),
-
             const SizedBox(height: 16),
-
-            // ── Header Area ─────────────────────────
-            Padding(
-              padding: AppResponsive.horizontalPadding(context),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isCompact = constraints.maxWidth < 520;
-                  final titleBlock = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        dayPlan.dayOfWeek.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.4,
-                          color: AppColors.neonBlue.withValues(alpha: 0.8),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        dayPlan.dateStr,
-                        style: TextStyle(
-                          fontSize: isCompact ? 24 : 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  );
-                  final toolbar = _ScheduleToolbar(
-                    provider: provider,
-                    currentViewMode: _currentViewMode,
-                    onToggleViewMode: _toggleViewMode,
-                    onSearch: () => _showWeekSearch(provider),
-                    onAddTask: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (_) => AddTaskSheet(
-                          defaultDate: dayPlan.date,
-                          availableDates:
-                              provider.weekPlan.map((day) => day.date).toList(),
-                          onAdd: (t, d) => _addTaskWithOverlapCheck(
-                            provider,
-                            t,
-                            d,
-                          ),
-                          onAddToDates: (t, dates) =>
-                              _addTaskToDatesWithOverlapCheck(
-                            provider,
-                            t,
-                            dates,
-                          ),
-                        ),
-                      );
-                    },
-                    onSaveTemplate: () =>
-                        _showSaveTemplateDialog(context, provider),
-                  );
-
-                  if (isCompact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        titleBlock,
-                        const SizedBox(height: AppSpacing.md),
-                        toolbar,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(child: titleBlock),
-                      const SizedBox(width: AppSpacing.md),
-                      toolbar,
-                    ],
-                  );
-                },
-              ),
+            _ScheduleHeader(
+              dayPlan: dayPlan,
+              provider: provider,
+              currentViewMode: _currentViewMode,
+              onToggleViewMode: _toggleViewMode,
+              onSearch: () => _showWeekSearch(provider),
+              onAddTask: () => _openAddTaskSheet(provider, dayPlan),
+              onSaveTemplate: () => _showSaveTemplateDialog(context, provider),
             ),
-
             const SizedBox(height: 24),
-
-            // ── Task List ──
             Expanded(
               child: Stack(
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onHorizontalDragEnd: (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-                      if (velocity.abs() < 300) return;
-                      final current = provider.selectedDayIndex;
-                      if (velocity < 0 &&
-                          current < provider.weekPlan.length - 1) {
-                        provider.selectDay(current + 1);
-                      } else if (velocity > 0 && current > 0) {
-                        provider.selectDay(current - 1);
+                  _TaskListArea(
+                    tasks: sortedTasks,
+                    dayLabel: dayPlan.dayOfWeek,
+                    viewMode: _currentViewMode,
+                    actions: _taskActions(provider),
+                    onSwipe: (delta) {
+                      final next = provider.selectedDayIndex + delta;
+                      if (next >= 0 && next < provider.weekPlan.length) {
+                        provider.selectDay(next);
                       }
                     },
-                    child: sortedTasks.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surface
-                                        .withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.calendar_today_outlined,
-                                    size: 48,
-                                    color: Colors.white.withValues(alpha: 0.1),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'No plans for ${dayPlan.dayOfWeek}',
-                                  style: const TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final isWide = constraints.maxWidth >= 800;
-
-                              Widget buildTaskCard(int index) {
-                                final task = sortedTasks[index];
-                                return TaskCard(
-                                  task: task,
-                                  viewMode: _currentViewMode,
-                                  onToggle: () => provider.updateTask(
-                                    task.id,
-                                    task.copyWith(
-                                      completed: !task.completed,
-                                    ),
-                                  ),
-                                  onDelete: () {
-                                    provider.deleteTask(task.id);
-                                    ScaffoldMessenger.of(context)
-                                        .clearSnackBars();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text('Deleted "${task.title}"'),
-                                        action: SnackBarAction(
-                                          label: 'UNDO',
-                                          textColor: AppColors.neonBlue,
-                                          onPressed: () => provider.undo(),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  onEdit: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => AddTaskSheet(
-                                        editingTask: task,
-                                        showDateControls: false,
-                                        onAdd: (_, __) {},
-                                        onUpdate: (updatedTask) =>
-                                            _updateTaskWithOverlapCheck(
-                                          provider,
-                                          task.id,
-                                          updatedTask,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  onDuplicate: () {
-                                    final duplicate = task.copyWith(
-                                      id: const Uuid().v4(),
-                                      completed: false,
-                                    );
-                                    provider.addTask(duplicate);
-                                  },
-                                  onTap: () => _openTaskDetail(task),
-                                );
-                              }
-
-                              if (isWide &&
-                                  _currentViewMode == TaskCardViewMode.card) {
-                                return SingleChildScrollView(
-                                  padding: EdgeInsets.fromLTRB(
-                                    AppResponsive.pagePadding(context),
-                                    0,
-                                    AppResponsive.pagePadding(context),
-                                    100,
-                                  ),
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Wrap(
-                                    spacing: 16,
-                                    runSpacing:
-                                        0, // TaskCard already has bottom margin
-                                    children: List.generate(sortedTasks.length,
-                                        (index) {
-                                      final cols =
-                                          constraints.maxWidth >= 1200 ? 3 : 2;
-                                      final horizontalPadding =
-                                          AppResponsive.pagePadding(context) *
-                                              2;
-                                      final cardWidth = (constraints.maxWidth -
-                                              horizontalPadding -
-                                              (16 * (cols - 1))) /
-                                          cols;
-                                      return SizedBox(
-                                        width: cardWidth -
-                                            1, // Subtract 1 pixel to prevent rounding errors causing wrap
-                                        child: buildTaskCard(index),
-                                      );
-                                    }),
-                                  ),
-                                );
-                              } else {
-                                return ListView.builder(
-                                  padding: EdgeInsets.fromLTRB(
-                                    AppResponsive.pagePadding(context),
-                                    0,
-                                    AppResponsive.pagePadding(context),
-                                    100,
-                                  ),
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: sortedTasks.length,
-                                  itemBuilder: (context, index) =>
-                                      buildTaskCard(index),
-                                );
-                              }
-                            },
-                          ),
                   ),
-
-                  // Task Detail Panel
-                  if (_selectedTask != null) ...[
-                    Positioned.fill(
-                      child: GestureDetector(
-                        onTap: _closeTaskDetail,
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.5),
-                        ),
-                      ),
+                  if (_selectedTask != null)
+                    _TaskDetailOverlay(
+                      task: _selectedTask!,
+                      onDismiss: _closeTaskDetail,
+                      onToggle: () {
+                        provider.updateTask(
+                          _selectedTask!.id,
+                          _selectedTask!
+                              .copyWith(completed: !_selectedTask!.completed),
+                        );
+                        _closeTaskDetail();
+                      },
+                      onEdit: () {
+                        final editingTask = _selectedTask!;
+                        _closeTaskDetail();
+                        _openEditTaskSheet(provider, editingTask);
+                      },
+                      onDelete: () {
+                        provider.deleteTask(_selectedTask!.id);
+                        _closeTaskDetail();
+                      },
                     ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: SizedBox(
-                        width: math
-                            .min(
-                              420,
-                              MediaQuery.sizeOf(context).width * 0.88,
-                            )
-                            .toDouble(),
-                        child: TaskDetailPanel(
-                          task: _selectedTask!,
-                          isCompleted: _selectedTask!.completed,
-                          onToggle: () {
-                            provider.updateTask(
-                              _selectedTask!.id,
-                              _selectedTask!.copyWith(
-                                completed: !_selectedTask!.completed,
-                              ),
-                            );
-                            _closeTaskDetail();
-                          },
-                          onEdit: () {
-                            final editingTask = _selectedTask!;
-                            _closeTaskDetail();
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (_) => AddTaskSheet(
-                                editingTask: editingTask,
-                                showDateControls: false,
-                                onAdd: (_, __) {},
-                                onUpdate: (updatedTask) =>
-                                    _updateTaskWithOverlapCheck(
-                                  provider,
-                                  editingTask.id,
-                                  updatedTask,
-                                ),
-                              ),
-                            );
-                          },
-                          onDelete: () {
-                            provider.deleteTask(_selectedTask!.id);
-                            _closeTaskDetail();
-                          },
-                          onClose: _closeTaskDetail,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -838,6 +471,518 @@ class _ScheduleViewState extends State<ScheduleView> {
       nameCtrl.dispose();
       descCtrl.dispose();
     });
+  }
+}
+
+/// The five things a task card can do, grouped so [_TaskListArea] does not
+/// need five separate callback parameters.
+@immutable
+class _TaskActions {
+  const _TaskActions({
+    required this.onToggle,
+    required this.onDelete,
+    required this.onEdit,
+    required this.onDuplicate,
+    required this.onTap,
+  });
+
+  final void Function(Task task) onToggle;
+  final void Function(Task task) onDelete;
+  final void Function(Task task) onEdit;
+  final void Function(Task task) onDuplicate;
+  final void Function(Task task) onTap;
+}
+
+class _ScheduleLoading extends StatelessWidget {
+  const _ScheduleLoading();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.neonBlue),
+      );
+}
+
+class _ScheduleErrorView extends StatelessWidget {
+  const _ScheduleErrorView({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+          const SizedBox(height: 16),
+          Text(message, style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ambient background glows. Depends on nothing, so a const instance lets
+/// Flutter skip rebuilding it entirely.
+class _AmbientGlowBackdrop extends StatelessWidget {
+  const _AmbientGlowBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(top: -100, right: -50, child: _glow(AppColors.neonPurple)),
+        Positioned(top: 100, left: -100, child: _glow(AppColors.neonBlue)),
+      ],
+    );
+  }
+
+  Widget _glow(Color color) => ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+        child: Container(
+          width: 300,
+          height: 300,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.15),
+          ),
+        ),
+      );
+}
+
+/// Horizontal strip of day cards for the rolling window.
+class _DaySelectorStrip extends StatelessWidget {
+  const _DaySelectorStrip({
+    required this.weekPlan,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final List<DayPlan> weekPlan;
+  final int selectedIndex;
+  final void Function(int index) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 90,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 600;
+          final narrowItemWidth = (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
+          final itemWidth = isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
+          final lastIndex = weekPlan.length - 1;
+
+          if (isWide) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < weekPlan.length; i++)
+                  _DayCard(
+                    day: weekPlan[i],
+                    isSelected: i == selectedIndex,
+                    width: itemWidth,
+                    isLast: i == lastIndex,
+                    onTap: () => onSelect(i),
+                  ),
+              ],
+            );
+          }
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: weekPlan.length,
+            itemBuilder: (context, index) => _DayCard(
+              day: weekPlan[index],
+              isSelected: index == selectedIndex,
+              width: itemWidth,
+              isLast: index == lastIndex,
+              onTap: () => onSelect(index),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DayCard extends StatelessWidget {
+  const _DayCard({
+    required this.day,
+    required this.isSelected,
+    required this.width,
+    required this.isLast,
+    required this.onTap,
+  });
+
+  final DayPlan day;
+  final bool isSelected;
+  final double width;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasTasks = day.tasks.isNotEmpty;
+    final completedCount = day.tasks.where((t) => t.completed).length;
+    final progress = hasTasks ? completedCount / day.tasks.length : 0.0;
+    final shortDate = day.dateStr.split(' ').length > 1
+        ? day.dateStr.split(' ')[1]
+        : day.dateStr;
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '${day.dayOfWeek}, ${day.dateStr}, $completedCount of '
+          '${day.tasks.length} tasks completed',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          focusColor: AppColors.neonBlue.withValues(alpha: 0.15),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            width: width,
+            margin: EdgeInsets.only(right: isLast ? 0 : 8),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.neonBlue, Color(0xFF6366F1)],
+                    )
+                  : null,
+              color: isSelected ? null : AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppColors.glassBorder,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.neonBlue.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  day.dayOfWeek.substring(0, 3).toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.9)
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  shortDate,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (isSelected && hasTasks)
+                  SizedBox(
+                    width: 24,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.black26,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        minHeight: 3,
+                      ),
+                    ),
+                  )
+                else if (!isSelected && hasTasks)
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: AppColors.neonPurple,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                else
+                  const SizedBox(height: 5),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Selected day's title block plus the toolbar, stacking on narrow widths.
+class _ScheduleHeader extends StatelessWidget {
+  const _ScheduleHeader({
+    required this.dayPlan,
+    required this.provider,
+    required this.currentViewMode,
+    required this.onToggleViewMode,
+    required this.onSearch,
+    required this.onAddTask,
+    required this.onSaveTemplate,
+  });
+
+  final DayPlan dayPlan;
+  final ScheduleStateProvider provider;
+  final TaskCardViewMode currentViewMode;
+  final VoidCallback onToggleViewMode;
+  final VoidCallback onSearch;
+  final VoidCallback onAddTask;
+  final VoidCallback onSaveTemplate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: AppResponsive.horizontalPadding(context),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 520;
+          final titleBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dayPlan.dayOfWeek.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: AppColors.neonBlue.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                dayPlan.dateStr,
+                style: TextStyle(
+                  fontSize: isCompact ? 24 : 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          );
+          final toolbar = _ScheduleToolbar(
+            provider: provider,
+            currentViewMode: currentViewMode,
+            onToggleViewMode: onToggleViewMode,
+            onSearch: onSearch,
+            onAddTask: onAddTask,
+            onSaveTemplate: onSaveTemplate,
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: AppSpacing.md),
+                toolbar,
+              ],
+            );
+          }
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: titleBlock),
+              const SizedBox(width: AppSpacing.md),
+              toolbar,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Task list for the selected day: a wrapped grid on wide card layouts, a
+/// plain list otherwise, with an empty state and horizontal day swiping.
+class _TaskListArea extends StatelessWidget {
+  const _TaskListArea({
+    required this.tasks,
+    required this.dayLabel,
+    required this.viewMode,
+    required this.actions,
+    required this.onSwipe,
+  });
+
+  final List<Task> tasks;
+  final String dayLabel;
+  final TaskCardViewMode viewMode;
+  final _TaskActions actions;
+
+  /// Called with -1 or 1 when the user swipes to an adjacent day.
+  final void Function(int delta) onSwipe;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 300) return;
+        onSwipe(velocity < 0 ? 1 : -1);
+      },
+      child: tasks.isEmpty ? _EmptyDay(dayLabel: dayLabel) : _buildList(),
+    );
+  }
+
+  Widget _buildList() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pagePadding = AppResponsive.pagePadding(context);
+        final padding = EdgeInsets.fromLTRB(pagePadding, 0, pagePadding, 100);
+        final isWide = constraints.maxWidth >= 800;
+
+        if (isWide && viewMode == TaskCardViewMode.card) {
+          final cols = constraints.maxWidth >= 1200 ? 3 : 2;
+          final cardWidth =
+              (constraints.maxWidth - pagePadding * 2 - (16 * (cols - 1))) /
+                  cols;
+          return SingleChildScrollView(
+            padding: padding,
+            physics: const BouncingScrollPhysics(),
+            child: Wrap(
+              spacing: 16,
+              // TaskCard already carries a bottom margin.
+              runSpacing: 0,
+              children: [
+                for (final task in tasks)
+                  SizedBox(
+                    // One pixel narrower, so rounding cannot force an extra
+                    // wrap and drop a card onto its own row.
+                    width: cardWidth - 1,
+                    child: _card(task),
+                  ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: padding,
+          physics: const BouncingScrollPhysics(),
+          itemCount: tasks.length,
+          itemBuilder: (context, index) => _card(tasks[index]),
+        );
+      },
+    );
+  }
+
+  Widget _card(Task task) => TaskCard(
+        task: task,
+        viewMode: viewMode,
+        onToggle: () => actions.onToggle(task),
+        onDelete: () => actions.onDelete(task),
+        onEdit: () => actions.onEdit(task),
+        onDuplicate: () => actions.onDuplicate(task),
+        onTap: () => actions.onTap(task),
+      );
+}
+
+class _EmptyDay extends StatelessWidget {
+  const _EmptyDay({required this.dayLabel});
+
+  final String dayLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.calendar_today_outlined,
+              size: 48,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No plans for $dayLabel',
+            style: const TextStyle(color: Colors.white60, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Side panel shown over the schedule on wide layouts, with a tap-to-dismiss
+/// scrim behind it.
+class _TaskDetailOverlay extends StatelessWidget {
+  const _TaskDetailOverlay({
+    required this.task,
+    required this.onDismiss,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Task task;
+  final VoidCallback onDismiss;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onDismiss,
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: SizedBox(
+            width: math
+                .min(420, MediaQuery.sizeOf(context).width * 0.88)
+                .toDouble(),
+            child: TaskDetailPanel(
+              task: task,
+              isCompleted: task.completed,
+              onToggle: onToggle,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              onClose: onDismiss,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
