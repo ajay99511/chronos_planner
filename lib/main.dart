@@ -23,6 +23,64 @@ import 'package:chronosky/providers/analytics_provider.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/ui/screens/home_screen.dart';
 
+/// Wired object graph, so the composition can be built and inspected without
+/// mounting the app.
+@immutable
+class AppDependencies {
+  const AppDependencies({
+    required this.db,
+    required this.logger,
+    required this.scheduleRepo,
+    required this.todoRepo,
+    required this.prefRepo,
+    required this.scheduleStateProvider,
+  });
+
+  final AppDatabase db;
+  final Logger logger;
+  final LocalScheduleRepository scheduleRepo;
+  final TodoRepository todoRepo;
+  final PreferenceRepository prefRepo;
+  final ScheduleStateProvider scheduleStateProvider;
+}
+
+/// Opens the database, runs the one-time SharedPreferences migration and
+/// wires the repositories and providers.
+///
+/// Separated from [main] so a test can build the same graph over an in-memory
+/// database: previously main() reached for the AppDatabase singleton directly,
+/// leaving startup and migration -- the riskiest path in the app -- with no
+/// way to be exercised together.
+@visibleForTesting
+Future<AppDependencies> composeDependencies({
+  AppDatabase? database,
+  Logger? logger,
+}) async {
+  final resolvedLogger = logger ?? createLogger(debugMode: kDebugMode);
+  final db = database ?? AppDatabase.instance;
+
+  await MigrationHelper.migrateIfNeeded(db, resolvedLogger);
+
+  final scheduleRepo = LocalScheduleRepository(db.dayPlanDao, db.taskDao);
+  final templateRepo = LocalTemplateRepository(db.templateDao);
+  final prefRepo = LocalPreferenceRepository(db.preferenceDao);
+  final todoRepo = LocalTodoRepository(db.todoItemDao);
+
+  return AppDependencies(
+    db: db,
+    logger: resolvedLogger,
+    scheduleRepo: scheduleRepo,
+    todoRepo: todoRepo,
+    prefRepo: prefRepo,
+    scheduleStateProvider: ScheduleStateProvider(
+      scheduleRepo: scheduleRepo,
+      templateRepo: templateRepo,
+      prefRepo: prefRepo,
+      logger: resolvedLogger,
+    ),
+  );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -68,39 +126,28 @@ void main() async {
     await windowManager.setPreventClose(true);
   }
 
-  // Initialize database & run one-time migration from SharedPreferences
-  final db = AppDatabase.instance;
-  await MigrationHelper.migrateIfNeeded(db, logger);
-
-  // Create local repositories
-  final scheduleRepo = LocalScheduleRepository(db.dayPlanDao, db.taskDao);
-  final templateRepo = LocalTemplateRepository(db.templateDao);
-  final prefRepo = LocalPreferenceRepository(db.preferenceDao);
-  final todoRepo = LocalTodoRepository(db.todoItemDao);
-
-  final scheduleStateProvider = ScheduleStateProvider(
-    scheduleRepo: scheduleRepo,
-    templateRepo: templateRepo,
-    prefRepo: prefRepo,
-    logger: logger,
-  );
+  final deps = await composeDependencies(logger: logger);
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    windowManager.addListener(_WindowHandler(scheduleStateProvider));
+    windowManager.addListener(
+      _WindowHandler(deps.scheduleStateProvider, deps.db, logger),
+    );
   }
 
   runApp(MyApp(
-    scheduleStateProvider: scheduleStateProvider,
-    scheduleRepo: scheduleRepo,
-    todoRepo: todoRepo,
-    prefRepo: prefRepo,
+    scheduleStateProvider: deps.scheduleStateProvider,
+    scheduleRepo: deps.scheduleRepo,
+    todoRepo: deps.todoRepo,
+    prefRepo: deps.prefRepo,
     logger: logger,
   ),);
 }
 
 class _WindowHandler extends WindowListener {
   final ScheduleStateProvider stateProvider;
-  _WindowHandler(this.stateProvider);
+  final AppDatabase db;
+  final Logger logger;
+  _WindowHandler(this.stateProvider, this.db, this.logger);
 
   @override
   void onWindowClose() async {
@@ -109,6 +156,13 @@ class _WindowHandler extends WindowListener {
     if (await windowManager.isPreventClose()) {
       try {
         await stateProvider.flushState();
+        // Closing checkpoints the WAL. Without it even a clean exit left one
+        // behind, to be recovered on the next launch.
+        await db.close();
+      } catch (e, stackTrace) {
+        // Never block the close on a failed flush: the window must still go
+        // away, and the error is worth a record rather than a hang.
+        logger.error('Failed to flush state on window close', e, stackTrace);
       } finally {
         await windowManager.setPreventClose(false);
         await windowManager.destroy();
