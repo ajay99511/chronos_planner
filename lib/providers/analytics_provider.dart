@@ -15,7 +15,7 @@ import 'package:chronosky/domain/clock_time.dart';
 class AnalyticsProvider extends ChangeNotifier {
   final ScheduleStateProvider _stateProvider;
   final ScheduleRepository? _scheduleRepo;
-  final IntelligenceService _intel = IntelligenceService();
+  final IntelligenceService _intel;
 
   /// How far back to pull completed-task history for energy-peak analysis.
   static const int _historyWindowDays = 90;
@@ -34,7 +34,11 @@ class AnalyticsProvider extends ChangeNotifier {
   bool _peaksInFlight = false;
   bool _peaksDirty = false;
 
-  AnalyticsProvider(this._stateProvider, [this._scheduleRepo]) {
+  AnalyticsProvider(
+    this._stateProvider, [
+    this._scheduleRepo,
+    IntelligenceService? intelligenceService,
+  ]) : _intel = intelligenceService ?? IntelligenceService() {
     _stateProvider.addListener(_onScheduleChanged);
     _recomputeWeekMetrics();
     _loadHistory();

@@ -102,7 +102,8 @@ DateTime _today() {
 
 /// Stubs every [MockScheduleRepository] call to succeed.
 ///
-/// Tests then re-stub the single call whose failure they are exercising.
+/// Call this **first**: it stubs every method, so any per-test override must
+/// be applied afterwards or it will be silently replaced by the default.
 void stubScheduleRepoSuccess(
   MockScheduleRepository repo, {
   List<DayPlan>? days,

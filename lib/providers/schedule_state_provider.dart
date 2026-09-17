@@ -655,16 +655,25 @@ class ScheduleStateProvider extends ChangeNotifier {
 
   /// Applies [template] to the day at [index] (or the selected day).
   ///
-  /// [surfaceErrors] controls failure handling: user-initiated applies roll
-  /// back the optimistic tasks and report a [takeTransientError] the schedule
-  /// screen shows as a snackbar. Background recurrence passes `false` so a
-  /// transient write failure is only logged and rolled back — never surfaced,
-  /// since the user didn't request that apply.
-  Future<void> applyTemplate(
-    PlanTemplate template, [
-    int? index,
-    bool surfaceErrors = true,
-  ]) async {
+  /// A write failure rolls back the optimistic tasks and reports a
+  /// [takeTransientError] the schedule screen shows as a snackbar, because the
+  /// user asked for this apply and is waiting to see whether it worked.
+  Future<void> applyTemplate(PlanTemplate template, [int? index]) =>
+      _applyTemplate(template, index, surfaceErrors: true);
+
+  /// Applies [template] to the day at [index] as part of recurrence.
+  ///
+  /// A write failure is rolled back and logged but never surfaced: the user
+  /// did not request this apply, so a snackbar about it would be noise
+  /// attached to an action they did not take.
+  Future<void> applyTemplateInBackground(PlanTemplate template, int index) =>
+      _applyTemplate(template, index, surfaceErrors: false);
+
+  Future<void> _applyTemplate(
+    PlanTemplate template,
+    int? index, {
+    required bool surfaceErrors,
+  }) async {
     final dayIdx = index ?? _selectedDayIndex;
     if (dayIdx < 0 || dayIdx >= _weekPlan.length) return;
     final dayPlan = _weekPlan[dayIdx];
@@ -729,7 +738,7 @@ class ScheduleStateProvider extends ChangeNotifier {
           if (!alreadyApplied) {
             // Background auto-apply: never blank the schedule on a transient
             // failure — log and roll back instead.
-            await applyTemplate(tmpl, i, false);
+            await applyTemplateInBackground(tmpl, i);
           }
         }
       }
