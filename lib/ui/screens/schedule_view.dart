@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -297,18 +298,30 @@ class _ScheduleViewState extends State<ScheduleView> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<ScheduleStateProvider>(context);
+    // read, not watch: this method supplies callbacks and layout only. Each
+    // section below subscribes to the slice of state it actually renders, so
+    // a task toggle no longer rebuilds the whole screen.
+    final provider = context.read<ScheduleStateProvider>();
 
-    if (provider.isLoading) return const _ScheduleLoading();
+    return Selector<ScheduleStateProvider, _ScheduleStatus>(
+      selector: (_, p) => _ScheduleStatus(
+        isLoading: p.isLoading,
+        error: p.errorMessage,
+      ),
+      builder: (context, status, _) {
+        if (status.isLoading) return const _ScheduleLoading();
+        if (status.error != null) {
+          return _ScheduleErrorView(
+            message: status.error!,
+            onRetry: provider.loadData,
+          );
+        }
+        return _buildLoaded(context, provider);
+      },
+    );
+  }
 
-    final error = provider.errorMessage;
-    if (error != null) {
-      return _ScheduleErrorView(message: error, onRetry: provider.loadData);
-    }
-
-    final dayPlan = provider.selectedDay;
-    final sortedTasks = provider.getSortedTasks(dayPlan);
-
+  Widget _buildLoaded(BuildContext context, ScheduleStateProvider provider) {
     return Stack(
       children: [
         // Static decoration: isolated so the expensive blur does not repaint
@@ -317,36 +330,58 @@ class _ScheduleViewState extends State<ScheduleView> {
         Column(
           children: [
             const SizedBox(height: 10),
-            _DaySelectorStrip(
-              weekPlan: provider.weekPlan,
-              selectedIndex: provider.selectedDayIndex,
-              onSelect: provider.selectDay,
+            Selector<ScheduleStateProvider, _DayStripData>(
+              selector: (_, p) => _DayStripData(
+                days: p.weekPlan,
+                selectedIndex: p.selectedDayIndex,
+              ),
+              builder: (context, data, _) => _DaySelectorStrip(
+                weekPlan: data.days,
+                selectedIndex: data.selectedIndex,
+                onSelect: provider.selectDay,
+              ),
             ),
             const SizedBox(height: 16),
             _ScheduleHeader(
-              dayPlan: dayPlan,
               provider: provider,
               currentViewMode: _currentViewMode,
               onToggleViewMode: _toggleViewMode,
               onSearch: () => _showWeekSearch(provider),
-              onAddTask: () => _openAddTaskSheet(provider, dayPlan),
+              // Resolved when tapped, not when built: the selected day can
+              // change between the two.
+              onAddTask: () =>
+                  _openAddTaskSheet(provider, provider.selectedDay),
               onSaveTemplate: () => _showSaveTemplateDialog(context, provider),
             ),
             const SizedBox(height: 24),
             Expanded(
               child: Stack(
                 children: [
-                  _TaskListArea(
-                    tasks: sortedTasks,
-                    dayLabel: dayPlan.dayOfWeek,
-                    viewMode: _currentViewMode,
-                    actions: _taskActions(provider),
-                    onSwipe: (delta) {
-                      final next = provider.selectedDayIndex + delta;
-                      if (next >= 0 && next < provider.weekPlan.length) {
-                        provider.selectDay(next);
-                      }
+                  Selector<ScheduleStateProvider, _TaskListData>(
+                    // _currentViewMode is widget state, but it has to take
+                    // part in the comparison: Selector returns its cached
+                    // child when the selected value is unchanged, so a value
+                    // only captured in the closure would stop propagating.
+                    selector: (_, p) {
+                      final day = p.selectedDay;
+                      return _TaskListData(
+                        tasks: p.getSortedTasks(day),
+                        dayLabel: day.dayOfWeek,
+                        viewMode: _currentViewMode,
+                      );
                     },
+                    builder: (context, data, _) => _TaskListArea(
+                      tasks: data.tasks,
+                      dayLabel: data.dayLabel,
+                      viewMode: data.viewMode,
+                      actions: _taskActions(provider),
+                      onSwipe: (delta) {
+                        final next = provider.selectedDayIndex + delta;
+                        if (next >= 0 && next < provider.weekPlan.length) {
+                          provider.selectDay(next);
+                        }
+                      },
+                    ),
                   ),
                   if (_selectedTask != null)
                     _TaskDetailOverlay(
@@ -472,6 +507,73 @@ class _ScheduleViewState extends State<ScheduleView> {
       descCtrl.dispose();
     });
   }
+}
+
+/// Loading/error slice of the schedule, so the status band rebuilds on its
+/// own rather than dragging the whole screen with it.
+@immutable
+class _ScheduleStatus {
+  const _ScheduleStatus({required this.isLoading, required this.error});
+
+  final bool isLoading;
+  final String? error;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ScheduleStatus &&
+      isLoading == other.isLoading &&
+      error == other.error;
+
+  @override
+  int get hashCode => Object.hash(isLoading, error);
+}
+
+/// Day-strip inputs.
+///
+/// Equality is by content, not identity: ScheduleStateProvider assigns into
+/// `_weekPlan` in place, so the list instance often stays the same across a
+/// real change and an identity comparison would skip the rebuild.
+@immutable
+class _DayStripData {
+  const _DayStripData({required this.days, required this.selectedIndex});
+
+  final List<DayPlan> days;
+  final int selectedIndex;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _DayStripData &&
+      selectedIndex == other.selectedIndex &&
+      listEquals(days, other.days);
+
+  @override
+  int get hashCode => Object.hash(selectedIndex, Object.hashAll(days));
+}
+
+/// Task-list inputs, including the widget-level view mode so a mode switch
+/// invalidates the Selector's cached child.
+@immutable
+class _TaskListData {
+  const _TaskListData({
+    required this.tasks,
+    required this.dayLabel,
+    required this.viewMode,
+  });
+
+  final List<Task> tasks;
+  final String dayLabel;
+  final TaskCardViewMode viewMode;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _TaskListData &&
+      dayLabel == other.dayLabel &&
+      viewMode == other.viewMode &&
+      listEquals(tasks, other.tasks);
+
+  @override
+  int get hashCode =>
+      Object.hash(dayLabel, viewMode, Object.hashAll(tasks));
 }
 
 /// The five things a task card can do, grouped so [_TaskListArea] does not
@@ -735,7 +837,6 @@ class _DayCard extends StatelessWidget {
 /// Selected day's title block plus the toolbar, stacking on narrow widths.
 class _ScheduleHeader extends StatelessWidget {
   const _ScheduleHeader({
-    required this.dayPlan,
     required this.provider,
     required this.currentViewMode,
     required this.onToggleViewMode,
@@ -744,7 +845,6 @@ class _ScheduleHeader extends StatelessWidget {
     required this.onSaveTemplate,
   });
 
-  final DayPlan dayPlan;
   final ScheduleStateProvider provider;
   final TaskCardViewMode currentViewMode;
   final VoidCallback onToggleViewMode;
@@ -754,6 +854,10 @@ class _ScheduleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Watched rather than selected: the toolbar reflects sortOrder and
+    // canUndo as well as the day, and a title plus a button row is cheap to
+    // rebuild. The expensive sections above and below use Selectors instead.
+    final dayPlan = context.watch<ScheduleStateProvider>().selectedDay;
     return Padding(
       padding: AppResponsive.horizontalPadding(context),
       child: LayoutBuilder(
