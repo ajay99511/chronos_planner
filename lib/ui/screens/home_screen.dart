@@ -79,13 +79,15 @@ class _ChronosHomeState extends State<ChronosHome>
   Widget build(BuildContext context) {
     // The ringing overlay sits above everything (including focus mode) so an
     // alarm can always be dismissed no matter where the user is.
-    final ringing = context.watch<AlarmSchedulerService>().ringing;
+    final alarmService = context.watch<AlarmSchedulerService>();
+    final ringing = alarmService.ringing;
     return Stack(
       children: [
         _buildMain(context),
         if (ringing != null)
           _AlarmRingingOverlay(
             alarm: ringing,
+            soundUnavailable: alarmService.audioUnavailable,
             onDismiss: () => context.read<AlarmSchedulerService>().dismiss(),
           ),
       ],
@@ -177,9 +179,18 @@ class _ChronosHomeState extends State<ChronosHome>
 // ─── Alarm ringing overlay ──────────────────────
 class _AlarmRingingOverlay extends StatelessWidget {
   final domain.TodoItem alarm;
+
+  /// Whether the alarm's sound could not be played. Shown explicitly, because
+  /// a silent alarm is otherwise indistinguishable from a muted device and the
+  /// user has no other way to learn their sound file has gone missing.
+  final bool soundUnavailable;
   final VoidCallback onDismiss;
 
-  const _AlarmRingingOverlay({required this.alarm, required this.onDismiss});
+  const _AlarmRingingOverlay({
+    required this.alarm,
+    required this.onDismiss,
+    this.soundUnavailable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +243,27 @@ class _AlarmRingingOverlay extends StatelessWidget {
                   DateFormat('EEE, MMM d • HH:mm').format(scheduled),
                   style: AppTextStyles.bodySmall
                       .copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+              if (soundUnavailable) ...[
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.volume_off_rounded,
+                      color: Colors.orangeAccent,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        "Sound couldn't be played — the file may have moved.",
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: Colors.orangeAccent),
+                      ),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
