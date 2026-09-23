@@ -31,6 +31,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Report outdated dependencies
+        # Advisory, not a gate: it reports drift without failing the build on
+        # upstream releases nobody has reviewed yet.
+        continue-on-error: true
+        run: flutter pub outdated
+
       - name: Analyze
         # Warnings and infos fail the build. The project's analysis_options
         # enables a stricter rule set than the flutter_lints default, and the
