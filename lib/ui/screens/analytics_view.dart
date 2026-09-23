@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
@@ -51,6 +52,14 @@ class _AnalyticsViewState extends State<AnalyticsView>
     final displayHour =
         bestHour == 0 ? 12 : (bestHour > 12 ? bestHour - 12 : bestHour);
     return '$displayHour $suffix';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Jump straight to the end state when the user prefers reduced motion,
+    // rather than fading in.
+    if (context.prefersReducedMotion) _animController.value = 1.0;
   }
 
   @override

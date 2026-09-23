@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/ui/widgets/glass_container.dart';
@@ -102,7 +103,7 @@ class WorkPlansView extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${tmpl.tasks.length} tasks',
+                        AppStrings.planTaskCount(tmpl.tasks.length),
                         style: AppTextStyles.bodySmall
                             .copyWith(color: AppColors.textSecondary),
                       ),

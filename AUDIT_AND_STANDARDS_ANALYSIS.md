@@ -1533,3 +1533,99 @@ changeset with migration v9 — they collectively close the "release build has n
 gap, and shipping any one alone leaves the other two providing false confidence. Phase 2 item **2.1**
 (the widget-test harness) is the highest-leverage single task in this entire roadmap: without it,
 every subsequent refactor is unverifiable, and with it, the remaining twenty-odd items become routine.
+
+---
+
+## 6. Completion Status
+
+**All three phases are implemented.** Verified on
+`phase3-performance-scalability` (18 commits on top of `master`; Phase 1 was
+merged separately as PR #1):
+
+```
+flutter analyze --fatal-infos --fatal-warnings   →  No issues found
+flutter test                                     →  190 passed  (was 36)
+dart run build_runner build                      →  no .g.dart drift
+```
+
+74 files changed, +4,466 / −1,252. Test count went from 36 to 190; schema went
+from v8 to v10.
+
+### Scorecard, re-assessed after the work
+
+| Dimension | Before | After | What moved it |
+|---|:---:|:---:|---|
+| Architecture & State Management | 7 | **8** | Domain layer started (`ClockTime`/`TimeRange`), composition seam, nav registry, `AlarmOutput` seam. Still no use-case layer; business rules remain in providers. |
+| Standards Compliance | 6 | **8** | 537-line `build()` → 81; ~390 lines of dead code removed; five duplicate time implementations unified; behaviour-selecting flag split; decision records added. Six `build()` methods outside the schedule surface still exceed 100 lines. |
+| Performance & Memory | 5 | **7** | N+1 batched, sort memoized, `Selector` scoping, `RepaintBoundary`, controller leaks fixed, retry timers bounded. Rebuild *counts* reasoned, not measured. |
+| Security & Data Integrity | 4 | **9** | Foreign keys enforced, release-mode validation, SQL `CHECK` constraints, destructive migrations made reversible, no silent failure path left. |
+| Testability | 4 | **8** | Widget harness, real-database repository tests, first startup integration test, accessibility guideline tests, 154 tests added. Four of ten migration steps still lack direct coverage. |
+| Product Scalability | 5 | **7** | Feature-tab registry, i18n seam, injected dependencies throughout. Feature-folder reorganisation not done. |
+
+> **Overall: 5.2 → 7.8.** The integrity and verification gaps that made the
+> original score fragile are closed; what remains is breadth, not risk.
+
+### Per-item status
+
+| Item | Status | Note |
+|---|---|---|
+| 1.1 FK enforcement + orphan sweep | ✅ | Proven inert first: 4 tests failed pre-fix |
+| 1.2 `guardDb`, catch `Object` | ✅ | Reproduced the exact silent write loss |
+| 1.3 Global error handlers | ✅ | Remote reporting still open — see ADR 0008 |
+| 1.4 Release-safe validation | ✅ | Both halves: app factories **and** SQL `CHECK` (v10) |
+| 1.5 Guard the v8 merge | ✅ | Snapshot + fail-closed invariant |
+| 1.6 `hashCode`/`==` contract | ✅ | Three models, not two — audit corrected |
+| 1.7 Controller leaks | ✅ | Not test-covered; needs a pumped tree |
+| 1.8 `TodoProvider` retry | ✅ | Red verified by restoring old behaviour |
+| 1.9 CI pipeline | ✅ | Never executed on GitHub — no remote yet |
+| 2.1 Widget-test harness | ✅ | Characterization tests, not bug repros |
+| 2.2 Decompose `build()` | ✅ | 537 → 81 lines |
+| 2.3 Rebuild scoping | ✅ | Correctness tested; rebuild counts not measured |
+| 2.4 `ClockTime`/`TimeRange` | ✅ | Five implementations, not three — audit corrected |
+| 2.5 Delete dead code | ✅ | −390 lines; `getTaskById` also found |
+| 2.6 Flags & injection | ✅ | Made `AnalyticsProvider` testable at all |
+| 2.7 `MigrationHelper` logging | ✅ | Zero `debugPrint` in `lib/data` or `lib/core` |
+| 2.8 Composition seam | ✅ | First startup integration test |
+| 3.1 Batch the N+1 | ✅ | Plus first real-database repository tests |
+| 3.2 Memoize the sort | ✅ | Result is unmodifiable |
+| 3.3 Accessibility | ⚠️ | Schedule surface + shared widgets. Four screens still need the pass |
+| 3.4 Reduced motion | ✅ | All animation sites on the covered surfaces |
+| 3.5 i18n seam | ⚠️ | Scoped to grammar-bearing text, per ADR 0007 |
+| 3.6 Feature-tab registry | ✅ | A new tab is one entry |
+| 3.7 Pin dependencies | ✅ | Resolve provably unchanged |
+| 3.8 Alarm reliability | ⚠️ | Stream recovery, disposal, audio surfacing done. OS scheduling open — ADR 0006 |
+| 3.9 Decision records | ✅ | Eight records; 0001–0003 reconstructed, labelled as such |
+
+### Deliberately not done, and why
+
+1. **OS-level alarm scheduling** (ADR 0006) — needs a permanent platform
+   dependency; Consequential, so it is a product decision.
+2. **Remote crash reporting** (ADR 0008) — sends data off-device; same reason.
+3. **Full string extraction** — `design-judgment.md` puts i18n under *defer with
+   a seam*. The audit's own criterion here was stricter than the standard it
+   cited.
+4. **`dart format` gate in CI** — the repo's `require_trailing_commas` lint
+   conflicts with the formatter's output, which is why 35 files diverge. That
+   conflict has to be settled before the gate can be added; formatting one file
+   mid-refactor broke the analyze gate and was reverted.
+5. **Feature-folder reorganisation** — recommended in §4 and still worthwhile,
+   but pure churn to review alongside behavioural change.
+6. **Remaining long `build()` methods** — `work_plans_view` (156),
+   `analytics_view` (132), `timer_view` (126), `todo_list_view` (123),
+   `new_item_sheet` (115), `task_detail_panel` (114). Only the schedule surface
+   was in scope.
+
+### Corrections this work made to the audit above
+
+- **H-1** named two models with a broken `hashCode`/`==` pair; `PlanTemplate` is
+  a third.
+- **C-3/M-1** placed the extracted guard in `lib/core/result.dart`; that would
+  make the shared `Result` primitive import drift, inverting the
+  volatile-depends-on-stable rule. It lives in the data layer.
+- **M-2**'s dead-code list missed `TaskDao.getTaskById`.
+- **M-6**'s duplicate-time-parser count was three; there were five, and one
+  (`task_detail_panel`) called `int.parse` unguarded inside `build()`.
+- **M-7** did not mention that `neonBlue` fails WCAG AA at body size (2.84:1 at
+  full opacity), nor the 40×40 completion toggle — both found by guideline tests.
+- The `TaskCard` list-view `ListTile` ink defect was not in the audit at all; the
+  widget harness found it on its first run.

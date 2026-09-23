@@ -139,6 +139,107 @@ void main() {
       verifyNever(() => mockScheduleRepo.getUpcomingDays(any()));
     });
 
+    // getSortedTasks is called from a Selector, so before memoization it did
+    // an O(n log n) copy-and-sort on every notify and every parent rebuild.
+    // The observable contract is that the same instance comes back until
+    // something it depends on changes.
+    group('getSortedTasks memoization', () {
+      late DayPlan day;
+
+      Future<ScheduleStateProvider> loaded() async {
+        final now = DateTime.now();
+        day = DayPlan(
+          id: 'd1',
+          date: DateTime(now.year, now.month, now.day),
+          tasks: [
+            Task(
+              id: 'late',
+              title: 'Late',
+              startTime: '17:00',
+              endTime: '18:00',
+              type: TaskType.work,
+            ),
+            Task(
+              id: 'early',
+              title: 'Early',
+              startTime: '08:00',
+              endTime: '09:00',
+              type: TaskType.work,
+            ),
+          ],
+        );
+        when(() => mockScheduleRepo.getUpcomingDays(any()))
+            .thenAnswer((_) async => Success([day]));
+        when(() => mockPrefRepo.set(any(), any()))
+            .thenAnswer((_) async => const Success(null));
+        final p = ScheduleStateProvider(
+          scheduleRepo: mockScheduleRepo,
+          templateRepo: mockTemplateRepo,
+          prefRepo: mockPrefRepo,
+          logger: mockLogger,
+        );
+        await p.loadData();
+        return p;
+      }
+
+      test('sorts ascending by start time', () async {
+        provider = await loaded();
+
+        expect(
+          provider.getSortedTasks(provider.selectedDay).map((t) => t.id),
+          ['early', 'late'],
+        );
+      });
+
+      test('returns the same instance on a repeat call', () async {
+        provider = await loaded();
+        final first = provider.getSortedTasks(provider.selectedDay);
+
+        expect(provider.getSortedTasks(provider.selectedDay), same(first));
+      });
+
+      test('recomputes when the sort order changes', () async {
+        provider = await loaded();
+        final ascending = provider.getSortedTasks(provider.selectedDay);
+
+        await provider.toggleSortOrder();
+        final descending = provider.getSortedTasks(provider.selectedDay);
+
+        expect(descending, isNot(same(ascending)));
+        expect(descending.map((t) => t.id), ['late', 'early']);
+      });
+
+      test('recomputes when the day is replaced by a mutation', () async {
+        provider = await loaded();
+        final before = provider.getSortedTasks(provider.selectedDay);
+
+        when(() => mockScheduleRepo.addTaskToDate(any(), any()))
+            .thenAnswer((_) async => const Success(null));
+        await provider.addTask(
+          Task(
+            id: 'midday',
+            title: 'Midday',
+            startTime: '12:00',
+            endTime: '13:00',
+            type: TaskType.work,
+          ),
+        );
+
+        final after = provider.getSortedTasks(provider.selectedDay);
+        expect(after, isNot(same(before)));
+        expect(after.map((t) => t.id), ['early', 'midday', 'late']);
+      });
+
+      test('hands back a list the caller cannot corrupt', () async {
+        provider = await loaded();
+        final sorted = provider.getSortedTasks(provider.selectedDay);
+
+        // The same instance is returned repeatedly, so an in-place mutation
+        // would poison every later reader.
+        expect(() => sorted.sort(), throwsUnsupportedError);
+      });
+    });
+
     test('applyTemplateToDays maps weekday indices to the correct dates',
         () async {
       // Rolling week starting today — whatever weekday that is.

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/ui/screens/todo_detail_screen.dart';
@@ -584,7 +585,7 @@ class _TimerCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    '${timer.durationMinutes} minutes',
+                    AppStrings.timerDuration(timer.durationMinutes),
                     style: AppTextStyles.bodySmall,
                   ),
                 ],
@@ -710,7 +711,10 @@ class _ListCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    '$done / ${list.checklist.length} items completed',
+                    AppStrings.checklistProgress(
+                      done,
+                      list.checklist.length,
+                    ),
                     style: AppTextStyles.bodySmall,
                   ),
                 ],

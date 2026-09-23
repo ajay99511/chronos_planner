@@ -402,6 +402,86 @@ void main() {
 
       await database.close();
     });
+
+    test('v9 to v10 quarantines rows the new constraints would reject',
+        () async {
+      final executor = NativeDatabase.memory();
+      await executor.ensureOpen(_FakeUser());
+
+      // A v9-shaped tasks table: no CHECK constraints yet.
+      await executor.runCustom('''
+        CREATE TABLE day_plans (
+          id TEXT NOT NULL PRIMARY KEY,
+          date INTEGER NOT NULL,
+          week_key TEXT NOT NULL
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          type TEXT NOT NULL,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          energy_level TEXT NOT NULL DEFAULT 'medium',
+          estimated_cost REAL NOT NULL DEFAULT 0.0,
+          actual_cost REAL NOT NULL DEFAULT 0.0,
+          completed INTEGER NOT NULL DEFAULT 0,
+          day_plan_id TEXT NOT NULL REFERENCES day_plans (id),
+          source_template_id TEXT NOT NULL DEFAULT ''
+        );
+      ''');
+
+      final date = DateTime(2026, 9, 22).millisecondsSinceEpoch ~/ 1000;
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-1', date, '2026-W39'],
+      );
+
+      Future<void> insertTask(
+        String id,
+        String title,
+        String start,
+        String end, [
+        double cost = 0.0,
+      ]) =>
+          executor.runCustom(
+            'INSERT INTO tasks (id, title, start_time, end_time, type, '
+            'estimated_cost, day_plan_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [id, title, start, end, 'work', cost, 'dp-1'],
+          );
+
+      await insertTask('ok', 'Valid task', '09:00', '10:00');
+      // Each of these was reachable before validation covered the write path:
+      // asserts were compiled out of release builds.
+      await insertTask('bad-title', '', '09:00', '10:00');
+      await insertTask('bad-start', 'Unpadded hour', '9:00', '10:00');
+      await insertTask('bad-hour', 'Hour out of range', '25:00', '26:00');
+      await insertTask('bad-cost', 'Negative cost', '09:00', '10:00', -5.0);
+
+      final database = TestDatabase(executor);
+      await database.migration.onUpgrade(database.createMigrator(), 9, 10);
+
+      // The valid row survives; the rest are moved aside, not deleted.
+      final remaining =
+          await database.customSelect('SELECT id FROM tasks').get();
+      expect(remaining.map((r) => r.read<String>('id')).toList(), ['ok']);
+
+      final quarantined = await database
+          .customSelect('SELECT id FROM tasks_invalid_v9 ORDER BY id')
+          .get();
+      expect(
+        quarantined.map((r) => r.read<String>('id')).toList(),
+        ['bad-cost', 'bad-hour', 'bad-start', 'bad-title'],
+      );
+
+      // Re-running the migration must be a no-op, not an error.
+      await database.migration.onUpgrade(database.createMigrator(), 9, 10);
+
+      await database.close();
+    });
   });
 }
 

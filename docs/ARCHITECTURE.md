@@ -1,5 +1,11 @@
 # Chronos Planner - Architecture Overview
 
+> **Decision records:** the reasoning behind the choices described here — state
+> management, persistence, how invariants are enforced, and two decisions still
+> open — lives in [`docs/decisions/`](decisions/README.md). This document
+> describes *what* the architecture is; those records say *why*, and what lost.
+
+
 ## Application Type
 Flutter-based time management and productivity application with desktop support (Windows, Linux, macOS).
 

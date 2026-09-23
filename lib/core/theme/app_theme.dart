@@ -35,6 +35,14 @@ class AppColors {
   static const Color neonBlue = Color(0xFF4F46E5);
   static const Color neonPurple = Color(0xFFA855F7);
   static const Color neonCyan = Color(0xFF06B6D4);
+
+  /// Accent for small text on [background].
+  ///
+  /// [neonBlue] is a saturated indigo: excellent as a fill or on large type,
+  /// but only 2.84:1 against the app background even at full opacity, so it
+  /// fails WCAG AA (4.5:1) for anything at body size or below. This is the
+  /// same hue lightened to 5.98:1.
+  static const Color accentText = Color(0xFF818CF8);
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFF94A3B8);
   static const Color glassBorder = Color(0x1AFFFFFF);
@@ -266,4 +274,26 @@ class AppGradients {
       AppColors.surface.withValues(alpha: 0.6),
     ],
   );
+}
+
+/// The application's theme.
+///
+/// Lives here rather than inline in `main.dart` so tests render screens under
+/// the same colours the app ships. A harness with the default light Scaffold
+/// made contrast assertions meaningless: white-on-white measured 1.22:1
+/// against a background the user never sees.
+class AppTheme {
+  const AppTheme._();
+
+  static ThemeData get dark => ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: AppColors.background,
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        colorScheme: const ColorScheme.dark(
+          primary: AppColors.neonBlue,
+          secondary: AppColors.neonPurple,
+          surface: AppColors.surface,
+        ),
+      );
 }

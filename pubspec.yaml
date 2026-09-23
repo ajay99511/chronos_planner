@@ -27,8 +27,11 @@ dependencies:
   just_audio: ^0.9.40
   wakelock_plus: ^1.2.8
 
-  meta: any
-  sqlite3: any
+  # Pinned to the versions pubspec.lock already resolves. `any` let these
+  # cross minor versions unreviewed -- meta moved 1.17 -> 1.19 during a routine
+  # `pub get` -- and sqlite3 is the native engine behind all persistence.
+  meta: ^1.19.0
+  sqlite3: ^2.9.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -222,17 +221,7 @@ class MyApp extends StatelessWidget {
         supportedLocales: const [
           Locale('en', 'US'),
         ],
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: AppColors.background,
-          textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-          colorScheme: const ColorScheme.dark(
-            primary: AppColors.neonBlue,
-            secondary: AppColors.neonPurple,
-            surface: AppColors.surface,
-          ),
-        ),
+        theme: AppTheme.dark,
         home: const ChronosHome(),
       ),
     );

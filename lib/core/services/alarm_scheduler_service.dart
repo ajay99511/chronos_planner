@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:window_manager/window_manager.dart';
 
+import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/data/repositories/todo_repository.dart';
@@ -14,35 +12,94 @@ import 'package:chronosky/data/repositories/todo_repository.dart';
 /// Watches alarm-type [domain.TodoItem]s from the repository, arms a single
 /// wall-clock [Timer] for the next enabled alarm, and on fire:
 /// - marks the alarm disabled (one-shot) so it never fires twice,
-/// - loops its sound via `just_audio` until dismissed,
+/// - loops its sound until dismissed,
 /// - exposes the ringing alarm so the UI can show a dismiss overlay.
 ///
 /// Alarms whose time passed more than [_missedGrace] ago (e.g. while the app
 /// was closed) are silently disarmed instead of ringing unexpectedly.
+///
+/// ## Known limitation
+/// Scheduling is in-process only. A closed app misses its alarms entirely, and
+/// because firing is one-shot they do not fire later either. Surviving app
+/// closure needs OS-level scheduling, which is a new platform dependency and
+/// therefore a deliberate decision rather than an implementation detail — see
+/// roadmap item 3.8.
 class AlarmSchedulerService extends ChangeNotifier {
+  AlarmSchedulerService(
+    this._repository,
+    this._logger, {
+    AlarmOutput? output,
+    Duration retryBaseDelay = const Duration(seconds: 1),
+  })  : _output = output ?? PlatformAlarmOutput(),
+        _retryBaseDelay = retryBaseDelay {
+    _subscribe();
+  }
+
   final TodoRepository _repository;
   final Logger _logger;
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AlarmOutput _output;
+  final Duration _retryBaseDelay;
 
   static const Duration _missedGrace = Duration(minutes: 1);
 
+  /// Resubscribe attempts before giving up on the alarm stream.
+  static const int maxSubscribeRetries = 5;
+
   StreamSubscription<List<domain.TodoItem>>? _sub;
   Timer? _armed;
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
   List<domain.TodoItem> _alarms = const [];
   domain.TodoItem? _ringing;
+  bool _audioUnavailable = false;
   bool _disposed = false;
 
   /// The alarm currently ringing, or null. UI shows a dismiss overlay when set.
   domain.TodoItem? get ringing => _ringing;
 
-  AlarmSchedulerService(this._repository, this._logger) {
+  /// Whether the ringing alarm's sound could not be played.
+  ///
+  /// Surfaced so the overlay can say so. A silent alarm is otherwise
+  /// indistinguishable from a muted device, and the user has no way to learn
+  /// that the sound file they picked has since been moved or deleted.
+  bool get audioUnavailable => _audioUnavailable;
+
+  /// Resubscribe attempts made since the stream last delivered.
+  @visibleForTesting
+  int get retryAttempts => _retryAttempt;
+
+  void _subscribe() {
+    _sub?.cancel();
     _sub = _repository.watchByType(domain.TodoItemType.alarm).listen(
       (items) {
+        if (_disposed) return;
+        _retryAttempt = 0;
         _alarms = items;
         _rearm();
       },
-      onError: (e) => _logger.error('Alarm stream error: $e'),
+      onError: _handleStreamError,
     );
+  }
+
+  /// Recovers from a dropped alarm stream.
+  ///
+  /// Without this the subscription died on the first error and alarm
+  /// scheduling stopped for the rest of the session, with nothing in the UI to
+  /// indicate it — the same defect fixed in TodoProvider, and worse here,
+  /// because the user only finds out when an alarm fails to ring.
+  void _handleStreamError(Object error) {
+    if (_disposed) return;
+    _logger.error('Alarm stream error', error);
+    if (_retryAttempt >= maxSubscribeRetries) {
+      _logger.error('Giving up on the alarm stream; alarms will not fire');
+      return;
+    }
+    final delay = _retryBaseDelay * (1 << _retryAttempt);
+    _retryAttempt++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (!_disposed) _subscribe();
+    });
   }
 
   /// (Re)arms the timer for the soonest enabled future alarm. Runs after
@@ -89,48 +146,57 @@ class AlarmSchedulerService extends ChangeNotifier {
     if (_disposed) return;
     _logger.info('Alarm firing: ${alarm.title}');
     _ringing = alarm;
+    _audioUnavailable = false;
     notifyListeners();
 
     // One-shot: disable before anything else so a crash mid-ring cannot
     // cause a re-fire on the next launch.
     await _disarm(alarm);
+    // Disposal can happen across any await below, and notifying a disposed
+    // ChangeNotifier throws.
+    if (_disposed) return;
 
     if (alarm.audioFilePath.isNotEmpty) {
       try {
-        await _audioPlayer.setFilePath(alarm.audioFilePath);
-        await _audioPlayer.setLoopMode(LoopMode.one);
-        await _audioPlayer.play();
+        await _output.playLooping(alarm.audioFilePath);
       } catch (e) {
         _logger.warning('Failed to play alarm audio: $e');
+        if (_disposed) return;
+        _audioUnavailable = true;
+        notifyListeners();
       }
     }
+    if (_disposed) return;
 
-    // Bring the window to the user's attention on desktop.
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      try {
-        await windowManager.show();
-        await windowManager.focus();
-      } catch (e) {
-        _logger.warning('Failed to focus window for alarm: $e');
-      }
+    try {
+      await _output.bringToFront();
+    } catch (e) {
+      _logger.warning('Failed to focus window for alarm: $e');
     }
   }
 
   /// Stops the ringing sound and clears the overlay.
   Future<void> dismiss() async {
     try {
-      await _audioPlayer.stop();
-    } catch (_) {}
+      await _output.stop();
+    } catch (e) {
+      // Never block dismissal on the audio layer: the overlay must always
+      // clear, or the user is stuck behind it. Recorded rather than swallowed.
+      _logger.warning('Failed to stop alarm audio: $e');
+    }
+    if (_disposed) return;
     _ringing = null;
+    _audioUnavailable = false;
     notifyListeners();
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _retryTimer?.cancel();
     _sub?.cancel();
     _armed?.cancel();
-    _audioPlayer.dispose();
+    unawaited(_output.dispose());
     super.dispose();
   }
 }

@@ -7,12 +7,10 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/providers/schedule_state_provider.dart';
-import 'package:chronosky/ui/screens/analytics_view.dart';
-import 'package:chronosky/ui/screens/schedule_view.dart';
-import 'package:chronosky/ui/screens/work_plans_view.dart';
-import 'package:chronosky/ui/screens/todo_list_view.dart';
+import 'package:chronosky/ui/navigation/feature_tabs.dart';
 import 'package:chronosky/ui/widgets/focus_hud.dart';
 
 class ChronosHome extends StatefulWidget {
@@ -27,12 +25,6 @@ class _ChronosHomeState extends State<ChronosHome>
   int _currentIndex = 0;
   bool _isFocusMode = false;
 
-  final List<Widget> _screens = const [
-    ScheduleView(),
-    WorkPlansView(),
-    AnalyticsView(),
-    TodoListView(),
-  ];
 
   @override
   void initState() {
@@ -79,13 +71,15 @@ class _ChronosHomeState extends State<ChronosHome>
   Widget build(BuildContext context) {
     // The ringing overlay sits above everything (including focus mode) so an
     // alarm can always be dismissed no matter where the user is.
-    final ringing = context.watch<AlarmSchedulerService>().ringing;
+    final alarmService = context.watch<AlarmSchedulerService>();
+    final ringing = alarmService.ringing;
     return Stack(
       children: [
         _buildMain(context),
         if (ringing != null)
           _AlarmRingingOverlay(
             alarm: ringing,
+            soundUnavailable: alarmService.audioUnavailable,
             onDismiss: () => context.read<AlarmSchedulerService>().dismiss(),
           ),
       ],
@@ -120,7 +114,9 @@ class _ChronosHomeState extends State<ChronosHome>
               // which is the standard pattern for primary navigation.
               child: IndexedStack(
                 index: _currentIndex,
-                children: _screens,
+                children: [
+                  for (final tab in appFeatureTabs) tab.screen,
+                ],
               ),
             ),
           ),
@@ -148,23 +144,12 @@ class _ChronosHomeState extends State<ChronosHome>
                     type: BottomNavigationBarType.fixed,
                     selectedFontSize: 12,
                     unselectedFontSize: 12,
-                    items: const [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.calendar_today),
-                        label: 'Schedule',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.layers_outlined),
-                        label: 'Plans',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.pie_chart_outline),
-                        label: 'Insights',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.check_box_outlined),
-                        label: 'Tasks',
-                      ),
+                    items: [
+                      for (final tab in appFeatureTabs)
+                        BottomNavigationBarItem(
+                          icon: Icon(tab.icon),
+                          label: tab.compactLabel,
+                        ),
                     ],
                   ),
                 ),
@@ -177,9 +162,18 @@ class _ChronosHomeState extends State<ChronosHome>
 // ─── Alarm ringing overlay ──────────────────────
 class _AlarmRingingOverlay extends StatelessWidget {
   final domain.TodoItem alarm;
+
+  /// Whether the alarm's sound could not be played. Shown explicitly, because
+  /// a silent alarm is otherwise indistinguishable from a muted device and the
+  /// user has no other way to learn their sound file has gone missing.
+  final bool soundUnavailable;
   final VoidCallback onDismiss;
 
-  const _AlarmRingingOverlay({required this.alarm, required this.onDismiss});
+  const _AlarmRingingOverlay({
+    required this.alarm,
+    required this.onDismiss,
+    this.soundUnavailable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +226,27 @@ class _AlarmRingingOverlay extends StatelessWidget {
                   DateFormat('EEE, MMM d • HH:mm').format(scheduled),
                   style: AppTextStyles.bodySmall
                       .copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+              if (soundUnavailable) ...[
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.volume_off_rounded,
+                      color: Colors.orangeAccent,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        "Sound couldn't be played — the file may have moved.",
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: Colors.orangeAccent),
+                      ),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -328,34 +343,14 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _SidebarItem(
-            index: 0,
-            icon: Icons.calendar_today,
-            label: 'Schedule',
-            isSelected: currentIndex == 0,
-            onTap: () => onSelect(0),
-          ),
-          _SidebarItem(
-            index: 1,
-            icon: Icons.layers_outlined,
-            label: 'WorkPlans',
-            isSelected: currentIndex == 1,
-            onTap: () => onSelect(1),
-          ),
-          _SidebarItem(
-            index: 2,
-            icon: Icons.pie_chart_outline,
-            label: 'Analytics',
-            isSelected: currentIndex == 2,
-            onTap: () => onSelect(2),
-          ),
-          _SidebarItem(
-            index: 3,
-            icon: Icons.check_box_outlined,
-            label: 'Tasks',
-            isSelected: currentIndex == 3,
-            onTap: () => onSelect(3),
-          ),
+          for (var i = 0; i < appFeatureTabs.length; i++)
+            _SidebarItem(
+              index: i,
+              icon: appFeatureTabs[i].icon,
+              label: appFeatureTabs[i].label,
+              isSelected: currentIndex == i,
+              onTap: () => onSelect(i),
+            ),
           const Spacer(),
           // Footer
           Padding(
@@ -410,7 +405,7 @@ class _SidebarItemState extends State<_SidebarItem> {
           borderRadius: BorderRadius.circular(AppRadius.md),
           focusColor: AppColors.neonBlue.withValues(alpha: 0.12),
           child: AnimatedContainer(
-            duration: AppAnimDurations.fast,
+            duration: context.motion(AppAnimDurations.fast),
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -423,7 +418,7 @@ class _SidebarItemState extends State<_SidebarItem> {
               children: [
                 // Active indicator bar
                 AnimatedContainer(
-                  duration: AppAnimDurations.fast,
+                  duration: context.motion(AppAnimDurations.fast),
                   width: 3,
                   height: isActive ? 24 : 0,
                   decoration: BoxDecoration(

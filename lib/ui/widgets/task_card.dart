@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/task_model.dart';
+import 'package:chronosky/ui/motion.dart';
 
 enum TaskCardViewMode { card, list, minimal }
 
@@ -101,31 +103,52 @@ class _TaskCardState extends State<TaskCard>
     }
   }
 
+  /// What a screen reader announces for this card.
+  ///
+  /// Assembled from the fields a sighted user reads off the card, in the same
+  /// order, so the two experiences describe the same thing.
+  String get _semanticLabel => AppStrings.taskSummary(
+        title: widget.task.title,
+        start: widget.task.startTime,
+        end: widget.task.endTime,
+        type: widget.task.type.name,
+        description: widget.task.description,
+        completed: widget.task.completed,
+      );
+
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() => _isHovered = true);
-        _animController.forward();
-      },
-      onExit: (_) {
-        setState(() => _isHovered = false);
-        _animController.reverse();
-      },
-      child: Dismissible(
-        key: Key(widget.task.id),
-        direction: DismissDirection.endToStart,
-        onDismissed: (_) => widget.onDelete(),
-        background: _buildDismissBackground(),
-        child: GestureDetector(
-          // Tap is handled by the body's InkWell so it opens the detail view;
-          // completion has its own explicit toggle control instead of the
-          // whole card surface, so a stray tap can't flip task state.
-          onLongPressStart: (details) =>
-              _showContextMenu(context, details.globalPosition),
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: _buildBody(),
+    // Hover scaling is decorative; skip it entirely when the user has asked
+    // the platform to reduce motion.
+    final Widget body = context.prefersReducedMotion
+        ? _buildBody()
+        : ScaleTransition(scale: _scaleAnimation, child: _buildBody());
+
+    return Semantics(
+      button: true,
+      label: _semanticLabel,
+      onTapHint: 'open task details',
+      child: MouseRegion(
+        onEnter: (_) {
+          setState(() => _isHovered = true);
+          if (!context.prefersReducedMotion) _animController.forward();
+        },
+        onExit: (_) {
+          setState(() => _isHovered = false);
+          if (!context.prefersReducedMotion) _animController.reverse();
+        },
+        child: Dismissible(
+          key: Key(widget.task.id),
+          direction: DismissDirection.endToStart,
+          onDismissed: (_) => widget.onDelete(),
+          background: _buildDismissBackground(),
+          child: GestureDetector(
+            // Tap is handled by the body's InkWell so it opens the detail view;
+            // completion has its own explicit toggle control instead of the
+            // whole card surface, so a stray tap can't flip task state.
+            onLongPressStart: (details) =>
+                _showContextMenu(context, details.globalPosition),
+            child: body,
           ),
         ),
       ),
@@ -147,7 +170,7 @@ class _TaskCardState extends State<TaskCard>
     final color = _getTypeColor(widget.task.type);
 
     return AnimatedContainer(
-      duration: AppAnimDurations.normal,
+      duration: context.motion(AppAnimDurations.normal),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -297,7 +320,11 @@ class _TaskCardState extends State<TaskCard>
     return IconButton(
       onPressed: widget.onToggle,
       tooltip: completed ? 'Mark as incomplete' : 'Mark as complete',
-      visualDensity: VisualDensity.compact,
+      // VisualDensity.compact took this to 40x40, below the 48x48 minimum, on
+      // the single most-tapped control in the app. The icon stays 22px; only
+      // the hit area grows.
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      padding: EdgeInsets.zero,
       icon: Icon(
         completed
             ? Icons.check_circle_rounded
