@@ -167,6 +167,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white70),
+          tooltip: 'Close',
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -391,6 +392,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
               ),
               IconButton(
                 onPressed: _addChecklistItem,
+                tooltip: 'Add checklist item',
                 icon: const Icon(Icons.add_rounded, color: AppColors.neonBlue),
               ),
             ],
@@ -428,6 +430,7 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
           ),
           if (_isEditing)
             IconButton(
+              tooltip: 'Remove item',
               onPressed: () => setState(() => _checklist.removeAt(index)),
               icon: const Icon(
                 Icons.remove_circle_outline,

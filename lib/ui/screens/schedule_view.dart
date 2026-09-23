@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
@@ -747,7 +748,7 @@ class _DayCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.lg),
           focusColor: AppColors.neonBlue.withValues(alpha: 0.15),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: context.motion(const Duration(milliseconds: 250)),
             curve: Curves.easeOutCubic,
             width: width,
             margin: EdgeInsets.only(right: isLast ? 0 : 8),
@@ -868,11 +869,12 @@ class _ScheduleHeader extends StatelessWidget {
             children: [
               Text(
                 dayPlan.dayOfWeek.toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.4,
-                  color: AppColors.neonBlue.withValues(alpha: 0.8),
+                  // Not neonBlue: it fails AA at this size. See accentText.
+                  color: AppColors.accentText,
                 ),
               ),
               const SizedBox(height: 4),
@@ -1109,8 +1111,13 @@ class _ActionButton extends StatelessWidget {
       onPressed: onTap,
       icon: Icon(icon, size: 20, color: color),
       tooltip: tooltip,
+      // The icon stays 20px, but the hit area must reach 48x48: these sit in a
+      // tight toolbar row and rendered at 40x40, below the minimum target size
+      // on every platform's guidelines.
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
       style: IconButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.1),
+        minimumSize: const Size(48, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),

@@ -1,4 +1,5 @@
 import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ Future<void> pumpWithProviders(
   required ScheduleStateProvider scheduleProvider,
   AnalyticsProvider? analyticsProvider,
   Size surfaceSize = const Size(1200, 900),
+  bool reduceMotion = false,
 }) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -34,7 +36,25 @@ Future<void> pumpWithProviders(
         ),
       ],
       child: MaterialApp(
-        home: Scaffold(body: child),
+        // The app's real theme, so colour-dependent assertions (contrast in
+        // particular) measure what ships rather than a default light Scaffold.
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: reduceMotion
+              // copyWith, not a fresh MediaQueryData: constructing one would
+              // also reset size, padding and text scale, laying the tree out
+              // against a zero-sized window and measuring something other
+              // than the app. The Builder sits under MaterialApp so there is
+              // data to copy.
+              ? Builder(
+                  builder: (context) => MediaQuery(
+                    data: MediaQuery.of(context)
+                        .copyWith(disableAnimations: true),
+                    child: child,
+                  ),
+                )
+              : child,
+        ),
       ),
     ),
   );

@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/ui/navigation/feature_tabs.dart';
@@ -404,7 +405,7 @@ class _SidebarItemState extends State<_SidebarItem> {
           borderRadius: BorderRadius.circular(AppRadius.md),
           focusColor: AppColors.neonBlue.withValues(alpha: 0.12),
           child: AnimatedContainer(
-            duration: AppAnimDurations.fast,
+            duration: context.motion(AppAnimDurations.fast),
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -417,7 +418,7 @@ class _SidebarItemState extends State<_SidebarItem> {
               children: [
                 // Active indicator bar
                 AnimatedContainer(
-                  duration: AppAnimDurations.fast,
+                  duration: context.motion(AppAnimDurations.fast),
                   width: 3,
                   height: isActive ? 24 : 0,
                   decoration: BoxDecoration(

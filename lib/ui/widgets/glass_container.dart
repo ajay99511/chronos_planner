@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/motion.dart';
 
 /// A premium glassmorphism container with optimized blur and optional gradient border.
 class GlassContainer extends StatefulWidget {
@@ -33,21 +34,24 @@ class _GlassContainerState extends State<GlassContainer>
     with SingleTickerProviderStateMixin {
   double _scale = 1.0;
 
+  bool get _animates =>
+      widget.onTap != null && widget.animateScale && !context.prefersReducedMotion;
+
   void _onTapDown(TapDownDetails _) {
-    if (widget.onTap != null && widget.animateScale) {
+    if (_animates) {
       setState(() => _scale = 0.98);
     }
   }
 
   void _onTapUp(TapUpDetails _) {
-    if (widget.onTap != null && widget.animateScale) {
+    if (_animates) {
       setState(() => _scale = 1.0);
     }
     widget.onTap?.call();
   }
 
   void _onTapCancel() {
-    if (widget.onTap != null && widget.animateScale) {
+    if (_animates) {
       setState(() => _scale = 1.0);
     }
   }
