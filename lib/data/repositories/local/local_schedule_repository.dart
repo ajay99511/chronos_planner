@@ -18,6 +18,11 @@ class LocalScheduleRepository implements ScheduleRepository {
 
   LocalScheduleRepository(this._dayPlanDao, this._taskDao);
 
+  /// Strips the time component so a stored row and a generated date compare
+  /// equal as map keys.
+  static DateTime _dayKey(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
   String _calculateWeekKey(DateTime date) {
     final monday = date.subtract(Duration(days: date.weekday - 1));
     final weekNumber =
@@ -54,21 +59,18 @@ class LocalScheduleRepository implements ScheduleRepository {
       // Run the read-create-read cycle atomically so concurrent callers
       // cannot each decide a day is missing and insert competing rows.
       return _dayPlanDao.attachedDatabase.transaction(() async {
-        DayPlan? findByDate(List<DayPlan> plans, DateTime date) =>
-            plans.cast<DayPlan?>().firstWhere(
-                  (p) =>
-                      p!.date.year == date.year &&
-                      p.date.month == date.month &&
-                      p.date.day == date.day,
-                  orElse: () => null,
-                );
+        /// Day rows keyed by calendar day, so lookups are O(1). The previous
+        /// linear scan ran inside the per-day loop, making it O(n^2).
+        Map<DateTime, DayPlan> byDate(List<DayPlan> plans) => {
+              for (final p in plans) _dayKey(p.date): p,
+            };
 
-        var dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
+        var plansByDate = byDate(await _dayPlanDao.getDayPlansFrom(today, count));
 
         final List<DayPlansCompanion> newDays = [];
         for (int i = 0; i < count; i++) {
           final date = today.add(Duration(days: i));
-          if (findByDate(dbPlans, date) == null) {
+          if (!plansByDate.containsKey(date)) {
             newDays.add(
               DayPlansCompanion(
                 id: Value(const Uuid().v4()),
@@ -83,28 +85,41 @@ class LocalScheduleRepository implements ScheduleRepository {
           // insertOrIgnore: if a row for the date appeared meanwhile, keep it.
           await _dayPlanDao.insertDayPlans(newDays);
           // Re-read so returned ids always match the rows that actually won.
-          dbPlans = await _dayPlanDao.getDayPlansFrom(today, count);
+          plansByDate =
+              byDate(await _dayPlanDao.getDayPlansFrom(today, count));
         }
 
-        final List<domain.DayPlan> fullList = [];
+        // Resolve every day first, then read all their tasks in one query
+        // rather than one per day.
+        final List<DayPlan> resolved = [];
         for (int i = 0; i < count; i++) {
           final date = today.add(Duration(days: i));
-          final existing = findByDate(dbPlans, date);
+          final existing = plansByDate[date];
           if (existing == null) {
             throw StateError('Day plan missing after insert for $date');
           }
-          final dbTasks = await _taskDao.getTasksForDay(existing.id);
-          fullList.add(
-            domain.DayPlan(
-              id: existing.id,
-              date: existing.date,
-              tasks: dbTasks.map(_dbTaskToModel).toList()
-                ..sort((a, b) => a.startTime.compareTo(b.startTime)),
-            ),
-          );
+          resolved.add(existing);
         }
 
-        return fullList;
+        final dbTasks = await _taskDao.getTasksForDays(
+          [for (final plan in resolved) plan.id],
+        );
+        final tasksByPlan = <String, List<domain.Task>>{};
+        for (final task in dbTasks) {
+          tasksByPlan
+              .putIfAbsent(task.dayPlanId, () => [])
+              .add(_dbTaskToModel(task));
+        }
+
+        return [
+          for (final plan in resolved)
+            domain.DayPlan(
+              id: plan.id,
+              date: plan.date,
+              // Already ordered by start time by the query.
+              tasks: tasksByPlan[plan.id] ?? const [],
+            ),
+        ];
       });
     });
   }

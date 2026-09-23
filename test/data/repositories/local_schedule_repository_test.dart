@@ -26,6 +26,28 @@ class MockDayPlanDao extends Mock implements DayPlanDao {
 
 class MockTaskDao extends Mock implements TaskDao {}
 
+/// A generated `Task` row, as the DAO would return it.
+Task _taskRow({
+  required String id,
+  required String dayPlanId,
+  String startTime = '09:00',
+}) =>
+    Task(
+      id: id,
+      title: 'Row $id',
+      description: '',
+      startTime: startTime,
+      endTime: '23:00',
+      type: 'work',
+      priority: 'medium',
+      energyLevel: 'medium',
+      estimatedCost: 0,
+      actualCost: 0,
+      completed: false,
+      dayPlanId: dayPlanId,
+      sourceTemplateId: '',
+    );
+
 void main() {
   late LocalScheduleRepository repository;
   late MockDayPlanDao mockDayPlanDao;
@@ -46,7 +68,7 @@ void main() {
         );
       }
     });
-    when(() => mockTaskDao.getTasksForDay(any())).thenAnswer((_) async => []);
+    when(() => mockTaskDao.getTasksForDays(any())).thenAnswer((_) async => []);
   }
 
   setUp(() {
@@ -106,12 +128,57 @@ void main() {
           );
         }
       });
-      when(() => mockTaskDao.getTasksForDay(any())).thenAnswer((_) async => []);
+      when(() => mockTaskDao.getTasksForDays(any()))
+          .thenAnswer((_) async => []);
 
       final result = await repository.getUpcomingDays(1);
 
       expect(result, isA<Success>());
       expect(failures, 2);
+    });
+
+    // performance-efficiency.md lists N+1 as the most frequent suspect: the
+    // schedule loads seven days at once and previously issued one task query
+    // per day inside the loop.
+    test('getUpcomingDays reads every day\'s tasks in a single query',
+        () async {
+      stubStatefulDao();
+
+      final result = await repository.getUpcomingDays(7);
+
+      expect(result, isA<Success>());
+      verify(() => mockTaskDao.getTasksForDays(any())).called(1);
+    });
+
+    test('getUpcomingDays attaches each task to its own day', () async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      stored = [
+        DayPlan(id: 'day-0', date: today, weekKey: 'w'),
+        DayPlan(
+          id: 'day-1',
+          date: today.add(const Duration(days: 1)),
+          weekKey: 'w',
+        ),
+      ];
+      stubStatefulDao();
+      when(() => mockTaskDao.getTasksForDays(any())).thenAnswer(
+        (_) async => [
+          _taskRow(id: 't-today', dayPlanId: 'day-0', startTime: '09:00'),
+          _taskRow(id: 't-tomorrow', dayPlanId: 'day-1', startTime: '10:00'),
+          _taskRow(id: 't-today-2', dayPlanId: 'day-0', startTime: '14:00'),
+        ],
+      );
+
+      final result = await repository.getUpcomingDays(2);
+      final days = (result as Success<List<domain.DayPlan>>).value;
+
+      expect(
+        days[0].tasks.map((t) => t.id),
+        ['t-today', 't-today-2'],
+        reason: 'grouping must keep the query order within a day',
+      );
+      expect(days[1].tasks.map((t) => t.id), ['t-tomorrow']);
     });
 
     test('DriftWrappedException returns Failure(DatabaseFailure)', () async {

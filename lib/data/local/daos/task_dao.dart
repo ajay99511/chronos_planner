@@ -14,6 +14,19 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     return (select(tasks)..where((t) => t.dayPlanId.equals(dayPlanId))).get();
   }
 
+  /// Get tasks for several day plans in one query, ordered by start time.
+  ///
+  /// The schedule loads a whole rolling window at once, so reading it one day
+  /// at a time is the N+1 pattern. Callers group the result by `dayPlanId`;
+  /// the ordering holds within each group.
+  Future<List<Task>> getTasksForDays(List<String> dayPlanIds) {
+    if (dayPlanIds.isEmpty) return Future.value(const []);
+    return (select(tasks)
+          ..where((t) => t.dayPlanId.isIn(dayPlanIds))
+          ..orderBy([(t) => OrderingTerm.asc(t.startTime)]))
+        .get();
+  }
+
   /// Insert a single task. Upserts on id so a retried write cannot fail with
   /// a UNIQUE violation and abort the surrounding transaction.
   Future<void> insertTask(TasksCompanion task) {
