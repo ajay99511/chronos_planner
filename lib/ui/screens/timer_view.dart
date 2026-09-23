@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -22,6 +24,7 @@ class _TimerViewState extends State<TimerView> {
   Timer? _ticker;
   bool _isRunning = false;
   bool _isCompleted = false;
+  SoundFailure? _soundFailure;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   /// Wall-clock deadline for the running countdown. Deriving the remaining
@@ -89,20 +92,43 @@ class _TimerViewState extends State<TimerView> {
       _remainingSeconds = _totalSeconds;
       _isRunning = false;
       _isCompleted = false;
+      _soundFailure = null;
     });
   }
 
   Future<void> _onTimerComplete() async {
     final audioPath = widget.timer.audioFilePath;
-    if (audioPath.isNotEmpty) {
-      try {
-        await _audioPlayer.setFilePath(audioPath);
-        await _audioPlayer.play();
-      } catch (e) {
-        debugPrint('Error playing audio: $e');
-      }
+    if (audioPath.isEmpty) return;
+
+    // just_audio declares android/ios/macos/web only, so on Windows and Linux
+    // -- both targeted here -- this cannot work. Checked up front so the notice
+    // is accurate rather than a generic failure.
+    if (!audioSupportedOnThisPlatform) {
+      if (mounted) setState(() => _soundFailure = SoundFailure.unsupportedPlatform);
+      return;
+    }
+    if (!await File(audioPath).exists()) {
+      if (mounted) setState(() => _soundFailure = SoundFailure.fileMissing);
+      return;
+    }
+    try {
+      await _audioPlayer.setFilePath(audioPath);
+      await _audioPlayer.play();
+    } catch (e) {
+      // Previously a debugPrint: the timer finished in silence and the user had
+      // no way to know the sound had failed rather than simply being quiet.
+      if (mounted) setState(() => _soundFailure = SoundFailure.playbackFailed);
     }
   }
+
+  String get _soundMessage => switch (_soundFailure) {
+        SoundFailure.fileMissing =>
+          "Sound couldn't be played — the file may have moved.",
+        SoundFailure.unsupportedPlatform =>
+          'Timer sound is not supported on this platform.',
+        SoundFailure.playbackFailed => "Sound couldn't be played.",
+        null => '',
+      };
 
   String _formatTime(int seconds) {
     final m = seconds ~/ 60;
@@ -188,6 +214,16 @@ class _TimerViewState extends State<TimerView> {
                             color: AppColors.health,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2,
+                          ),
+                        ),
+                      if (_soundFailure != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.sm),
+                          child: Text(
+                            _soundMessage,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodySmall
+                                .copyWith(color: Colors.orangeAccent),
                           ),
                         ),
                     ],

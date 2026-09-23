@@ -114,6 +114,24 @@ class AppStrings {
     return '$minutePart $secondPart remaining';
   }
 
+  /// Tells the user which alarms passed while the app was not running.
+  ///
+  /// Names them rather than giving a bare count: "1 alarm was missed" leaves
+  /// the user guessing which, and the whole point is to restore trust.
+  static String missedAlarms(Iterable<String> titles) {
+    final names = titles.toList();
+    if (names.isEmpty) return '';
+    if (names.length == 1) {
+      return 'Missed alarm while the app was closed: "${names.first}"';
+    }
+    if (names.length == 2) {
+      return 'Missed 2 alarms while the app was closed: '
+          '"${names[0]}" and "${names[1]}"';
+    }
+    return 'Missed ${names.length} alarms while the app was closed, '
+        'including "${names.first}"';
+  }
+
   static String planTaskCount(int count) =>
       count == 1 ? '1 task' : '$count tasks';
 }

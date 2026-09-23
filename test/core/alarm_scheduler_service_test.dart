@@ -17,12 +17,13 @@ class _FakeAlarmOutput implements AlarmOutput {
   int bringToFrontCount = 0;
   bool disposed = false;
 
-  /// When set, [playLooping] throws it — the moved-or-deleted sound file case.
-  Object? playError;
+  /// When set, [playLooping] throws this reason.
+  SoundFailure? playFailure;
 
   @override
   Future<void> playLooping(String path) async {
-    if (playError != null) throw playError!;
+    final failure = playFailure;
+    if (failure != null) throw SoundException(failure);
     played.add(path);
   }
 
@@ -94,7 +95,7 @@ void main() {
 
       expect(subject.ringing?.id, 'alarm-1');
       expect(output.played, ['C:/sounds/wake.mp3']);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
     });
 
     test('firing disarms the alarm so it is one-shot', () async {
@@ -112,7 +113,7 @@ void main() {
 
     test('a missing sound file still rings, and says the sound failed',
         () async {
-      output.playError = Exception('file not found');
+      output.playFailure = SoundFailure.fileMissing;
       final subject = service();
       addTearDown(subject.dispose);
 
@@ -125,9 +126,10 @@ void main() {
         reason: 'the alarm must still ring without its sound',
       );
       expect(
-        subject.audioUnavailable,
-        isTrue,
-        reason: 'a silent alarm is otherwise indistinguishable from a mute',
+        subject.soundFailure,
+        SoundFailure.fileMissing,
+        reason: 'a silent alarm is otherwise indistinguishable from a mute, '
+            'and the reason decides whether the user can act on it',
       );
     });
 
@@ -141,7 +143,7 @@ void main() {
 
       expect(subject.ringing, isNotNull);
       expect(output.played, isEmpty);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
     });
 
     test('a disabled alarm never fires', () async {
@@ -170,6 +172,11 @@ void main() {
         reason: 'an alarm missed while the app was closed must not ambush',
       );
       verify(() => repo.updateTodo(any())).called(1);
+      expect(
+        subject.missedAlarms.map((a) => a.id),
+        ['alarm-1'],
+        reason: 'a missed alarm must be reported, not silently disarmed',
+      );
     });
 
     test('the soonest of several alarms is the one armed', () async {
@@ -198,7 +205,7 @@ void main() {
       await subject.dismiss();
 
       expect(subject.ringing, isNull);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
       expect(output.stopCount, 1);
     });
 
@@ -220,6 +227,71 @@ void main() {
       await trapped.dismiss();
 
       expect(trapped.ringing, isNull);
+    });
+  });
+
+  group('missed alarms', () {
+    test('an unsupported platform is reported as such, not as a missing file',
+        () async {
+      // just_audio declares android/ios/macos/web only, so on Windows and
+      // Linux -- both targeted here -- playback cannot work. Telling the user
+      // their file moved would send them after a problem that is not theirs.
+      output.playFailure = SoundFailure.unsupportedPlatform;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now())]);
+      await pumpEventQueue();
+
+      expect(subject.ringing, isNotNull);
+      expect(subject.soundFailure, SoundFailure.unsupportedPlatform);
+    });
+
+    test('acknowledging clears the notice', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([
+        alarm(at: DateTime.now().subtract(const Duration(hours: 2))),
+      ]);
+      await pumpEventQueue();
+      expect(subject.missedAlarms, hasLength(1));
+
+      subject.acknowledgeMissedAlarms();
+
+      expect(subject.missedAlarms, isEmpty);
+    });
+
+    test('the same missed alarm is not reported twice', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+      final missed = alarm(at: DateTime.now().subtract(const Duration(hours: 2)));
+
+      alarms.add([missed]);
+      await pumpEventQueue();
+      // A second emission of the same list must not duplicate the notice.
+      alarms.add([missed]);
+      await pumpEventQueue();
+
+      expect(subject.missedAlarms, hasLength(1));
+    });
+
+    test('refreshSchedule re-evaluates against the current clock', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      // Armed for the future, so nothing fires yet.
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 1)))]);
+      await pumpEventQueue();
+      expect(subject.ringing, isNull);
+
+      // A Dart Timer does not survive the machine sleeping through its
+      // deadline; resume calls this so a stale timer is recomputed.
+      subject.refreshSchedule();
+      await pumpEventQueue();
+
+      expect(subject.ringing, isNull);
+      expect(subject.missedAlarms, isEmpty);
     });
   });
 

@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
+import 'package:chronosky/ui/strings.dart';
+import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -46,7 +48,34 @@ class _ChronosHomeState extends State<ChronosHome>
     // the date is unchanged.
     if (state == AppLifecycleState.resumed) {
       context.read<ScheduleStateProvider>().refreshIfDateChanged();
+      // A Dart Timer does not survive the machine sleeping through its
+      // deadline, so a resumed app would hold an already-expired timer.
+      context.read<AlarmSchedulerService>().refreshSchedule();
     }
+  }
+
+  /// Tells the user about alarms that passed while the app was not running.
+  ///
+  /// Scheduling is in-process (docs/decisions/0006), so a closed app misses its
+  /// alarms. They were previously disarmed in silence, which is what turns a
+  /// missed alarm into lost trust.
+  void _reportMissedAlarms(AlarmSchedulerService service) {
+    final missed = service.missedAlarms;
+    if (missed.isEmpty) return;
+    // Scheduled out of build: showing a snackbar is a side effect.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final still = service.missedAlarms;
+      if (still.isEmpty) return;
+      service.acknowledgeMissedAlarms();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.surfaceLight,
+          duration: const Duration(seconds: 8),
+          content: Text(AppStrings.missedAlarms(still.map((a) => a.title))),
+        ),
+      );
+    });
   }
 
   Future<void> _toggleFocusMode() async {
@@ -73,13 +102,14 @@ class _ChronosHomeState extends State<ChronosHome>
     // alarm can always be dismissed no matter where the user is.
     final alarmService = context.watch<AlarmSchedulerService>();
     final ringing = alarmService.ringing;
+    _reportMissedAlarms(alarmService);
     return Stack(
       children: [
         _buildMain(context),
         if (ringing != null)
           _AlarmRingingOverlay(
             alarm: ringing,
-            soundUnavailable: alarmService.audioUnavailable,
+            soundFailure: alarmService.soundFailure,
             onDismiss: () => context.read<AlarmSchedulerService>().dismiss(),
           ),
       ],
@@ -163,17 +193,29 @@ class _ChronosHomeState extends State<ChronosHome>
 class _AlarmRingingOverlay extends StatelessWidget {
   final domain.TodoItem alarm;
 
-  /// Whether the alarm's sound could not be played. Shown explicitly, because
-  /// a silent alarm is otherwise indistinguishable from a muted device and the
-  /// user has no other way to learn their sound file has gone missing.
-  final bool soundUnavailable;
+  /// Why the alarm made no sound, or null if it played.
+  ///
+  /// Shown explicitly, because a silent alarm is otherwise indistinguishable
+  /// from a muted device — and the reason decides whether the user can do
+  /// anything about it.
+  final SoundFailure? soundFailure;
   final VoidCallback onDismiss;
 
   const _AlarmRingingOverlay({
     required this.alarm,
     required this.onDismiss,
-    this.soundUnavailable = false,
+    this.soundFailure,
   });
+
+  String get _soundMessage => switch (soundFailure) {
+        SoundFailure.fileMissing =>
+          "Sound couldn't be played — the file may have moved.",
+        // Not the user's problem to fix, so it is not phrased as though it is.
+        SoundFailure.unsupportedPlatform =>
+          'Alarm sound is not supported on this platform.',
+        SoundFailure.playbackFailed => "Sound couldn't be played.",
+        null => '',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +270,7 @@ class _AlarmRingingOverlay extends StatelessWidget {
                       .copyWith(color: AppColors.textSecondary),
                 ),
               ],
-              if (soundUnavailable) ...[
+              if (soundFailure != null) ...[
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -241,7 +283,7 @@ class _AlarmRingingOverlay extends StatelessWidget {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        "Sound couldn't be played — the file may have moved.",
+                        _soundMessage,
                         style: AppTextStyles.bodySmall
                             .copyWith(color: Colors.orangeAccent),
                       ),

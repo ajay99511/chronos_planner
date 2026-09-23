@@ -51,18 +51,34 @@ class AlarmSchedulerService extends ChangeNotifier {
   int _retryAttempt = 0;
   List<domain.TodoItem> _alarms = const [];
   domain.TodoItem? _ringing;
-  bool _audioUnavailable = false;
+  SoundFailure? _soundFailure;
+  final List<domain.TodoItem> _missed = [];
   bool _disposed = false;
 
   /// The alarm currently ringing, or null. UI shows a dismiss overlay when set.
   domain.TodoItem? get ringing => _ringing;
 
-  /// Whether the ringing alarm's sound could not be played.
+  /// Why the ringing alarm made no sound, or null if it played.
   ///
-  /// Surfaced so the overlay can say so. A silent alarm is otherwise
-  /// indistinguishable from a muted device, and the user has no way to learn
-  /// that the sound file they picked has since been moved or deleted.
-  bool get audioUnavailable => _audioUnavailable;
+  /// A silent alarm is otherwise indistinguishable from a muted device. The
+  /// reason matters because the remedies differ: a missing file the user can
+  /// re-pick, an unsupported platform they cannot.
+  SoundFailure? get soundFailure => _soundFailure;
+
+  /// Alarms whose time passed while the app was not running.
+  ///
+  /// Scheduling is in-process (see docs/decisions/0006), so a closed app misses
+  /// its alarms. They used to be disarmed silently, which made a missed alarm
+  /// indistinguishable from one that never existed. Reported instead, so the
+  /// user learns rather than quietly losing trust.
+  List<domain.TodoItem> get missedAlarms => List.unmodifiable(_missed);
+
+  /// Clears the missed-alarm notice after the user has seen it.
+  void acknowledgeMissedAlarms() {
+    if (_missed.isEmpty) return;
+    _missed.clear();
+    if (!_disposed) notifyListeners();
+  }
 
   /// Resubscribe attempts made since the stream last delivered.
   @visibleForTesting
@@ -102,6 +118,13 @@ class AlarmSchedulerService extends ChangeNotifier {
     });
   }
 
+  /// Recomputes the armed timer against the current wall clock.
+  ///
+  /// Call on app resume and on window focus: a Dart [Timer] does not survive a
+  /// machine sleeping through its deadline, so a resumed app would otherwise
+  /// sit holding a timer that has already expired.
+  void refreshSchedule() => _rearm();
+
   /// (Re)arms the timer for the soonest enabled future alarm. Runs after
   /// every repository change, so edits/deletes/toggles take effect at once.
   void _rearm() {
@@ -109,11 +132,18 @@ class AlarmSchedulerService extends ChangeNotifier {
     _armed = null;
 
     final now = DateTime.now();
+    var notifiedMissed = false;
     domain.TodoItem? next;
     for (final alarm in _alarms) {
       final at = alarm.scheduledAt;
       if (!alarm.enabled || at == null) continue;
       if (at.isBefore(now.subtract(_missedGrace))) {
+        // Missed while the app was closed or asleep. Disarm so it cannot
+        // ambush the user later, but record it so they are told.
+        if (!_missed.any((m) => m.id == alarm.id)) {
+          _missed.add(alarm);
+          notifiedMissed = true;
+        }
         unawaited(_disarm(alarm));
         continue;
       }
@@ -121,6 +151,7 @@ class AlarmSchedulerService extends ChangeNotifier {
         next = alarm;
       }
     }
+    if (notifiedMissed && !_disposed) notifyListeners();
     if (next == null) return;
 
     final delay = next.scheduledAt!.difference(now);
@@ -146,7 +177,7 @@ class AlarmSchedulerService extends ChangeNotifier {
     if (_disposed) return;
     _logger.info('Alarm firing: ${alarm.title}');
     _ringing = alarm;
-    _audioUnavailable = false;
+    _soundFailure = null;
     notifyListeners();
 
     // One-shot: disable before anything else so a crash mid-ring cannot
@@ -159,10 +190,15 @@ class AlarmSchedulerService extends ChangeNotifier {
     if (alarm.audioFilePath.isNotEmpty) {
       try {
         await _output.playLooping(alarm.audioFilePath);
-      } catch (e) {
-        _logger.warning('Failed to play alarm audio: $e');
+      } on SoundException catch (e) {
+        _logger.warning('Alarm sound failed (${e.reason.name}): ${e.cause}');
         if (_disposed) return;
-        _audioUnavailable = true;
+        _soundFailure = e.reason;
+        notifyListeners();
+      } catch (e) {
+        _logger.warning('Alarm sound failed: $e');
+        if (_disposed) return;
+        _soundFailure = SoundFailure.playbackFailed;
         notifyListeners();
       }
     }
@@ -186,7 +222,7 @@ class AlarmSchedulerService extends ChangeNotifier {
     }
     if (_disposed) return;
     _ringing = null;
-    _audioUnavailable = false;
+    _soundFailure = null;
     notifyListeners();
   }
 
