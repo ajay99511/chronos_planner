@@ -1,40 +1,63 @@
-# 0006 — Alarms are scheduled in-process only
+# 0006 — Alarms are scheduled in-process
 
-**Status:** **Open.** Needs a product decision before the alarm feature can
-honestly be described as working.
+**Status:** Accepted, with the limitation made visible to users. Superseding it
+depends on an unresolved platform question — see 0009 and "What would change
+this" below.
 
-**Decision (current — by default rather than by choice):**
-`AlarmSchedulerService` arms a single in-process `Timer` for the next enabled
-alarm. Alarms therefore do not fire when the app is closed, and because firing is
-one-shot they do not fire late either.
+**Decision:** `AlarmSchedulerService` arms a single in-process `Timer` for the
+next enabled alarm. Alarms do not fire when the app is closed. Rather than
+pretending otherwise, the app now **tells the user** which alarms it missed.
 
-**Context:** The service is explicit about its scope in its own doc comment, and
-it deliberately disarms alarms missed by more than a minute so a user is not
-ambushed on relaunch. Reliability *while running* has been brought up to standard:
-the stream resubscribes with bounded backoff instead of dying silently on the
-first error, disposal is guarded across every `await`, and a missing sound file is
-surfaced in the UI rather than logged and forgotten.
+**Context:** This was originally recorded as Open, on the assumption that the
+fix was simply "add an OS-level scheduling package". Investigating it turned up
+something that changes the shape of the problem.
 
-None of that changes the headline limitation. An alarm feature that misses alarms
-is arguably worse than no alarm feature, because users build trust in it.
+`just_audio` 0.9.46 declares platforms for **android, ios, macos and web only**
+(verified in the package's own `pubspec.yaml`, not inferred from behaviour).
+This app also targets **Windows and Linux** — that is where `window_manager`
+runs, with a 1200×800 window and a hidden title bar, which is plainly the
+primary experience. So on the main desktop platform an alarm could not make a
+sound even if it fired perfectly on time.
+
+That reorders the work. Firing reliably matters less than the fact that, on the
+platform most users are on, the alarm is silent regardless. Sound is tracked
+separately in 0009.
+
+What *could* be fixed without a dependency has been:
+
+- Missed alarms are collected and reported by name instead of being disarmed in
+  silence. A missed alarm the user is told about is a limitation; one that
+  vanishes is lost trust.
+- `refreshSchedule()` recomputes against the wall clock on app resume. A Dart
+  `Timer` does not survive the machine sleeping through its deadline.
+- A dropped alarm stream resubscribes with bounded backoff rather than ending
+  scheduling for the session.
+- Why a sound failed is reported accurately, so an unsupported platform is not
+  described as a missing file.
 
 **Alternatives:**
 
-- **`flutter_local_notifications`, or a platform alarm manager** — the real fix. A
-  new permanent dependency that touches platform configuration on every target,
-  which `security-privacy.md` treats as Consequential: it needs vetting and an
-  owner, not a drive-by `pub add`.
-- **A background isolate or periodic worker** — still dies with the process on
-  desktop, so it solves nothing here.
-- **Rename the feature to in-session reminders** — a product decision rather than
-  an engineering one. Legitimate, and much cheaper, but it changes what the feature
-  promises.
+- **An OS-level scheduling package** (`flutter_local_notifications` or similar) —
+  still the real fix for firing-while-closed. **Its Windows support has not been
+  verified here and must be, before anyone commits to it**; if it does not cover
+  Windows, it solves the secondary platforms and leaves the primary one exactly
+  as it is. Also a permanent dependency touching platform configuration on every
+  target, which `security-privacy.md` treats as Consequential.
+- **Windows Task Scheduler / a background service** — genuinely fires when the
+  app is closed on the primary platform, and is a substantially larger piece of
+  work with its own install and permission story.
+- **Rename the feature to in-session reminders** — cheapest, and honest. Still
+  available; the missed-alarm reporting makes the current behaviour legible
+  either way.
 
 **Consequences:**
 
-- Easy today: no extra dependency, no permission prompts, and the whole service is
-  unit-testable behind the `AlarmOutput` seam.
-- Hard: the feature's central promise is unmet, and the limitation is visible only
-  in a doc comment.
-- Reversing: adding OS scheduling is additive — the in-process timer stays as the
-  foreground fast path.
+- Easy: no dependency, no permission prompts, and the whole service is unit
+  testable behind the `AlarmOutput` seam.
+- Hard: the feature still does not fire when closed. It now says so rather than
+  failing quietly, which is a different and much smaller problem.
+- Reversing: additive. OS scheduling would sit alongside the in-process timer,
+  which stays as the foreground fast path.
+
+**What would change this:** a verified answer on Windows support for an
+OS-scheduling package, or a decision to drop Windows as a target.

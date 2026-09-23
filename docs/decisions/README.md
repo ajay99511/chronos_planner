@@ -33,6 +33,7 @@ anyone who actually knows.
 | [0003](0003-database-singleton-and-composition-seam.md) | Database singleton, with a composition seam for tests | Amended |
 | [0004](0004-invariants-in-both-app-and-schema.md) | Enforce task invariants in the app *and* the schema | Accepted |
 | [0005](0005-quarantine-not-delete-in-migrations.md) | Destructive migrations quarantine rows rather than delete them | Accepted |
-| [0006](0006-in-process-alarm-scheduling.md) | Alarms are scheduled in-process only | **Open** — needs a product decision |
+| [0006](0006-in-process-alarm-scheduling.md) | Alarms are scheduled in-process | Accepted — limitation now surfaced |
 | [0007](0007-i18n-seam-without-localisation.md) | An i18n seam without localising | Accepted |
 | [0008](0008-error-reporting-sink.md) | Errors reach the platform log, not a remote service | **Open** — needs a product decision |
+| [0009](0009-audio-unsupported-on-windows-and-linux.md) | Alarm and timer sound do not work on Windows or Linux | **Open** — shipped feature, primary platform |
