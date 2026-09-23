@@ -20,6 +20,34 @@ class Tasks extends Table {
       text().references(DayPlans, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
 
+  /// SQL-level guards on task data (schema v10).
+  ///
+  /// `Task.create` is the primary validation, but it only covers data this
+  /// version of the app writes. These catch everything else: a code path that
+  /// forgets the factory, a raw SQL insert, a row from an older build. "Let the
+  /// database enforce what the database can enforce" (stack-appendices.md §2).
+  ///
+  /// Written as inline literals rather than shared constants because drift's
+  /// generator reads the source AST: a reference to a `const` string is
+  /// silently emitted as no constraint at all. [TemplateTasks] repeats these
+  /// deliberately — the duplication is visible and checked by a test, which is
+  /// better than an abstraction the code generator ignores.
+  ///
+  /// The clock check fixes the shape with GLOB and caps minutes at 59; the
+  /// upper-bound comparison rejects hours 24-29, which the character class
+  /// alone would admit. Lexical comparison is exact because values are
+  /// zero-padded.
+  @override
+  List<String> get customConstraints => [
+        'CHECK (length(title) BETWEEN 1 AND 200)',
+        "CHECK (start_time GLOB '[0-2][0-9]:[0-5][0-9]' "
+            "AND start_time <= '23:59')",
+        "CHECK (end_time GLOB '[0-2][0-9]:[0-5][0-9]' "
+            "AND end_time <= '23:59')",
+        'CHECK (estimated_cost >= 0.0)',
+        'CHECK (actual_cost >= 0.0)',
+      ];
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -78,6 +106,19 @@ class TemplateTasks extends Table {
   TextColumn get priority => text().withDefault(const Constant('medium'))();
   TextColumn get energyLevel => text().withDefault(const Constant('medium'))();
   RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
+
+  /// Mirrors [Tasks.customConstraints], minus `actual_cost`, which this table
+  /// does not have. A template materialises into tasks, so a template row the
+  /// tasks table would reject is a deferred failure.
+  @override
+  List<String> get customConstraints => [
+        'CHECK (length(title) BETWEEN 1 AND 200)',
+        "CHECK (start_time GLOB '[0-2][0-9]:[0-5][0-9]' "
+            "AND start_time <= '23:59')",
+        "CHECK (end_time GLOB '[0-2][0-9]:[0-5][0-9]' "
+            "AND end_time <= '23:59')",
+        'CHECK (estimated_cost >= 0.0)',
+      ];
 
   @override
   Set<Column> get primaryKey => {id};

@@ -24,7 +24,7 @@ part 'app_database.g.dart';
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
 ///
-/// ## Schema Version: 9
+/// ## Schema Version: 10
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
@@ -36,6 +36,9 @@ part 'app_database.g.dart';
 ///   added `scheduledAt`/`enabled` to TodoItems for alarms
 /// - **v8→v9**: Swept rows orphaned while `PRAGMA foreign_keys` was off (see
 ///   [_sweepOrphans]); enforcement is now enabled in `beforeOpen`
+/// - **v9→v10**: Added SQL CHECK constraints to task title, clock times and
+///   costs (see [_quarantineInvalidTaskRows]); rows that violate them are
+///   moved aside rather than blocking the upgrade
 ///
 /// ## Tables:
 /// | Table | Purpose |
@@ -90,7 +93,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   /// Tables whose child rows could be orphaned while foreign keys were off,
   /// paired with the parent they must reference.
@@ -146,6 +149,77 @@ class AppDatabase extends _$AppDatabase {
       );
       await customStatement('DELETE FROM $child WHERE $orphanFilter');
     }
+  }
+
+  /// Columns guarded by the v10 CHECK constraints, per table.
+  ///
+  /// The predicate matches rows that would *violate* the new constraints, so
+  /// they can be moved aside before the table is rebuilt with them.
+  static const List<(String, String)> _taskLikeTables = [
+    ('tasks', 'actual_cost'),
+    ('template_tasks', ''),
+  ];
+
+  /// Columns the v10 constraints reference.
+  static const List<String> _constrainedColumns = [
+    'title',
+    'start_time',
+    'end_time',
+    'estimated_cost',
+  ];
+
+  /// Whether [table] exists and carries every column v10 constrains.
+  ///
+  /// onUpgrade branches are gated on `from` alone, so every v10 step also runs
+  /// against schemas that predate some of these columns. Both the quarantine
+  /// and the table rebuild have to tolerate that.
+  Future<bool> _isConstrainable(String table) async {
+    final cols = await customSelect('PRAGMA table_info($table)').get();
+    final names = cols.map((c) => c.read<String>('name')).toSet();
+    return names.containsAll(_constrainedColumns);
+  }
+
+  /// Moves rows that the v10 constraints would reject into
+  /// `<table>_invalid_v9`, so the upgrade cannot fail on historical data.
+  ///
+  /// Adding a CHECK constraint in SQLite means rebuilding the table and copying
+  /// every row; a single violating row would abort that copy and leave the app
+  /// unable to open its own database. Since validation only reached the write
+  /// path in a later version, rows written by earlier builds may well violate
+  /// it — an empty title, or a time like "9:00" that the old asserts let
+  /// through in release. Quarantining keeps the data recoverable instead of
+  /// choosing between deleting it and refusing to start.
+  Future<int> _quarantineInvalidTaskRows() async {
+    var moved = 0;
+    for (final (table, extraCostColumn) in _taskLikeTables) {
+      if (!await _isConstrainable(table)) continue;
+
+      final costChecks = [
+        'estimated_cost < 0.0',
+        if (extraCostColumn.isNotEmpty) '$extraCostColumn < 0.0',
+      ].join(' OR ');
+
+      final invalid = 'length(title) NOT BETWEEN 1 AND 200'
+          " OR start_time NOT GLOB '[0-2][0-9]:[0-5][0-9]'"
+          " OR start_time > '23:59'"
+          " OR end_time NOT GLOB '[0-2][0-9]:[0-5][0-9]'"
+          " OR end_time > '23:59'"
+          ' OR $costChecks';
+
+      final count = await customSelect(
+        'SELECT COUNT(*) AS cnt FROM $table WHERE $invalid',
+      ).getSingle();
+      final found = count.read<int>('cnt');
+      if (found == 0) continue;
+
+      await customStatement(
+        'CREATE TABLE IF NOT EXISTS ${table}_invalid_v9 '
+        'AS SELECT * FROM $table WHERE $invalid',
+      );
+      await customStatement('DELETE FROM $table WHERE $invalid');
+      moved += found;
+    }
+    return moved;
   }
 
   /// Counts tasks still attached to a `day_plans` row that the v8 duplicate
@@ -484,6 +558,21 @@ class AppDatabase extends _$AppDatabase {
             // foreign key enforcement. Safe to re-run: the sweep is a no-op
             // once no orphans remain.
             await _sweepOrphans();
+          }
+          if (from < 10) {
+            // Rebuild both task tables so their CHECK constraints exist in
+            // SQL. Violating rows are moved aside first, or the copy would
+            // abort and leave the database unopenable.
+            await _quarantineInvalidTaskRows();
+
+            if (await _isConstrainable('tasks')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(tasks));
+            }
+            if (await _isConstrainable('template_tasks')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(templateTasks));
+            }
           }
         },
       );
