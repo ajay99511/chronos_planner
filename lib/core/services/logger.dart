@@ -113,20 +113,3 @@ class NoOpLogger implements Logger {
   void error(String message, [dynamic error, StackTrace? stackTrace]) {}
 }
 
-/// A stub for a crash reporting logger (e.g., Sentry, Firebase).
-class CrashReportingLogger implements Logger {
-  const CrashReportingLogger();
-
-  @override
-  void debug(String message, [dynamic error, StackTrace? stackTrace]) {}
-  @override
-  void info(String message, [dynamic error, StackTrace? stackTrace]) {}
-  @override
-  void warning(String message, [dynamic error, StackTrace? stackTrace]) {
-    // In a real implementation, this would send to a service
-  }
-  @override
-  void error(String message, [dynamic error, StackTrace? stackTrace]) {
-    // In a real implementation, this would send to a service
-  }
-}

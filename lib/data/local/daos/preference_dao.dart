@@ -31,10 +31,4 @@ class PreferenceDao extends DatabaseAccessor<AppDatabase>
   Future<int> deleteValue(String key) {
     return (delete(preferences)..where((p) => p.key.equals(key))).go();
   }
-
-  /// Get all preferences as a map.
-  Future<Map<String, String>> getAll() async {
-    final rows = await select(preferences).get();
-    return {for (final r in rows) r.key: r.value};
-  }
 }

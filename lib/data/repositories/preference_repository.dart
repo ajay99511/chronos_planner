@@ -11,9 +11,3 @@ abstract class PreferenceRepository {
   /// Remove a preference by key.
   Future<Result<void>> remove(String key);
 }
-
-/// Extended interface for bulk preference operations.
-abstract class BulkPreferenceRepository extends PreferenceRepository {
-  /// Get all preferences.
-  Future<Result<Map<String, String>>> getAll();
-}

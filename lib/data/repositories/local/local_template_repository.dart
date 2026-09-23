@@ -162,47 +162,6 @@ class LocalTemplateRepository implements TemplateRepository {
     });
   }
 
-  @override
-  Future<Result<List<domain.PlanTemplate>>> getRecurringTemplates() async {
-    return guardDb(() async {
-      final dbTemplates = await _templateDao.getRecurringTemplates();
-      if (dbTemplates.isEmpty) return [];
-
-      // Same logic as getAllTemplates but filtered by template DAO
-      final templateIds = dbTemplates.map((t) => t.id).toList();
-
-      final tasksQuery = _templateDao.db.select(_templateDao.templateTasks)
-        ..where((t) => t.templateId.isIn(templateIds));
-      final allTasks = await tasksQuery.get();
-
-      final daysQuery = _templateDao.db.select(_templateDao.templateActiveDays)
-        ..where((t) => t.templateId.isIn(templateIds));
-      final allActiveDays = await daysQuery.get();
-
-      final tasksByTemplate = <String, List<domain.TemplateTask>>{};
-      for (final t in allTasks) {
-        tasksByTemplate
-            .putIfAbsent(t.templateId, () => [])
-            .add(_dbTemplateTaskToModel(t));
-      }
-
-      final daysByTemplate = <String, List<int>>{};
-      for (final d in allActiveDays) {
-        daysByTemplate.putIfAbsent(d.templateId, () => []).add(d.dayIndex);
-      }
-
-      return dbTemplates.map((t) {
-        return domain.PlanTemplate(
-          id: t.id,
-          name: t.name,
-          description: t.description,
-          tasks: tasksByTemplate[t.id] ?? [],
-          activeDays: daysByTemplate[t.id] ?? [],
-        );
-      }).toList();
-    });
-  }
-
   // ── Mappers ───────────────────────────────────
 
   domain.TemplateTask _dbTemplateTaskToModel(TemplateTask dbTask) {

@@ -15,14 +15,6 @@ class LocalTodoRepository implements TodoRepository {
   LocalTodoRepository(this._todoItemDao);
 
   @override
-  Future<Result<List<domain.TodoItem>>> loadTodos() {
-    return guardDb(() async {
-      final dbItems = await _todoItemDao.getAllTodos();
-      return dbItems.map(_dbTodoToModel).toList();
-    });
-  }
-
-  @override
   Stream<List<domain.TodoItem>> watchTodos() {
     return _todoItemDao
         .watchAllTodos()

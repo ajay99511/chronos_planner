@@ -1,13 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:chronosky/core/result.dart';
-
-/// Matches a 24-hour `HH:mm` clock time.
-///
-/// Shared by [Task] and `TemplateTask`; both persist times as strings, and
-/// sorting relies on lexical order matching chronological order, which only
-/// holds while every value is zero-padded and in range.
-final RegExp kClockTimeFormat = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+import 'package:chronosky/domain/clock_time.dart';
 
 /// Validates the fields common to a task and a template task.
 ///
@@ -24,10 +18,10 @@ ValidationFailure? validateTaskFields({
   if (title.isEmpty || title.length > 200) {
     return const ValidationFailure('Title must be 1-200 characters.');
   }
-  if (!kClockTimeFormat.hasMatch(startTime)) {
+  if (!ClockTime.isValid(startTime)) {
     return ValidationFailure('Invalid start time: "$startTime". Use HH:mm.');
   }
-  if (!kClockTimeFormat.hasMatch(endTime)) {
+  if (!ClockTime.isValid(endTime)) {
     return ValidationFailure('Invalid end time: "$endTime". Use HH:mm.');
   }
   if (estimatedCost < 0 || !estimatedCost.isFinite) {

@@ -58,12 +58,6 @@ void main() {
       expect(failure.toString(), contains('ValidationFailure: Invalid title'));
     });
 
-    test('NetworkFailure should have correct message', () {
-      const failure = NetworkFailure('No internet');
-      expect(failure.message, 'No internet');
-      expect(failure.toString(), contains('NetworkFailure: No internet'));
-    });
-
     test('UnknownFailure should have correct message', () {
       const failure = UnknownFailure('Unexpected error');
       expect(failure.message, 'Unexpected error');

@@ -14,14 +14,6 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     return (select(tasks)..where((t) => t.dayPlanId.equals(dayPlanId))).get();
   }
 
-  /// Watch tasks for a day (reactive stream).
-  Stream<List<Task>> watchTasksForDay(String dayPlanId) {
-    return (select(tasks)
-          ..where((t) => t.dayPlanId.equals(dayPlanId))
-          ..orderBy([(t) => OrderingTerm.asc(t.startTime)]))
-        .watch();
-  }
-
   /// Insert a single task. Upserts on id so a retried write cannot fail with
   /// a UNIQUE violation and abort the surrounding transaction.
   Future<void> insertTask(TasksCompanion task) {
@@ -41,16 +33,6 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   /// Delete a single task.
   Future<int> deleteTaskById(String taskId) {
     return (delete(tasks)..where((t) => t.id.equals(taskId))).go();
-  }
-
-  /// Delete all tasks for a day plan.
-  Future<int> deleteTasksForDay(String dayPlanId) {
-    return (delete(tasks)..where((t) => t.dayPlanId.equals(dayPlanId))).go();
-  }
-
-  /// Get a single task by id.
-  Future<Task?> getTaskById(String taskId) {
-    return (select(tasks)..where((t) => t.id.equals(taskId))).getSingleOrNull();
   }
 
   /// Returns all tasks whose owning day plan falls on or after [since],

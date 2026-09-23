@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:chronosky/data/models/day_plan_model.dart' as model;
 import 'package:chronosky/data/models/plan_template_model.dart' as model;
+import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/local/app_database.dart';
 
 /// One-time migration from SharedPreferences JSON to Drift tables.
@@ -16,17 +16,17 @@ class MigrationHelper {
   static const _spSortOrderKey = 'chronos-sort-order';
   static const _spMigratedFlag = 'chronos-drift-migrated';
 
-  static Future<void> migrateIfNeeded(AppDatabase db) async {
+  static Future<void> migrateIfNeeded(AppDatabase db, Logger logger) async {
     final prefs = await SharedPreferences.getInstance();
     final alreadyMigrated = prefs.getBool(_spMigratedFlag) ?? false;
 
     if (alreadyMigrated) return;
 
-    debugPrint('[MigrationHelper] Starting SP → Drift migration...');
+    logger.info('Starting SharedPreferences to Drift migration');
 
     try {
-      await _migrateWeekPlan(prefs, db);
-      await _migrateTemplates(prefs, db);
+      await _migrateWeekPlan(prefs, db, logger);
+      await _migrateTemplates(prefs, db, logger);
       await _migratePreferences(prefs, db);
 
       // Mark migration complete
@@ -37,16 +37,23 @@ class MigrationHelper {
       await prefs.remove(_spTemplatesKey);
       await prefs.remove(_spSortOrderKey);
 
-      debugPrint('[MigrationHelper] Migration complete ✓');
-    } catch (e) {
-      debugPrint('[MigrationHelper] Migration error: $e');
-      // Don't set flag — retry next launch
+      logger.info('SharedPreferences to Drift migration complete');
+    } catch (e, stackTrace) {
+      // The flag stays unset so the next launch retries. Logged at error
+      // level because a permanently failing migration would otherwise loop
+      // silently forever, leaving the user's pre-Drift data stranded.
+      logger.error(
+        'SharedPreferences to Drift migration failed',
+        e,
+        stackTrace,
+      );
     }
   }
 
   static Future<void> _migrateWeekPlan(
     SharedPreferences prefs,
     AppDatabase db,
+    Logger logger,
   ) async {
     final weekJson = prefs.getString(_spWeekKey);
     if (weekJson == null) return;
@@ -92,14 +99,13 @@ class MigrationHelper {
       }
     }
 
-    debugPrint(
-      '[MigrationHelper] Migrated ${dayPlans.length} day plans with tasks',
-    );
+    logger.info('Migrated ${dayPlans.length} day plans with tasks');
   }
 
   static Future<void> _migrateTemplates(
     SharedPreferences prefs,
     AppDatabase db,
+    Logger logger,
   ) async {
     final templatesJson = prefs.getString(_spTemplatesKey);
     if (templatesJson == null) return;
@@ -133,7 +139,7 @@ class MigrationHelper {
       }
     }
 
-    debugPrint('[MigrationHelper] Migrated ${templates.length} templates');
+    logger.info('Migrated ${templates.length} templates');
   }
 
   static Future<void> _migratePreferences(

@@ -53,11 +53,6 @@ final class ValidationFailure extends AppFailure {
   const ValidationFailure(super.message, [super.originalError]);
 }
 
-/// Represents a failure related to network operations.
-final class NetworkFailure extends AppFailure {
-  const NetworkFailure(super.message, [super.originalError]);
-}
-
 /// Represents an unknown or unexpected failure.
 final class UnknownFailure extends AppFailure {
   const UnknownFailure(super.message, [super.originalError]);

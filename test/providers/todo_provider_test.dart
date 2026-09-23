@@ -1,22 +1,28 @@
 import 'dart:async';
+import 'package:chronosky/core/result.dart';
 import 'package:chronosky/data/models/todo_item_model.dart';
-import 'package:chronosky/data/repositories/todo_repository.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockTodoRepo extends Mock implements TodoRepository {}
+import '../helpers/mocks.dart';
 
 void main() {
   late TodoProvider provider;
-  late MockTodoRepo mockTodoRepo;
+  late MockTodoRepository mockTodoRepo;
+  late MockPreferenceRepository mockPrefRepo;
   late StreamController<List<TodoItem>> notesController;
   late StreamController<List<TodoItem>> timersController;
   late StreamController<List<TodoItem>> listsController;
   late StreamController<List<TodoItem>> alarmsController;
 
   setUp(() {
-    mockTodoRepo = MockTodoRepo();
+    mockTodoRepo = MockTodoRepository();
+    mockPrefRepo = MockPreferenceRepository();
+    when(() => mockPrefRepo.get(any()))
+        .thenAnswer((_) async => const Success(null));
+    when(() => mockPrefRepo.set(any(), any()))
+        .thenAnswer((_) async => const Success(null));
     // Broadcast so a stream can be listened to again after a retry, matching
     // Drift's watch(), which hands out an independently-listenable stream on
     // every call. A single-subscription controller would throw on resubscribe
@@ -41,7 +47,7 @@ void main() {
 
   group('TodoProvider', () {
     test('dispose cancels all stream subscriptions', () async {
-      provider = TodoProvider(mockTodoRepo);
+      provider = TodoProvider(mockTodoRepo, prefRepo: mockPrefRepo);
 
       expect(notesController.hasListener, isTrue);
       expect(timersController.hasListener, isTrue);
@@ -62,6 +68,7 @@ void main() {
     test('a stream error after dispose does not resubscribe', () async {
       provider = TodoProvider(
         mockTodoRepo,
+        prefRepo: mockPrefRepo,
         retryBaseDelay: const Duration(milliseconds: 10),
       );
 
@@ -85,6 +92,7 @@ void main() {
     test('a stream error while mounted resubscribes', () async {
       provider = TodoProvider(
         mockTodoRepo,
+        prefRepo: mockPrefRepo,
         retryBaseDelay: const Duration(milliseconds: 10),
       );
 
@@ -106,6 +114,7 @@ void main() {
     test('retries are bounded rather than looping forever', () async {
       provider = TodoProvider(
         mockTodoRepo,
+        prefRepo: mockPrefRepo,
         retryBaseDelay: const Duration(milliseconds: 5),
       );
 
@@ -122,7 +131,7 @@ void main() {
     });
 
     test('alarms getter sorts by the selected sort order', () async {
-      provider = TodoProvider(mockTodoRepo);
+      provider = TodoProvider(mockTodoRepo, prefRepo: mockPrefRepo);
       final now = DateTime.now();
 
       TodoItem alarm(String id, Duration inFuture, DateTime created) =>

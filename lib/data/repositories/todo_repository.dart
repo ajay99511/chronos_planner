@@ -3,9 +3,6 @@ import 'package:chronosky/data/models/todo_item_model.dart';
 
 /// Abstract interface for todo item operations.
 abstract class TodoRepository {
-  /// Load all todo items.
-  Future<Result<List<TodoItem>>> loadTodos();
-
   /// Watch all todo items (reactive).
   Stream<List<TodoItem>> watchTodos();
 

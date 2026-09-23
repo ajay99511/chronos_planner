@@ -25,7 +25,7 @@ enum AlarmSort {
 /// State management for standalone todo items (Notes, Timers, Lists, Alarms).
 class TodoProvider extends ChangeNotifier {
   final TodoRepository _repository;
-  final PreferenceRepository? _prefRepo;
+  final PreferenceRepository _prefRepo;
 
   static const String _alarmSortPrefKey = 'alarm_sort_order';
 
@@ -95,7 +95,7 @@ class TodoProvider extends ChangeNotifier {
 
   TodoProvider(
     this._repository, {
-    PreferenceRepository? prefRepo,
+    required PreferenceRepository prefRepo,
     Duration retryBaseDelay = const Duration(seconds: 1),
   })  : _prefRepo = prefRepo,
         _retryBaseDelay = retryBaseDelay {
@@ -104,9 +104,7 @@ class TodoProvider extends ChangeNotifier {
   }
 
   Future<void> _loadAlarmSort() async {
-    final repo = _prefRepo;
-    if (repo == null) return;
-    final result = await repo.get(_alarmSortPrefKey);
+    final result = await _prefRepo.get(_alarmSortPrefKey);
     result.fold(
       onSuccess: (val) {
         final match = AlarmSort.values.cast<AlarmSort?>().firstWhere(
@@ -126,7 +124,7 @@ class TodoProvider extends ChangeNotifier {
     if (sort == _alarmSort) return;
     _alarmSort = sort;
     notifyListeners();
-    await _prefRepo?.set(_alarmSortPrefKey, sort.name);
+    await _prefRepo.set(_alarmSortPrefKey, sort.name);
   }
 
   void _subscribe() {

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/task_model.dart';
+import 'package:chronosky/domain/clock_time.dart';
 import 'package:chronosky/core/services/intelligence_service.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 
@@ -89,7 +90,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
 
     setState(() {
       _startTime = suggestion;
-      final hour = int.parse(suggestion.split(':')[0]);
+      final hour = ClockTime.tryParse(suggestion)?.hour ?? 9;
       _endTime = '${((hour + 1) % 24).toString().padLeft(2, '0')}:00';
     });
   }

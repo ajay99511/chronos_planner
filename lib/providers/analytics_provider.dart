@@ -4,6 +4,7 @@ import 'package:chronosky/core/services/intelligence_service.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/domain/clock_time.dart';
 
 /// Exposes derived productivity metrics for the Insights screen.
 ///
@@ -14,7 +15,7 @@ import 'package:chronosky/providers/schedule_state_provider.dart';
 class AnalyticsProvider extends ChangeNotifier {
   final ScheduleStateProvider _stateProvider;
   final ScheduleRepository? _scheduleRepo;
-  final IntelligenceService _intel = IntelligenceService();
+  final IntelligenceService _intel;
 
   /// How far back to pull completed-task history for energy-peak analysis.
   static const int _historyWindowDays = 90;
@@ -33,7 +34,11 @@ class AnalyticsProvider extends ChangeNotifier {
   bool _peaksInFlight = false;
   bool _peaksDirty = false;
 
-  AnalyticsProvider(this._stateProvider, [this._scheduleRepo]) {
+  AnalyticsProvider(
+    this._stateProvider, [
+    this._scheduleRepo,
+    IntelligenceService? intelligenceService,
+  ]) : _intel = intelligenceService ?? IntelligenceService() {
     _stateProvider.addListener(_onScheduleChanged);
     _recomputeWeekMetrics();
     _loadHistory();
@@ -134,16 +139,10 @@ class AnalyticsProvider extends ChangeNotifier {
     }
   }
 
+  /// Hours between [start] and [end], or 0 if either is unparseable.
   double _calculateDuration(String start, String end) {
-    try {
-      final s = start.split(':').map(int.parse).toList();
-      final e = end.split(':').map(int.parse).toList();
-      double startH = s[0] + s[1] / 60.0;
-      double endH = e[0] + e[1] / 60.0;
-      if (endH <= startH) endH += 24;
-      return (endH - startH).clamp(0, 24);
-    } catch (e) {
-      return 0;
-    }
+    final range = TimeRange.tryParse(start, end);
+    if (range == null) return 0;
+    return range.duration.inMinutes / 60.0;
   }
 }

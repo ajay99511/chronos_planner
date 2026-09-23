@@ -35,7 +35,4 @@ abstract class TemplateRepository {
   /// Update the active recurring days for a template.
   Future<Result<void>> updateTemplateActiveDays(
       String templateId, List<int> days,);
-
-  /// Get all templates with recurring active days set.
-  Future<Result<List<PlanTemplate>>> getRecurringTemplates();
 }
