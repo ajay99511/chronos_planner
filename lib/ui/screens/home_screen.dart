@@ -9,10 +9,7 @@ import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/providers/schedule_state_provider.dart';
-import 'package:chronosky/ui/screens/analytics_view.dart';
-import 'package:chronosky/ui/screens/schedule_view.dart';
-import 'package:chronosky/ui/screens/work_plans_view.dart';
-import 'package:chronosky/ui/screens/todo_list_view.dart';
+import 'package:chronosky/ui/navigation/feature_tabs.dart';
 import 'package:chronosky/ui/widgets/focus_hud.dart';
 
 class ChronosHome extends StatefulWidget {
@@ -27,12 +24,6 @@ class _ChronosHomeState extends State<ChronosHome>
   int _currentIndex = 0;
   bool _isFocusMode = false;
 
-  final List<Widget> _screens = const [
-    ScheduleView(),
-    WorkPlansView(),
-    AnalyticsView(),
-    TodoListView(),
-  ];
 
   @override
   void initState() {
@@ -122,7 +113,9 @@ class _ChronosHomeState extends State<ChronosHome>
               // which is the standard pattern for primary navigation.
               child: IndexedStack(
                 index: _currentIndex,
-                children: _screens,
+                children: [
+                  for (final tab in appFeatureTabs) tab.screen,
+                ],
               ),
             ),
           ),
@@ -150,23 +143,12 @@ class _ChronosHomeState extends State<ChronosHome>
                     type: BottomNavigationBarType.fixed,
                     selectedFontSize: 12,
                     unselectedFontSize: 12,
-                    items: const [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.calendar_today),
-                        label: 'Schedule',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.layers_outlined),
-                        label: 'Plans',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.pie_chart_outline),
-                        label: 'Insights',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.check_box_outlined),
-                        label: 'Tasks',
-                      ),
+                    items: [
+                      for (final tab in appFeatureTabs)
+                        BottomNavigationBarItem(
+                          icon: Icon(tab.icon),
+                          label: tab.compactLabel,
+                        ),
                     ],
                   ),
                 ),
@@ -360,34 +342,14 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _SidebarItem(
-            index: 0,
-            icon: Icons.calendar_today,
-            label: 'Schedule',
-            isSelected: currentIndex == 0,
-            onTap: () => onSelect(0),
-          ),
-          _SidebarItem(
-            index: 1,
-            icon: Icons.layers_outlined,
-            label: 'WorkPlans',
-            isSelected: currentIndex == 1,
-            onTap: () => onSelect(1),
-          ),
-          _SidebarItem(
-            index: 2,
-            icon: Icons.pie_chart_outline,
-            label: 'Analytics',
-            isSelected: currentIndex == 2,
-            onTap: () => onSelect(2),
-          ),
-          _SidebarItem(
-            index: 3,
-            icon: Icons.check_box_outlined,
-            label: 'Tasks',
-            isSelected: currentIndex == 3,
-            onTap: () => onSelect(3),
-          ),
+          for (var i = 0; i < appFeatureTabs.length; i++)
+            _SidebarItem(
+              index: i,
+              icon: appFeatureTabs[i].icon,
+              label: appFeatureTabs[i].label,
+              isSelected: currentIndex == i,
+              onTap: () => onSelect(i),
+            ),
           const Spacer(),
           // Footer
           Padding(
