@@ -308,14 +308,44 @@ class ScheduleStateProvider extends ChangeNotifier {
     }).toList();
   }
 
+  // Single-entry memo for the sorted view of a day.
+  //
+  // The schedule screen reads this from a Selector, so it ran on every notify
+  // and every parent rebuild -- an O(n log n) copy and sort per frame, during
+  // animations included. One entry is enough because only the selected day is
+  // ever sorted.
+  DayPlan? _sortedFor;
+  SortOrder? _sortedUsingOrder;
+  List<Task>? _sortedTasks;
+
+  /// Tasks of [dayPlan] in the current [sortOrder].
+  ///
+  /// Returns the same list instance until either the sort order changes or the
+  /// day is replaced. Keying on instance identity is sound because every
+  /// mutation path rebuilds the day through `copyWith`, so identity changes
+  /// exactly when the contents do.
   List<Task> getSortedTasks(DayPlan dayPlan) {
+    final cached = _sortedTasks;
+    if (cached != null &&
+        identical(dayPlan, _sortedFor) &&
+        _sortOrder == _sortedUsingOrder) {
+      return cached;
+    }
+
     final tasks = List<Task>.from(dayPlan.tasks);
     tasks.sort(
       (a, b) => _sortOrder == SortOrder.asc
           ? a.startTime.compareTo(b.startTime)
           : b.startTime.compareTo(a.startTime),
     );
-    return tasks;
+
+    // Unmodifiable because the same instance is handed out repeatedly: an
+    // in-place sort by one caller would otherwise corrupt every later reader.
+    final sorted = List<Task>.unmodifiable(tasks);
+    _sortedFor = dayPlan;
+    _sortedUsingOrder = _sortOrder;
+    _sortedTasks = sorted;
+    return sorted;
   }
 
   // ─── CRUD Operations with Rollback ───────────
