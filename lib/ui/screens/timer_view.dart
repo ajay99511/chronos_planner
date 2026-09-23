@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 
 class TimerView extends StatefulWidget {
@@ -170,10 +171,7 @@ class _TimerViewState extends State<TimerView> {
                       // a digit-by-digit reading of "12:34".
                       Semantics(
                         liveRegion: _isRunning,
-                        label: _remainingSeconds <= 0
-                            ? 'Timer finished'
-                            : '${_remainingSeconds ~/ 60} minutes '
-                                '${_remainingSeconds % 60} seconds remaining',
+                        label: AppStrings.timeRemaining(_remainingSeconds),
                         excludeSemantics: true,
                         child: Text(
                           _formatTime(_remainingSeconds),

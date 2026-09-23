@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/ui/motion.dart';
 
@@ -106,16 +107,14 @@ class _TaskCardState extends State<TaskCard>
   ///
   /// Assembled from the fields a sighted user reads off the card, in the same
   /// order, so the two experiences describe the same thing.
-  String get _semanticLabel {
-    final task = widget.task;
-    return [
-      task.title,
-      '${task.startTime} to ${task.endTime}',
-      task.type.name,
-      if (task.description.isNotEmpty) task.description,
-      task.completed ? 'completed' : 'not completed',
-    ].join(', ');
-  }
+  String get _semanticLabel => AppStrings.taskSummary(
+        title: widget.task.title,
+        start: widget.task.startTime,
+        end: widget.task.endTime,
+        type: widget.task.type.name,
+        description: widget.task.description,
+        completed: widget.task.completed,
+      );
 
   @override
   Widget build(BuildContext context) {

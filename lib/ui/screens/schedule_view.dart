@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/ui/motion.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/data/models/task_model.dart';
@@ -146,8 +147,12 @@ class _ScheduleViewState extends State<ScheduleView> {
           backgroundColor: AppColors.surfaceLight,
           content: Text(
             overlaps.length == 1
-                ? 'Heads up: overlaps with "${first.title}" (${first.startTime}–${first.endTime})'
-                : 'Heads up: overlaps with ${overlaps.length} other tasks',
+                ? AppStrings.overlapsWithTask(
+                    first.title,
+                    first.startTime,
+                    first.endTime,
+                  )
+                : AppStrings.overlapsWithCount(overlaps.length),
           ),
         ),
       );
@@ -175,8 +180,12 @@ class _ScheduleViewState extends State<ScheduleView> {
           backgroundColor: AppColors.surfaceLight,
           content: Text(
             overlaps.length == 1
-                ? 'Heads up: overlaps with "${first.title}" (${first.startTime}–${first.endTime})'
-                : 'Heads up: overlaps with ${overlaps.length} other tasks',
+                ? AppStrings.overlapsWithTask(
+                    first.title,
+                    first.startTime,
+                    first.endTime,
+                  )
+                : AppStrings.overlapsWithCount(overlaps.length),
           ),
         ),
       );
@@ -203,17 +212,17 @@ class _ScheduleViewState extends State<ScheduleView> {
 
     if (!mounted) return;
 
-    final overlapText = overlapCount == 0
-        ? ''
-        : '; $overlapCount overlap${overlapCount == 1 ? '' : 's'} found'
-            '${firstOverlap == null ? '' : ' including "${firstOverlap.title}"'}';
-
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.surfaceLight,
         content: Text(
-          'Added "${task.title}" to ${dates.length} days$overlapText',
+          AppStrings.addedToDays(
+            title: task.title,
+            dayCount: dates.length,
+            overlapCount: overlapCount,
+            firstOverlapTitle: firstOverlap?.title,
+          ),
         ),
       ),
     );
@@ -274,7 +283,7 @@ class _ScheduleViewState extends State<ScheduleView> {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Deleted "${task.title}"'),
+        content: Text(AppStrings.deletedTask(task.title)),
         action: SnackBarAction(
           label: 'UNDO',
           textColor: AppColors.neonBlue,
@@ -492,7 +501,9 @@ class _ScheduleViewState extends State<ScheduleView> {
               provider.addTemplate(template);
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Template "$name" saved')),
+                SnackBar(
+                  content: Text(AppStrings.templateSaved(name)),
+                ),
               );
             },
             child: const Text('Save'),
@@ -739,8 +750,12 @@ class _DayCard extends StatelessWidget {
     return Semantics(
       button: true,
       selected: isSelected,
-      label: '${day.dayOfWeek}, ${day.dateStr}, $completedCount of '
-          '${day.tasks.length} tasks completed',
+      label: AppStrings.daySummary(
+        dayOfWeek: day.dayOfWeek,
+        dateLabel: day.dateStr,
+        completed: completedCount,
+        total: day.tasks.length,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1033,7 +1048,7 @@ class _EmptyDay extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'No plans for $dayLabel',
+            AppStrings.noPlansFor(dayLabel),
             style: const TextStyle(color: Colors.white60, fontSize: 16),
           ),
         ],
