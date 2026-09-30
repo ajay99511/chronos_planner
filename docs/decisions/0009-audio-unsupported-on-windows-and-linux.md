@@ -1,7 +1,12 @@
 # 0009 — Alarm and timer sound do not work on Windows or Linux
 
-**Status:** **Open.** Needs a product decision. This is a shipped feature that
-does not work on the primary platform.
+**Status:** Open, but **downgraded** — no longer urgent.
+
+Scope changed to Android-first, and `just_audio` supports Android, so custom
+alarm sounds work on the primary platform. This is now a secondary-platform
+gap. It is also partly mitigated: since 0010, Windows and Linux receive an
+OS notification, so an alarm there is audible via the system sound even though
+the user's chosen file still will not play.
 
 **Decision (current):** The app detects the unsupported platform up front and
 tells the user plainly — "Alarm sound is not supported on this platform" — rather
@@ -46,10 +51,16 @@ This was not in the original audit. It was found while investigating 0006.
 
 - Easy: honest. Nobody wastes time re-picking a file that was never the problem.
 - Hard: the feature is advertised by its own UI — both editors offer a file
-  picker — and cannot deliver on the primary platform.
+  picker — on platforms where it cannot deliver. That is now Windows and Linux
+  only; Android plays the chosen file.
 - Reversing: adding a backend is additive and `AlarmOutput` absorbs it;
   `audioSupportedOnThisPlatform` becomes the thing to delete.
 
-**Recommendation:** if desktop stays the primary target, add
-`just_audio_media_kit` (Windows + Linux in one dependency) and delete the
-platform check. If the file pickers are to stay, the feature should work.
+**Recommendation (revised for Android-first):** defer. Android, the primary
+platform, already plays custom sounds, and desktop now gets an audible
+notification from 0010. `just_audio_media_kit` pulls libmpv into the desktop
+builds for a secondary-platform nicety, which is a poor trade at this stage.
+
+Revisit when desktop becomes a first-class target. The one thing worth doing
+sooner is cheap: hide or annotate the sound file picker on Windows and Linux,
+so the UI stops offering something it cannot deliver.

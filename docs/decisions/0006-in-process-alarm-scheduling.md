@@ -1,12 +1,18 @@
 # 0006 — Alarms are scheduled in-process
 
-**Status:** Accepted, with the limitation made visible to users. Superseding it
-depends on an unresolved platform question — see 0009 and "What would change
-this" below.
+**Status:** **Superseded by [0010](0010-android-first-os-level-alarms.md).**
 
-**Decision:** `AlarmSchedulerService` arms a single in-process `Timer` for the
-next enabled alarm. Alarms do not fire when the app is closed. Rather than
-pretending otherwise, the app now **tells the user** which alarms it missed.
+Kept for the reasoning, not the conclusion. Scope later changed to Android-first
+and the open platform question below was answered: `flutter_local_notifications`
+does endorse Windows, so OS-level scheduling covers both targets. Alarms now
+fire with the app closed. What remains accurate here is the in-process
+behaviour, which is still the foreground path, and the missed-alarm reporting.
+
+**Decision as recorded at the time:** `AlarmSchedulerService` arms a single
+in-process `Timer` for the next enabled alarm, and alarms therefore did not fire
+when the app was closed. Rather than pretending otherwise, the app reports which
+alarms it missed — that part is still live, and still useful, because an alarm
+can be missed while the process is dead even with OS scheduling in place.
 
 **Context:** This was originally recorded as Open, on the assumption that the
 fix was simply "add an OS-level scheduling package". Investigating it turned up
@@ -54,10 +60,10 @@ What *could* be fixed without a dependency has been:
 
 - Easy: no dependency, no permission prompts, and the whole service is unit
   testable behind the `AlarmOutput` seam.
-- Hard: the feature still does not fire when closed. It now says so rather than
-  failing quietly, which is a different and much smaller problem.
+- Hard *at the time*: the feature did not fire when closed. Resolved by 0010.
 - Reversing: additive. OS scheduling would sit alongside the in-process timer,
   which stays as the foreground fast path.
 
-**What would change this:** a verified answer on Windows support for an
-OS-scheduling package, or a decision to drop Windows as a target.
+**What changed this:** the verified answer. `flutter_local_notifications`
+22.3.1 endorses android, ios, macos, linux, windows and web, so the objection
+in the first alternative below does not hold. See 0010.
