@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
+import 'package:chronosky/core/services/local_notification_alarm_notifier.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/local/app_database.dart';
@@ -206,7 +207,12 @@ class MyApp extends StatelessWidget {
           create: (_) => TodoProvider(todoRepo, prefRepo: prefRepo),
         ),
         ChangeNotifierProvider(
-          create: (_) => AlarmSchedulerService(todoRepo, logger),
+          create: (_) => AlarmSchedulerService(
+            todoRepo,
+            logger,
+            // Registers alarms with the OS so they fire with the app closed.
+            notifier: LocalNotificationAlarmNotifier(logger),
+          ),
           lazy: false, // Alarms must arm at startup, not on first UI access.
         ),
       ],

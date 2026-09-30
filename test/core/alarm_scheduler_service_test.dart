@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chronosky/core/result.dart';
+import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/services/logger.dart';
@@ -37,16 +38,69 @@ class _FakeAlarmOutput implements AlarmOutput {
   Future<void> dispose() async => disposed = true;
 }
 
+/// Records what was handed to the OS scheduler.
+class _FakeAlarmNotifier implements AlarmNotifier {
+  int initialiseCount = 0;
+  int syncCount = 0;
+  int cancelAllCount = 0;
+  int requestCount = 0;
+  List<TodoItem> lastSynced = const [];
+  bool permitted = true;
+
+  @override
+  Future<void> initialise() async => initialiseCount++;
+
+  @override
+  Future<bool> hasPermission() async => permitted;
+
+  @override
+  Future<bool> requestPermission() async {
+    requestCount++;
+    permitted = true;
+    return true;
+  }
+
+  @override
+  Future<void> sync(List<TodoItem> alarms) async {
+    syncCount++;
+    lastSynced = alarms;
+  }
+
+  @override
+  Future<void> cancelAll() async => cancelAllCount++;
+}
+
+/// An OS scheduler that is unavailable, as on a platform without support.
+class _FailingAlarmNotifier implements AlarmNotifier {
+  @override
+  Future<void> initialise() async => throw Exception('no platform');
+
+  @override
+  Future<bool> hasPermission() async => throw Exception('no platform');
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> sync(List<TodoItem> alarms) async =>
+      throw Exception('no platform');
+
+  @override
+  Future<void> cancelAll() async {}
+}
+
 void main() {
   late MockTodoRepository repo;
   late StreamController<List<TodoItem>> alarms;
   late _FakeAlarmOutput output;
+  late _FakeAlarmNotifier notifier;
 
   setUpAll(registerCommonFallbacks);
 
   setUp(() {
     repo = MockTodoRepository();
     output = _FakeAlarmOutput();
+    notifier = _FakeAlarmNotifier();
     // Broadcast so a retry can resubscribe, matching Drift's watch().
     alarms = StreamController<List<TodoItem>>.broadcast();
     when(() => repo.watchByType(TodoItemType.alarm))
@@ -64,6 +118,7 @@ void main() {
         repo,
         const NoOpLogger(),
         output: output,
+        notifier: notifier,
         retryBaseDelay: retryBaseDelay,
       );
 
@@ -292,6 +347,81 @@ void main() {
 
       expect(subject.ringing, isNull);
       expect(subject.missedAlarms, isEmpty);
+    });
+  });
+
+  group('OS-level scheduling', () {
+    test('mirrors the alarm list to the OS on every change', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+      final future = alarm(at: DateTime.now().add(const Duration(hours: 2)));
+
+      alarms.add([future]);
+      await pumpEventQueue();
+
+      expect(notifier.syncCount, 1);
+      expect(notifier.lastSynced.map((a) => a.id), [future.id]);
+    });
+
+    test('re-syncs when the list changes again', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      alarms.add(const []);
+      await pumpEventQueue();
+
+      // Replacing the whole schedule each time is what keeps the OS in step
+      // with what the user sees.
+      expect(notifier.syncCount, 2);
+      expect(notifier.lastSynced, isEmpty);
+    });
+
+    test('reports blocked notifications so the UI can say so', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+
+      // Without permission every scheduled alarm is silently useless, so the
+      // user must not be left believing one is set.
+      expect(subject.notificationsBlocked, isTrue);
+    });
+
+    test('clears the blocked flag once permission is granted', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      expect(subject.notificationsBlocked, isTrue);
+
+      await subject.requestNotificationPermission();
+
+      expect(notifier.requestCount, 1);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('an unavailable OS scheduler does not break the running app',
+        () async {
+      // Losing the OS schedule degrades the feature to in-session only. That
+      // is worse than nothing, but not a reason to take the app down.
+      final subject = AlarmSchedulerService(
+        repo,
+        const NoOpLogger(),
+        output: output,
+        notifier: _FailingAlarmNotifier(),
+      );
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now())]);
+      await pumpEventQueue();
+
+      expect(subject.ringing?.id, 'alarm-1');
+      expect(output.played, isNotEmpty);
     });
   });
 

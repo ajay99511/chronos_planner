@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -18,19 +19,26 @@ import 'package:chronosky/data/repositories/todo_repository.dart';
 /// Alarms whose time passed more than [_missedGrace] ago (e.g. while the app
 /// was closed) are silently disarmed instead of ringing unexpectedly.
 ///
-/// ## Known limitation
-/// Scheduling is in-process only. A closed app misses its alarms entirely, and
-/// because firing is one-shot they do not fire later either. Surviving app
-/// closure needs OS-level scheduling, which is a new platform dependency and
-/// therefore a deliberate decision rather than an implementation detail — see
-/// roadmap item 3.8.
+/// ## Two delivery paths
+/// The in-process timer above only runs while the app does. Every enabled alarm
+/// is therefore *also* registered with the operating system through
+/// [AlarmNotifier], so it still fires when the app is backgrounded, killed, or
+/// the device has rebooted — which on Android is the normal case, since
+/// backgrounded processes are routinely killed and Doze suspends timers.
+///
+/// The two are deliberately not mutually exclusive: the in-app overlay is the
+/// richer experience while the app is open, and suppressing one from the other
+/// would need process-state knowledge that is not reliable on Android. See
+/// docs/decisions/0010.
 class AlarmSchedulerService extends ChangeNotifier {
   AlarmSchedulerService(
     this._repository,
     this._logger, {
     AlarmOutput? output,
+    AlarmNotifier? notifier,
     Duration retryBaseDelay = const Duration(seconds: 1),
   })  : _output = output ?? PlatformAlarmOutput(),
+        _notifier = notifier ?? const NoOpAlarmNotifier(),
         _retryBaseDelay = retryBaseDelay {
     _subscribe();
   }
@@ -38,6 +46,7 @@ class AlarmSchedulerService extends ChangeNotifier {
   final TodoRepository _repository;
   final Logger _logger;
   final AlarmOutput _output;
+  final AlarmNotifier _notifier;
   final Duration _retryBaseDelay;
 
   static const Duration _missedGrace = Duration(minutes: 1);
@@ -53,6 +62,7 @@ class AlarmSchedulerService extends ChangeNotifier {
   domain.TodoItem? _ringing;
   SoundFailure? _soundFailure;
   final List<domain.TodoItem> _missed = [];
+  bool _notificationsBlocked = false;
   bool _disposed = false;
 
   /// The alarm currently ringing, or null. UI shows a dismiss overlay when set.
@@ -73,6 +83,13 @@ class AlarmSchedulerService extends ChangeNotifier {
   /// user learns rather than quietly losing trust.
   List<domain.TodoItem> get missedAlarms => List.unmodifiable(_missed);
 
+  /// Whether the OS will refuse to deliver alarms.
+  ///
+  /// True when notification permission has been declined, which makes every
+  /// scheduled alarm silently useless — so the UI says so rather than letting
+  /// the user believe an alarm is set.
+  bool get notificationsBlocked => _notificationsBlocked;
+
   /// Clears the missed-alarm notice after the user has seen it.
   void acknowledgeMissedAlarms() {
     if (_missed.isEmpty) return;
@@ -92,6 +109,10 @@ class AlarmSchedulerService extends ChangeNotifier {
         _retryAttempt = 0;
         _alarms = items;
         _rearm();
+        // Keep the OS-level schedule in step with what the user sees. Fired on
+        // every emission rather than diffed: sync() replaces the whole
+        // schedule, so it cannot drift.
+        unawaited(_syncOsSchedule(items));
       },
       onError: _handleStreamError,
     );
@@ -116,6 +137,35 @@ class AlarmSchedulerService extends ChangeNotifier {
     _retryTimer = Timer(delay, () {
       if (!_disposed) _subscribe();
     });
+  }
+
+  /// Mirrors the alarm list into the OS scheduler.
+  ///
+  /// Failures are logged, never rethrown: losing the OS schedule degrades the
+  /// feature to in-session only, which is worse than before this existed but
+  /// not a reason to break the running app.
+  Future<void> _syncOsSchedule(List<domain.TodoItem> alarms) async {
+    try {
+      await _notifier.sync(alarms);
+      if (_disposed) return;
+      final permitted = await _notifier.hasPermission();
+      if (_disposed) return;
+      if (_notificationsBlocked != !permitted) {
+        _notificationsBlocked = !permitted;
+        notifyListeners();
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Could not sync the OS alarm schedule', e, stackTrace);
+    }
+  }
+
+  /// Asks the user for permission to deliver alarms, then re-syncs.
+  Future<void> requestNotificationPermission() async {
+    final granted = await _notifier.requestPermission();
+    if (_disposed) return;
+    _notificationsBlocked = !granted;
+    notifyListeners();
+    if (granted) await _syncOsSchedule(_alarms);
   }
 
   /// Recomputes the armed timer against the current wall clock.
