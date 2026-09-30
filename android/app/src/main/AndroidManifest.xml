@@ -1,6 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Alarms are the app's core function, so these are declared deliberately:
+
+         POST_NOTIFICATIONS   API 33+. Runtime permission; an alarm cannot reach
+                              the user without it. Requested in-app, not at
+                              launch, so the ask has context.
+         USE_EXACT_ALARM      API 33+. Granted at install, but Play restricts it
+                              to apps whose primary purpose is alarms or
+                              calendars. This app qualifies; a general-purpose
+                              app would have to use SCHEDULE_EXACT_ALARM instead.
+         SCHEDULE_EXACT_ALARM API 31-32, where USE_EXACT_ALARM does not exist.
+                              Capped below 33 so the two do not overlap.
+         RECEIVE_BOOT_COMPLETED  Pending alarms are lost across a reboot unless
+                              they are rescheduled on boot.
+         VIBRATE              Alarm notifications vibrate. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
-        android:label="chronosky"
+        android:label="Chronos"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
