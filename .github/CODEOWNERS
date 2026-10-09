@@ -18,3 +18,29 @@ analysis_options.yaml   @ajay99511
 
 # App source
 lib/                    @ajay99511
+
+# ---------------------------------------------------------------------------
+# Paths where a mistake is expensive or irreversible. Listed separately from
+# the `lib/` catch-all so the reason is visible, and so an owner can be split
+# off later without hunting for which rule applied.
+# ---------------------------------------------------------------------------
+
+# Schema and migrations. A wrong migration destroys a user's data, and unlike
+# a bad widget it cannot be fixed by the next release -- the rows are gone.
+lib/data/local/         @ajay99511
+
+# Alarm and notification platform code. Everything here fails *silently*: an
+# alarm that does not arrive looks identical to one that was never set.
+lib/core/services/      @ajay99511
+
+# Android build and manifest. Holds the release signing config, the declared
+# permissions, and the applicationId -- which is permanent once published.
+android/                @ajay99511
+
+# Decision records. These are the project's memory of why things are the way
+# they are; a silent edit is worse than no record.
+docs/decisions/         @ajay99511
+
+# CI and repository automation. The checks are the only thing standing between
+# the default branch and an unverified change.
+.github/                @ajay99511

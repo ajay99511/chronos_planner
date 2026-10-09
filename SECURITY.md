@@ -4,10 +4,12 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x     | :white_check_mark: |
-| < 1.0   | :x:                |
+**Nothing has been released yet.** There are no tags and no published build, so
+the only supported version is the current `master` branch. `pubspec.yaml` reads
+`1.0.0+1`, which is the Flutter template default and not a shipped release.
+
+Once there is a tagged release, this table will say which ones receive fixes.
+Until then, please report against `master` and include the commit SHA.
 
 ## Reporting a Vulnerability
 
@@ -37,12 +39,56 @@ Report vulnerabilities privately through GitHub Security Advisories:
 
 ## Scope
 
-Chronos Planner is a **desktop-first** time-management application. Areas of
-particular interest:
+Chronos Planner is an **offline-first planner, with Android as its primary
+platform** and Windows and Linux as secondary targets. It stores everything
+locally and makes no network calls of its own.
 
-- Local data exposure or insecure file handling of task/schedule data.
-- Path traversal or injection via crafted input (task names, descriptions).
-- Insecure inter-process communication or exported interfaces.
+Areas where a report is most likely to be valid:
 
-Out of scope: issues that require physical access to an unlocked machine, and
-reports against unsupported versions.
+- **Local data at rest.** The schedule database is unencrypted SQLite in the
+  app's private storage. That is a deliberate trade for an offline planner, and
+  not in itself a vulnerability — but a path by which *another* app, or any
+  unprivileged process, can read or modify it is.
+- **Exported Android components.** The boot receiver, the alarm notification
+  channel and any notification intents. A way for a third-party app to schedule,
+  cancel or spoof an alarm would be in scope.
+- **Notification content on a lock screen.** Alarm notifications carry the
+  user's own task title, which is intentional. A path that discloses *more* than
+  the user chose to put there is not.
+- **File handling.** A custom alarm sound is an absolute path the user picked,
+  read back when the alarm fires. Path traversal, or reading a file the user did
+  not select, is in scope.
+- **Input handling.** Task titles and descriptions reach SQLite. Most queries go
+  through Drift's prepared statements, but there is hand-written SQL in the task
+  history query — injection there would be a valid report.
+- **Unexpected network traffic.** The app makes no network calls. `INTERNET` and
+  `ACCESS_NETWORK_STATE` appear in the merged manifest because `just_audio`
+  declares them, not because anything uses them. Observed traffic leaving the
+  device is therefore worth reporting.
+- **Permission escalation.** The app requests notification and exact-alarm
+  permissions. A way to obtain more than it asks for is in scope.
+
+Out of scope:
+
+- Anything requiring physical access to an unlocked device, a rooted device, or
+  USB debugging enabled.
+- The absence of at-rest encryption for the local database, considered on its
+  own. If you think it should be encrypted, open a feature request — that is a
+  design discussion, not an advisory.
+- Reports against versions other than current `master`.
+- Vulnerabilities in a dependency with no demonstrated path through this app.
+  Report those upstream; Dependabot advisories cover the rest.
+
+## Known gaps we already know about
+
+Reporting these is not necessary, though a concrete exploit path for one would
+be very welcome:
+
+- There is **no remote crash reporting**, so a crash on a user's device is not
+  visible to us at all
+  ([ADR 0008](docs/decisions/0008-error-reporting-sink.md)).
+- Release builds are **not minified or resource-shrunk**, so the shipped Dart
+  code is more legible than it needs to be.
+- **On-device alarm behaviour is unverified**: notification delivery, reboot
+  survival and permission denial have unit tests behind the platform seam but
+  have not been exercised on real hardware.
