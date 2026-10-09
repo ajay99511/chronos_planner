@@ -526,7 +526,10 @@ release, because the user's rows are already gone. If you change the schema:
 
 1. **Automated checks** — CI runs analyze, tests and the codegen-drift check.
 2. **Code review** — paths listed in [`.github/CODEOWNERS`](.github/CODEOWNERS)
-   pull in a required reviewer automatically.
+   request the owner's review automatically. Note that it is a *request*: it
+   only becomes a blocking requirement if branch protection on `master` is
+   configured to require review from code owners, and GitHub never requests a
+   review from the author of the PR.
 3. **Feedback** — address the comments, or say why you disagree. Both are fine.
 4. **Merge.**
 
