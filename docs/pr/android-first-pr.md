@@ -2,7 +2,7 @@
 
 Reorients the app for Android as the primary target, Windows secondary.
 
-**Base:** `master` · **Head:** `android-first-alarm-reliability` · 7 commits
+**Base:** `master` · **Head:** `android-first-alarm-reliability` · 9 commits
 
 ## Two things had to be true before any feature work mattered
 
@@ -68,11 +68,48 @@ Platform code kept thin so the decisions stay testable:
 Declining notification permission previously made every scheduled alarm silently
 useless. The alarms tab now shows a banner offering the grant inline.
 
+## Permission is asked for where it makes sense
+
+Before: nothing ever prompted. The only route to a grant was noticing an orange
+banner on the alarms tab, which a user with no alarms yet has no reason to read.
+
+Now the prompt happens when the user saves their first alarm — the first moment
+the request has a visible reason behind it. On Android a denial is effectively
+permanent (a second `requestNotificationsPermission()` returns false without
+showing anything), so *when* you ask is not a cosmetic choice: a prompt the user
+cannot explain is the one they dismiss forever.
+
+`ensureNotificationPermission()` re-reads the OS rather than trusting the cached
+`notificationsBlocked` flag. That flag is only as fresh as the last sync, and the
+case that matters most is a cold start where the first alarm is created before
+the sync has settled — which would have skipped the prompt precisely once, on the
+one run where it counted. A platform with no such permission is treated as
+permitted, so nobody is nagged for a grant they cannot give.
+
+If the user refuses, the alarm is still saved and a snackbar says it will not go
+off and where to change that. The alarm is never the thing that gets lost.
+
+## A silent failure found on the way
+
+Making `_save()` async turned up `unawaited_futures` on all four write paths.
+They were never awaited, so a rejected write set `errorMessage` on the provider
+while the sheet closed as if it had worked — indistinguishable from success. The
+writes are now awaited, and a failure keeps the sheet open with the reason, so
+the user does not lose what they typed to a failure they had no part in.
+
+## The sound picker no longer promises what it cannot deliver
+
+`just_audio` has no Windows or Linux implementation, so both editors were
+offering a file picker that stored a path nothing would ever play. Both are now
+gated on `audioSupportedOnThisPlatform` and say so instead. This is the one cheap
+item [ADR 0009](../decisions/0009-audio-unsupported-on-windows-and-linux.md)
+recommended doing sooner; it is now closed.
+
 ## Verification
 
 ```
 flutter analyze --fatal-infos --fatal-warnings  →  No issues found
-flutter test                                    →  223 passed  (was 205)
+flutter test                                    →  234 passed  (was 205)
 flutter build apk --debug                       →  succeeds, permissions merged
 flutter build apk --release                     →  blocked as designed
 ```
@@ -86,7 +123,10 @@ unit-tested — but **treat on-device verification as required before release**:
 
 1. Alarm fires with the app killed
 2. Alarm survives a reboot
-3. Permission denial degrades gracefully
+3. Permission denial degrades gracefully — the *decision* is unit-tested, but
+   whether the system dialog appears at the right moment is not
+4. The exact-alarm settings screen on API 31–32, which is a navigation away from
+   the app rather than a dialog
 
 ## Deliberately excluded
 

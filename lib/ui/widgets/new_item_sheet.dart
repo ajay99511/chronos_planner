@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
+import 'package:chronosky/core/services/alarm_output.dart';
+import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -94,7 +96,7 @@ class _NewItemSheetState extends State<NewItemSheet> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,13 +108,17 @@ class _NewItemSheetState extends State<NewItemSheet> {
     final provider = context.read<TodoProvider>();
     final desc = _descController.text.trim();
 
+    // Awaited, not fire-and-forget: a rejected write sets `errorMessage` on
+    // the provider, and the sheet used to close over the top of it -- so a
+    // save that failed looked exactly like one that worked.
+    var createdAlarm = false;
     switch (_selectedTab) {
       case 0: // Note
-        provider.addNote(title, description: desc);
+        await provider.addNote(title, description: desc);
         break;
       case 1: // Timer
         final duration = int.tryParse(_durationController.text.trim()) ?? 25;
-        provider.addTimer(
+        await provider.addTimer(
           title,
           description: desc,
           durationMinutes: duration,
@@ -137,21 +143,68 @@ class _NewItemSheetState extends State<NewItemSheet> {
           );
           return;
         }
-        provider.addAlarm(
+        await provider.addAlarm(
           title,
           description: desc,
           scheduledAt: scheduledAt,
           audioFilePath: _audioFilePath ?? '',
         );
+        createdAlarm = true;
         break;
       case 3: // List
         final checklist = _checklistItems
             .map((text) => domain.ChecklistItem(text: text))
             .toList();
-        provider.addList(title, description: desc, checklist: checklist);
+        await provider.addList(title, description: desc, checklist: checklist);
         break;
     }
+    if (!mounted) return;
+
+    final error = provider.errorMessage;
+    if (error != null) {
+      // Left open on purpose, so the user does not lose what they typed to a
+      // failure they had no part in.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    if (createdAlarm) {
+      // Permission is asked for here, not at launch: this is the first moment
+      // the request has a visible reason behind it, and on Android a denial is
+      // effectively permanent -- a prompt the user cannot explain is the one
+      // they dismiss. The alarm is already saved, so a refusal costs delivery,
+      // not their work.
+      await _requestDeliveryPermission();
+      return;
+    }
     Navigator.pop(context);
+  }
+
+  /// Closes the sheet, then prompts for notification permission if the OS
+  /// would currently drop the alarm.
+  ///
+  /// Closes first so the saved alarm is visible behind the system dialog:
+  /// the prompt is about an alarm that now exists, which is the whole point
+  /// of asking here. [ScaffoldMessenger] is captured before the pop because
+  /// this widget's own context is defunct afterwards.
+  Future<void> _requestDeliveryPermission() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final alarmService = context.read<AlarmSchedulerService>();
+    Navigator.pop(context);
+
+    final granted = await alarmService.ensureNotificationPermission();
+    if (granted) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Alarm saved, but notifications are off so it will not go off. '
+          'Enable them in system settings.',
+        ),
+        duration: Duration(seconds: 6),
+      ),
+    );
   }
 
   @override
@@ -454,6 +507,28 @@ class _NewItemSheetState extends State<NewItemSheet> {
   }
 
   Widget _buildAudioPicker() {
+    // just_audio declares no Windows or Linux implementation (see
+    // docs/decisions/0009), so a picker there advertises something the app
+    // cannot deliver. Say so rather than collect a path that will never play.
+    if (!audioSupportedOnThisPlatform) {
+      return Row(
+        children: [
+          const Icon(
+            Icons.volume_off_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'A custom sound is not supported on this platform. '
+              'Alarms still arrive as a notification.',
+              style: AppTextStyles.bodySmall,
+            ),
+          ),
+        ],
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final button = GestureDetector(

@@ -10,7 +10,9 @@ the user's chosen file still will not play.
 
 **Decision (current):** The app detects the unsupported platform up front and
 tells the user plainly — "Alarm sound is not supported on this platform" — rather
-than failing silently or blaming their file. No audio backend has been added.
+than failing silently or blaming their file. The file picker is also withheld on
+those platforms, so the UI no longer offers a sound it cannot play. No audio
+backend has been added.
 
 **Context:** `just_audio` 0.9.46 declares platforms for **android, ios, macos
 and web only.** Verified in the package's own `pubspec.yaml`, and consistent with
@@ -50,9 +52,9 @@ This was not in the original audit. It was found while investigating 0006.
 **Consequences of the current state:**
 
 - Easy: honest. Nobody wastes time re-picking a file that was never the problem.
-- Hard: the feature is advertised by its own UI — both editors offer a file
-  picker — on platforms where it cannot deliver. That is now Windows and Linux
-  only; Android plays the chosen file.
+- Hard: a Windows or Linux user who wants a specific sound still cannot have
+  one. They are told so where the picker used to be, rather than discovering it
+  when an alarm goes off silently.
 - Reversing: adding a backend is additive and `AlarmOutput` absorbs it;
   `audioSupportedOnThisPlatform` becomes the thing to delete.
 
@@ -61,6 +63,10 @@ platform, already plays custom sounds, and desktop now gets an audible
 notification from 0010. `just_audio_media_kit` pulls libmpv into the desktop
 builds for a secondary-platform nicety, which is a poor trade at this stage.
 
-Revisit when desktop becomes a first-class target. The one thing worth doing
-sooner is cheap: hide or annotate the sound file picker on Windows and Linux,
-so the UI stops offering something it cannot deliver.
+Revisit when desktop becomes a first-class target. The one cheap thing worth
+doing sooner — withholding the sound file picker on Windows and Linux so the UI
+stops offering something it cannot deliver — **is done**, in
+`new_item_sheet.dart` and `todo_detail_screen.dart`, both gated on
+`audioSupportedOnThisPlatform`. The picker is replaced by a line saying a custom
+sound is unsupported and that alarms still arrive as a notification, which is
+true since 0010.

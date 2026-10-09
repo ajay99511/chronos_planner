@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -317,11 +318,20 @@ class _TodoDetailScreenState extends State<TodoDetailScreen> {
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 16),
-          NeoButton(
-            isSecondary: true,
-            onPressed: _pickAudioFile,
-            child: Text(_audioFileName ?? 'SELECT AUDIO'),
-          ),
+          // See docs/decisions/0009: just_audio has no Windows or Linux
+          // implementation, so the picker is withheld there rather than
+          // storing a path that will never play.
+          if (audioSupportedOnThisPlatform)
+            NeoButton(
+              isSecondary: true,
+              onPressed: _pickAudioFile,
+              child: Text(_audioFileName ?? 'SELECT AUDIO'),
+            )
+          else
+            Text(
+              'A custom sound is not supported on this platform.',
+              style: AppTextStyles.bodySmall,
+            ),
         ],
       );
     }

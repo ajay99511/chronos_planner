@@ -159,13 +159,44 @@ class AlarmSchedulerService extends ChangeNotifier {
     }
   }
 
+  /// Prompts for notification permission only if the OS would currently
+  /// drop alarms.
+  ///
+  /// Re-checks with the OS rather than trusting [notificationsBlocked], which
+  /// is only as fresh as the last sync -- and the case that matters most is a
+  /// cold start where the user creates their first alarm before that sync has
+  /// settled. A platform with no such permission is treated as permitted, so
+  /// callers never nag a user who has nothing to grant.
+  Future<bool> ensureNotificationPermission() async {
+    try {
+      if (await _notifier.hasPermission()) {
+        if (_disposed) return true;
+        if (_notificationsBlocked) {
+          _notificationsBlocked = false;
+          notifyListeners();
+        }
+        return true;
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Could not read notification permission', e, stackTrace);
+      return true;
+    }
+    return requestNotificationPermission();
+  }
+
   /// Asks the user for permission to deliver alarms, then re-syncs.
-  Future<void> requestNotificationPermission() async {
+  ///
+  /// Returns whether permission is now held, so a caller that prompted in
+  /// context can say what the refusal cost. On Android 13+ a second request
+  /// after a denial returns false without showing anything, so a caller must
+  /// not treat false as "the user has not decided yet" and ask again.
+  Future<bool> requestNotificationPermission() async {
     final granted = await _notifier.requestPermission();
-    if (_disposed) return;
+    if (_disposed) return granted;
     _notificationsBlocked = !granted;
     notifyListeners();
     if (granted) await _syncOsSchedule(_alarms);
+    return granted;
   }
 
   /// Recomputes the armed timer against the current wall clock.

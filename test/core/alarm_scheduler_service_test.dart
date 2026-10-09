@@ -53,11 +53,14 @@ class _FakeAlarmNotifier implements AlarmNotifier {
   @override
   Future<bool> hasPermission() async => permitted;
 
+  /// Whether the simulated user accepts the prompt.
+  bool grantOnRequest = true;
+
   @override
   Future<bool> requestPermission() async {
     requestCount++;
-    permitted = true;
-    return true;
+    permitted = grantOnRequest;
+    return grantOnRequest;
   }
 
   @override
@@ -402,6 +405,69 @@ void main() {
       await subject.requestNotificationPermission();
 
       expect(notifier.requestCount, 1);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('reports a declined prompt to the caller that asked', () async {
+      notifier.permitted = false;
+      notifier.grantOnRequest = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      // A caller prompting in context has to know, so it can say what the
+      // refusal cost rather than implying the alarm is armed.
+      expect(await subject.requestNotificationPermission(), isFalse);
+      expect(subject.notificationsBlocked, isTrue);
+    });
+
+    test('ensure does not prompt a user who has already granted', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 0);
+    });
+
+    test('ensure prompts when the OS would drop the alarm', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 1);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('ensure re-checks rather than trusting the cached flag', () async {
+      // The flag is only as fresh as the last sync. Granting in system
+      // settings leaves it stale-true; prompting again on the strength of it
+      // would ask for something the user has already given.
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      expect(subject.notificationsBlocked, isTrue);
+
+      notifier.permitted = true;
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 0);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('ensure treats a platform that cannot answer as permitted', () async {
+      // Reading the permission throws where there is no such concept. Nagging
+      // for a grant the user has no way to give is worse than assuming yes.
+      final subject = AlarmSchedulerService(
+        repo,
+        const NoOpLogger(),
+        output: output,
+        notifier: _FailingAlarmNotifier(),
+      );
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
       expect(subject.notificationsBlocked, isFalse);
     });
 
