@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -18,19 +19,26 @@ import 'package:chronosky/data/repositories/todo_repository.dart';
 /// Alarms whose time passed more than [_missedGrace] ago (e.g. while the app
 /// was closed) are silently disarmed instead of ringing unexpectedly.
 ///
-/// ## Known limitation
-/// Scheduling is in-process only. A closed app misses its alarms entirely, and
-/// because firing is one-shot they do not fire later either. Surviving app
-/// closure needs OS-level scheduling, which is a new platform dependency and
-/// therefore a deliberate decision rather than an implementation detail — see
-/// roadmap item 3.8.
+/// ## Two delivery paths
+/// The in-process timer above only runs while the app does. Every enabled alarm
+/// is therefore *also* registered with the operating system through
+/// [AlarmNotifier], so it still fires when the app is backgrounded, killed, or
+/// the device has rebooted — which on Android is the normal case, since
+/// backgrounded processes are routinely killed and Doze suspends timers.
+///
+/// The two are deliberately not mutually exclusive: the in-app overlay is the
+/// richer experience while the app is open, and suppressing one from the other
+/// would need process-state knowledge that is not reliable on Android. See
+/// docs/decisions/0010.
 class AlarmSchedulerService extends ChangeNotifier {
   AlarmSchedulerService(
     this._repository,
     this._logger, {
     AlarmOutput? output,
+    AlarmNotifier? notifier,
     Duration retryBaseDelay = const Duration(seconds: 1),
   })  : _output = output ?? PlatformAlarmOutput(),
+        _notifier = notifier ?? const NoOpAlarmNotifier(),
         _retryBaseDelay = retryBaseDelay {
     _subscribe();
   }
@@ -38,6 +46,7 @@ class AlarmSchedulerService extends ChangeNotifier {
   final TodoRepository _repository;
   final Logger _logger;
   final AlarmOutput _output;
+  final AlarmNotifier _notifier;
   final Duration _retryBaseDelay;
 
   static const Duration _missedGrace = Duration(minutes: 1);
@@ -51,18 +60,42 @@ class AlarmSchedulerService extends ChangeNotifier {
   int _retryAttempt = 0;
   List<domain.TodoItem> _alarms = const [];
   domain.TodoItem? _ringing;
-  bool _audioUnavailable = false;
+  SoundFailure? _soundFailure;
+  final List<domain.TodoItem> _missed = [];
+  bool _notificationsBlocked = false;
   bool _disposed = false;
 
   /// The alarm currently ringing, or null. UI shows a dismiss overlay when set.
   domain.TodoItem? get ringing => _ringing;
 
-  /// Whether the ringing alarm's sound could not be played.
+  /// Why the ringing alarm made no sound, or null if it played.
   ///
-  /// Surfaced so the overlay can say so. A silent alarm is otherwise
-  /// indistinguishable from a muted device, and the user has no way to learn
-  /// that the sound file they picked has since been moved or deleted.
-  bool get audioUnavailable => _audioUnavailable;
+  /// A silent alarm is otherwise indistinguishable from a muted device. The
+  /// reason matters because the remedies differ: a missing file the user can
+  /// re-pick, an unsupported platform they cannot.
+  SoundFailure? get soundFailure => _soundFailure;
+
+  /// Alarms whose time passed while the app was not running.
+  ///
+  /// Scheduling is in-process (see docs/decisions/0006), so a closed app misses
+  /// its alarms. They used to be disarmed silently, which made a missed alarm
+  /// indistinguishable from one that never existed. Reported instead, so the
+  /// user learns rather than quietly losing trust.
+  List<domain.TodoItem> get missedAlarms => List.unmodifiable(_missed);
+
+  /// Whether the OS will refuse to deliver alarms.
+  ///
+  /// True when notification permission has been declined, which makes every
+  /// scheduled alarm silently useless — so the UI says so rather than letting
+  /// the user believe an alarm is set.
+  bool get notificationsBlocked => _notificationsBlocked;
+
+  /// Clears the missed-alarm notice after the user has seen it.
+  void acknowledgeMissedAlarms() {
+    if (_missed.isEmpty) return;
+    _missed.clear();
+    if (!_disposed) notifyListeners();
+  }
 
   /// Resubscribe attempts made since the stream last delivered.
   @visibleForTesting
@@ -76,6 +109,10 @@ class AlarmSchedulerService extends ChangeNotifier {
         _retryAttempt = 0;
         _alarms = items;
         _rearm();
+        // Keep the OS-level schedule in step with what the user sees. Fired on
+        // every emission rather than diffed: sync() replaces the whole
+        // schedule, so it cannot drift.
+        unawaited(_syncOsSchedule(items));
       },
       onError: _handleStreamError,
     );
@@ -102,6 +139,73 @@ class AlarmSchedulerService extends ChangeNotifier {
     });
   }
 
+  /// Mirrors the alarm list into the OS scheduler.
+  ///
+  /// Failures are logged, never rethrown: losing the OS schedule degrades the
+  /// feature to in-session only, which is worse than before this existed but
+  /// not a reason to break the running app.
+  Future<void> _syncOsSchedule(List<domain.TodoItem> alarms) async {
+    try {
+      await _notifier.sync(alarms);
+      if (_disposed) return;
+      final permitted = await _notifier.hasPermission();
+      if (_disposed) return;
+      if (_notificationsBlocked != !permitted) {
+        _notificationsBlocked = !permitted;
+        notifyListeners();
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Could not sync the OS alarm schedule', e, stackTrace);
+    }
+  }
+
+  /// Prompts for notification permission only if the OS would currently
+  /// drop alarms.
+  ///
+  /// Re-checks with the OS rather than trusting [notificationsBlocked], which
+  /// is only as fresh as the last sync -- and the case that matters most is a
+  /// cold start where the user creates their first alarm before that sync has
+  /// settled. A platform with no such permission is treated as permitted, so
+  /// callers never nag a user who has nothing to grant.
+  Future<bool> ensureNotificationPermission() async {
+    try {
+      if (await _notifier.hasPermission()) {
+        if (_disposed) return true;
+        if (_notificationsBlocked) {
+          _notificationsBlocked = false;
+          notifyListeners();
+        }
+        return true;
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Could not read notification permission', e, stackTrace);
+      return true;
+    }
+    return requestNotificationPermission();
+  }
+
+  /// Asks the user for permission to deliver alarms, then re-syncs.
+  ///
+  /// Returns whether permission is now held, so a caller that prompted in
+  /// context can say what the refusal cost. On Android 13+ a second request
+  /// after a denial returns false without showing anything, so a caller must
+  /// not treat false as "the user has not decided yet" and ask again.
+  Future<bool> requestNotificationPermission() async {
+    final granted = await _notifier.requestPermission();
+    if (_disposed) return granted;
+    _notificationsBlocked = !granted;
+    notifyListeners();
+    if (granted) await _syncOsSchedule(_alarms);
+    return granted;
+  }
+
+  /// Recomputes the armed timer against the current wall clock.
+  ///
+  /// Call on app resume and on window focus: a Dart [Timer] does not survive a
+  /// machine sleeping through its deadline, so a resumed app would otherwise
+  /// sit holding a timer that has already expired.
+  void refreshSchedule() => _rearm();
+
   /// (Re)arms the timer for the soonest enabled future alarm. Runs after
   /// every repository change, so edits/deletes/toggles take effect at once.
   void _rearm() {
@@ -109,11 +213,18 @@ class AlarmSchedulerService extends ChangeNotifier {
     _armed = null;
 
     final now = DateTime.now();
+    var notifiedMissed = false;
     domain.TodoItem? next;
     for (final alarm in _alarms) {
       final at = alarm.scheduledAt;
       if (!alarm.enabled || at == null) continue;
       if (at.isBefore(now.subtract(_missedGrace))) {
+        // Missed while the app was closed or asleep. Disarm so it cannot
+        // ambush the user later, but record it so they are told.
+        if (!_missed.any((m) => m.id == alarm.id)) {
+          _missed.add(alarm);
+          notifiedMissed = true;
+        }
         unawaited(_disarm(alarm));
         continue;
       }
@@ -121,6 +232,7 @@ class AlarmSchedulerService extends ChangeNotifier {
         next = alarm;
       }
     }
+    if (notifiedMissed && !_disposed) notifyListeners();
     if (next == null) return;
 
     final delay = next.scheduledAt!.difference(now);
@@ -146,7 +258,7 @@ class AlarmSchedulerService extends ChangeNotifier {
     if (_disposed) return;
     _logger.info('Alarm firing: ${alarm.title}');
     _ringing = alarm;
-    _audioUnavailable = false;
+    _soundFailure = null;
     notifyListeners();
 
     // One-shot: disable before anything else so a crash mid-ring cannot
@@ -159,10 +271,15 @@ class AlarmSchedulerService extends ChangeNotifier {
     if (alarm.audioFilePath.isNotEmpty) {
       try {
         await _output.playLooping(alarm.audioFilePath);
-      } catch (e) {
-        _logger.warning('Failed to play alarm audio: $e');
+      } on SoundException catch (e) {
+        _logger.warning('Alarm sound failed (${e.reason.name}): ${e.cause}');
         if (_disposed) return;
-        _audioUnavailable = true;
+        _soundFailure = e.reason;
+        notifyListeners();
+      } catch (e) {
+        _logger.warning('Alarm sound failed: $e');
+        if (_disposed) return;
+        _soundFailure = SoundFailure.playbackFailed;
         notifyListeners();
       }
     }
@@ -186,7 +303,7 @@ class AlarmSchedulerService extends ChangeNotifier {
     }
     if (_disposed) return;
     _ringing = null;
-    _audioUnavailable = false;
+    _soundFailure = null;
     notifyListeners();
   }
 

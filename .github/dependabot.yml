@@ -1,0 +1,57 @@
+# Dependency update automation.
+#
+# NOTE: once this file is on the default branch, GitHub will start opening pull
+# requests on the schedule below. Delete the file to stop it entirely, or raise
+# `interval` if the cadence is wrong -- nothing else depends on it.
+#
+# Monthly, not weekly, and grouped: CI already reports drift on every run via
+# `flutter pub outdated`, which is advisory. This exists for the updates that
+# are easy to miss, not to generate a review queue. Security advisories are
+# delivered regardless of this schedule.
+version: 2
+
+updates:
+  - package-ecosystem: pub
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine patch and minor bumps. A major bump arrives on
+      # its own, because it is the one that needs reading.
+      dart-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build"
+      include: scope
+    labels: ["dependencies"]
+    ignore:
+      # Pinned deliberately; see the comments at their entries in pubspec.yaml.
+      # Raising either needs the migration tests re-run, not a rubber stamp.
+      - dependency-name: sqlite3
+        update-types: ["version-update:semver-major"]
+      - dependency-name: meta
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+    labels: ["dependencies", "ci"]
+
+  - package-ecosystem: gradle
+    directory: "/android"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "build"
+      include: scope
+    labels: ["dependencies", "android"]

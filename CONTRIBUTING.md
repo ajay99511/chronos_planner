@@ -2,6 +2,14 @@
 
 Thank you for considering contributing to Chronos Planner! This document provides guidelines and instructions for contributing to the project.
 
+By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+**If you read only one section, read [Pull Request
+Process](#-pull-request-process).** The checks this project enforces are
+stricter than Flutter's defaults in two ways that will otherwise waste your
+time: `flutter analyze` must be run with `--fatal-infos --fatal-warnings`, and
+`dart format` must *not* be run at all.
+
 ---
 
 ## 🌟 How to Contribute
@@ -48,16 +56,50 @@ git checkout -b fix/issue-123
 
 Follow the [Development Guide](docs/GETTING_STARTED.md#development-workflow) for setup instructions.
 
-### 4. Test Your Changes
+### 4. Run the checks CI will run
+
+These are the exact gates in
+[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml). Running the short
+version of any of them locally will pass while CI fails.
 
 ```bash
-# Run all tests
+# Tests. Note the count before and after -- a change that adds behaviour
+# should add a test that fails without it.
 flutter test
 
-# Run linter
-flutter analyze
+# Analysis. The FLAGS MATTER: this project treats infos and warnings as
+# errors, and a bare `flutter analyze` will not tell you so.
+flutter analyze --fatal-infos --fatal-warnings
 
-# Run the app manually
+# Only if you touched lib/data/local/tables.dart or anything else with a
+# generated *.g.dart. CI fails if regeneration produces a diff, and a stale
+# .g.dart is invisible until runtime -- it surfaces as a missing column.
+dart run build_runner build --delete-conflicting-outputs
+
+# Android is the primary target, so this is part of the normal loop for any
+# change under lib/ or android/.
+flutter build apk --debug
+```
+
+> ### Do not run `dart format` on this repository
+>
+> `analysis_options.yaml` enables `require_trailing_commas`, which the
+> formatter actively undoes. Running it produces a diff that then fails
+> `flutter analyze --fatal-infos`, and it will touch dozens of files you did
+> not intend to change. Match the surrounding style by hand instead. (If you
+> want this fixed properly, the lint and the formatter have to be reconciled
+> across the whole tree in one commit -- that is a welcome contribution, but
+> it is its own PR.)
+
+### Run the app
+
+```bash
+# Android -- the primary platform. Use a real device or an emulator; alarm
+# and notification behaviour cannot be judged any other way.
+flutter run -d android
+
+# Windows and Linux are supported but secondary. Custom alarm sounds do not
+# play there; see docs/decisions/0009.
 flutter run -d windows
 ```
 
@@ -120,15 +162,19 @@ if ((condition)) { } // ❌
 ### File Organization
 
 ```dart
-// 1. Dart imports
+// 1. Dart SDK
+import 'dart:async';
+
+// 2. Flutter and third-party packages
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// 2. Flutter imports
+// 3. This package, by absolute `package:chronosky/...` path. Preferred over
+//    relative paths for anything outside the current directory: it survives
+//    a file being moved.
 import 'package:chronosky/core/theme/app_theme.dart';
 
-// 3. Relative imports
-import '../../providers/schedule_provider.dart';
+// 4. Relative, for close neighbours only
 import '../widgets/task_card.dart';
 
 // 4. Part directive (for Drift/codegen)
@@ -268,6 +314,12 @@ void main() {
 
 ### Test Coverage Goals
 
+**These are targets, not gates.** CI measures coverage and uploads `lcov.info`
+as an artifact, but nothing fails on a percentage — a number is easy to satisfy
+without testing anything that matters. What is actually required of a PR is
+narrower and harder to fake: new behaviour needs a test that **fails without
+the change**.
+
 | Component | Minimum Coverage |
 |-----------|-----------------|
 | Models | 90% |
@@ -280,63 +332,43 @@ void main() {
 
 ## 🐛 Reporting Bugs
 
-### Bug Report Template
+Open a [bug report](../../issues/new?template=bug_report.yml). The form asks
+for the things that usually decide the bug, so please fill them in rather than
+describing the problem in prose alone:
 
-```markdown
-### Describe the Bug
-A clear and concise description of what the bug is.
+- **Platform and OS version.** For Android the API level matters: alarm,
+  notification and exact-alarm behaviour all differ across 31, 32, 33 and 34+.
+- **Whether the app was open, backgrounded or killed**, for anything involving
+  an alarm or a timer.
+- **Notification permission and battery optimisation state.** A great many
+  "the alarm did not go off" reports are one of these two.
 
-### To Reproduce
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+Before you file, check [`docs/decisions/`](docs/decisions/). A few limitations
+are deliberate and already recorded with the reasoning — a custom alarm sound
+not playing on Windows, for instance.
 
-### Expected Behavior
-A clear and concise description of what you expected to happen.
-
-### Screenshots
-If applicable, add screenshots to help explain your problem.
-
-### Environment
-- OS: [e.g., Windows 11, macOS Sonoma]
-- Flutter version: [e.g., 3.16.0]
-- App version: [e.g., 1.0.0]
-
-### Additional Context
-Add any other context about the problem here.
-```
-
-### Where to Report
-
-- **GitHub Issues**: https://github.com/yourusername/chronos_planner/issues
-- **Discussions**: https://github.com/yourusername/chronos_planner/discussions (for questions)
+**Never report a security vulnerability in a public issue.** Use
+[private reporting](../../security/advisories/new); see [SECURITY.md](SECURITY.md).
 
 ---
 
 ## 💡 Feature Requests
 
-### Feature Request Template
+Open a [feature request](../../issues/new?template=feature_request.yml).
 
-```markdown
-### Problem Statement
-Is your feature request related to a problem? A clear and concise description of what the problem is.
+The most useful thing you can write is the **problem**, not the feature. A
+clearly described problem often has a cheaper solution than the one that comes
+to mind first, and this project prefers the cheaper one.
 
-### Proposed Solution
-A clear and concise description of what you want to happen.
+Two things weigh heavily in whether a request is taken up:
 
-### Alternatives Considered
-A clear and concise description of any alternative solutions or features you've considered.
-
-### Additional Context
-Add any other context, mockups, or screenshots about the feature request here.
-
-### Priority
-[ ] Low - Nice to have
-[ ] Medium - Would improve the experience
-[ ] High - Critical for usability
-```
+- **Which platform it is for.** Android is the primary target
+  ([ADR 0010](docs/decisions/0010-android-first-os-level-alarms.md)). A
+  desktop-only request is still welcome, but is weighed against that.
+- **What it costs permanently.** A new dependency, a new OS permission, a
+  schema migration or network access are all one-way doors to some degree. Say
+  up front if your proposal needs one; it does not disqualify the request, it
+  just changes the conversation.
 
 ---
 
@@ -423,107 +455,134 @@ final task = Task(
 
 ## 🔍 Pull Request Process
 
-### PR Checklist
+### The description writes itself
 
-Before submitting your PR:
+**There is no template to copy from this file.** GitHub fills the description
+box from [`.github/pull_request_template.md`](.github/pull_request_template.md)
+automatically when you open a pull request. Work through it and delete the
+sections that do not apply.
 
-- [ ] Code follows style guidelines
-- [ ] Tests are passing (`flutter test`)
-- [ ] Linter passes (`flutter analyze`)
-- [ ] Documentation is updated
-- [ ] Commit messages follow convention
-- [ ] Branch is up to date with master
+Two of its headings do most of the work and are worth reading before you start,
+not after:
 
-### PR Template
+- **"What is NOT verified."** Required, and the single most useful line in a
+  review here. Android's alarm behaviour cannot be proven by a unit test, and a
+  PR that quietly implies otherwise costs more to review than one that says
+  plainly what was not exercised.
+- **"Risk and reversibility."** A one-way door — a published `applicationId`, a
+  destructive migration, a stored data format — cannot be undone by reverting
+  the commit. Saying so out loud is how it gets the attention it needs.
 
-```markdown
-## Description
-Brief description of changes made.
+If you use `gh pr create`, pass `--body-file .github/pull_request_template.md`
+or omit `--body` entirely; `--body "..."` silently bypasses the template.
 
-## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to change)
-- [ ] Documentation update
+### Before you open it
 
-## Testing
-Describe tests performed:
-- [ ] Unit tests added/updated
-- [ ] Manual testing completed
-- [ ] Tested on: Windows / macOS / Linux
+- [ ] `flutter analyze --fatal-infos --fatal-warnings` is clean
+- [ ] `flutter test` passes, and new behaviour has a test that **fails without
+      the change** — a test written against already-working code proves nothing
+- [ ] `dart run build_runner build --delete-conflicting-outputs` leaves no diff
+- [ ] `flutter build apk --debug` succeeds
+- [ ] You did **not** run `dart format` (see above)
+- [ ] An ADR exists for any decision that is expensive to reverse
+- [ ] `CHANGELOG.md` has an entry under `Unreleased` for anything user-visible
+- [ ] The branch is up to date with `master`
 
-## Screenshots (if applicable)
-Add screenshots of UI changes.
+### Decision records
 
-## Checklist
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix/feature works
-- [ ] New and existing tests pass locally
-```
+If your change commits the project to something that is awkward to undo, add a
+record in [`docs/decisions/`](docs/decisions/) and link it from the PR. The
+format and, more importantly, the reason the format insists on recording the
+*losing* options are in
+[`docs/decisions/README.md`](docs/decisions/README.md).
 
-### Review Process
+Things that have warranted one so far: adding a dependency, requesting an OS
+permission, choosing a persistence layer, deciding *not* to build something and
+leaving a seam instead.
 
-1. **Automated Checks** - CI runs tests and linter
-2. **Code Review** - Maintainer reviews code quality
-3. **Feedback** - Address any comments or requested changes
-4. **Approval** - PR is approved and merged
+An ADR can be opened as `Open` — a question recorded without an answer is far
+more useful than an answer nobody wrote down.
+
+### Touching the database
+
+`lib/data/local/` is the one place where a mistake cannot be fixed by the next
+release, because the user's rows are already gone. If you change the schema:
+
+1. Bump `schemaVersion` and add a migration step for the new version.
+2. Add a migration test that runs the **whole chain**, not just your step. An
+   upgrade from v1 has to arrive at the same place as an upgrade from v9.
+3. Guard anything that reads a column against that column not existing yet.
+   Several migration steps run against older shapes of the table, and a
+   `tableExists` / column guard is the existing convention for this.
+4. Quarantine rows rather than deleting them
+   ([ADR 0005](docs/decisions/0005-quarantine-not-delete-in-migrations.md)).
+5. If you add a `CHECK` constraint, use the **table-level** `customConstraints`
+   getter with the SQL written as an inline literal. Drift's generator reads the
+   source AST, so a `const` reference or a helper's return value produces *no
+   constraint at all* — and it will generate, analyse and run cleanly while
+   enforcing nothing.
+
+### Review process
+
+1. **Automated checks** — CI runs analyze, tests and the codegen-drift check.
+2. **Code review** — paths listed in [`.github/CODEOWNERS`](.github/CODEOWNERS)
+   request the owner's review automatically. Note that it is a *request*: it
+   only becomes a blocking requirement if branch protection on `master` is
+   configured to require review from code owners, and GitHub never requests a
+   review from the author of the PR.
+3. **Feedback** — address the comments, or say why you disagree. Both are fine.
+4. **Merge.**
 
 ---
 
 ## 🌍 Localization
 
-### Adding a New Language
+**The app ships one locale, and there is no `lib/l10n/` directory.** That is
+deliberate, not an oversight — see
+[ADR 0007](docs/decisions/0007-i18n-seam-without-localisation.md).
 
-1. **Create localization file** in `lib/l10n/`
-2. **Add translations** for all strings
-3. **Update `l10n.yaml`** configuration
-4. **Run generation**: `flutter gen-l10n`
-5. **Test** the new language
+What exists instead is a *seam*: [`lib/ui/strings.dart`](lib/ui/strings.dart)
+holds the messages where English grammar would otherwise be compiled into the
+widget tree — pluralisation, counts spliced into a sentence, text assembled
+from fragments. Those are the ones that are expensive to retrofit and, worse,
+invisible: they read as ordinary string interpolation. Fixed single-token labels
+("Cancel", "Save") stay at their call sites, because moving them later is a
+mechanical find-and-replace against that same class.
 
-Example:
+So:
 
-```dart
-// lib/l10n/app_en.arb
-{
-  "appTitle": "Chronos Planner",
-  "scheduleView": "Schedule",
-  "analyticsView": "Insights",
-  "addTask": "Add Task",
-  "deleteTask": "Delete Task"
-}
+- **Adding user-facing text that carries grammar?** Put it in `AppStrings`.
+- **Adding a fixed label?** Leave it at the call site.
+- **Never** concatenate or interpolate translated fragments. It is wrong in most
+  languages and it hides the fact that it is wrong.
 
-// lib/l10n/app_es.arb
-{
-  "appTitle": "Planificador Chronos",
-  "scheduleView": "Horario",
-  "analyticsView": "Análisis",
-  "addTask": "Agregar Tarea",
-  "deleteTask": "Eliminar Tarea"
-}
-```
+If you want to add a second locale properly, that is a welcome contribution and
+a real one: every message in `AppStrings` becomes an ARB entry with a proper
+`plural` clause, and the call sites do not change. Open an issue first so the
+scope can be agreed — it touches tooling, not just strings.
 
 ---
 
 ## 📞 Getting Help
 
-- **Documentation**: Check [docs/](docs/) directory
-- **Discussions**: https://github.com/yourusername/chronos_planner/discussions
-- **Discord**: [Join our server](link) (if applicable)
-- **Email**: your.email@example.com (if applicable)
+- **How something works:** [`docs/`](docs/), starting with
+  [`docs/README.md`](docs/README.md).
+- **Why something works that way:** [`docs/decisions/`](docs/decisions/). This
+  is usually the faster answer, and several apparent bugs are recorded there as
+  deliberate limitations.
+- **A question, or something that fits neither issue form:**
+  [open a blank issue](../../issues/new). They are enabled on purpose.
+- **A security vulnerability:** never in a public issue — use
+  [private reporting](../../security/advisories/new). See
+  [SECURITY.md](SECURITY.md).
 
 ---
 
 ## 🏆 Recognition
 
-Contributors will be recognized in:
-
-- [CONTRIBUTORS.md](CONTRIBUTORS.md) file
-- Release notes for significant contributions
-- GitHub Contributors graph
+Contributors appear in the repository's contributors graph, and significant
+contributions are credited in [`CHANGELOG.md`](CHANGELOG.md) under the release
+that carries them.
 
 ---
 

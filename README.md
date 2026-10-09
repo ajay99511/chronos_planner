@@ -74,15 +74,20 @@ Chronos Planner is a **desktop-first productivity application** built with Flutt
 
 <div align="center">
 
-| Schedule View | Analytics View |
-|:---:|:---:|
-| ![Schedule](docs/screenshots/schedule.png) | ![Analytics](docs/screenshots/analytics.png) |
-| Rolling 7-day planner with task cards | Productivity insights and peak hour chart |
+**Not captured yet.** These four files were referenced before they existed, so
+the front page showed four broken images:
 
-| Work Plans (Templates) | Focus Mode |
-|:---:|:---:|
-| ![Templates](docs/screenshots/templates.png) | ![Focus](docs/screenshots/focus.png) |
-| Create and apply reusable day plans | Compact floating task widget |
+| View | What it shows |
+|---|---|
+| Schedule | Rolling 7-day planner with task cards |
+| Analytics | Productivity insights and peak hour chart |
+| Work Plans | Create and apply reusable day plans |
+| Focus Mode | Compact floating task widget |
+
+Capturing them is a genuinely useful contribution — the naming, resolutions and
+current status are tracked in
+[`docs/screenshots/README.md`](docs/screenshots/README.md). Android first,
+please, since that is the primary platform.
 
 </div>
 
@@ -103,17 +108,27 @@ flutter --version
 # Dart SDK (3.0+)
 dart --version
 
-# Desktop development
+# Android -- the primary target. Android Studio or the command-line SDK
+# tools, plus a device or emulator. minSdk 24, targetSdk 36.
+flutter doctor
+
+# Desktop (secondary)
 # Windows: Visual Studio 2022 with C++ desktop workload
 # macOS: Xcode 14+
 # Linux: GTK, Clang, CMake
 ```
 
+> **Which platform should I run?** Android. It is the primary target, and the
+> alarm behaviour that matters most cannot be judged anywhere else — see
+> [ADR 0010](docs/decisions/0010-android-first-os-level-alarms.md). Windows and
+> Linux work, but cannot play a custom alarm sound
+> ([ADR 0009](docs/decisions/0009-audio-unsupported-on-windows-and-linux.md)).
+
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/chronos_planner.git
+   git clone https://github.com/ajay99511/chronos_planner.git
    cd chronos_planner
    ```
 
@@ -129,6 +144,9 @@ dart --version
 
 4. **Run the application**
    ```bash
+   # Android (primary)
+   flutter run -d android
+
    # Windows
    flutter run -d windows
 
@@ -145,6 +163,13 @@ dart --version
 ### Build for Production
 
 ```bash
+# Android (primary). NOTE: a release build deliberately FAILS until the
+# applicationId and a signing key are set -- it refuses to produce an
+# artifact that Google Play would reject or that is signed with the debug
+# key, and says which. See android/app/build.gradle.kts.
+flutter build apk --debug
+flutter build appbundle --release
+
 # Windows executable
 flutter build windows --release
 
@@ -397,20 +422,37 @@ flutter test --coverage
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** —
+it has the setup, the conventions, and the checks CI enforces.
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+3. **Commit** your changes (`git commit -m 'feat: add amazing feature'`)
 4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+5. **Open** a Pull Request — the description is pre-filled from
+   [`.github/pull_request_template.md`](.github/pull_request_template.md)
 
-### Development Guidelines
+### Development guidelines
 
-- Follow [Effective Dart](https://dart.dev/guides/language/effective-dart) style guide
-- Add tests for new features
-- Update documentation as needed
-- Ensure `flutter analyze` passes with no warnings
+- Follow [Effective Dart](https://dart.dev/guides/language/effective-dart)
+- Add a test that **fails without your change**
+- `flutter analyze --fatal-infos --fatal-warnings` must be clean. The flags are
+  not optional: this project treats infos as errors and a bare
+  `flutter analyze` will not tell you so.
+- **Do not run `dart format`** — it conflicts with the `require_trailing_commas`
+  lint this repo enables, and the resulting diff fails analysis.
+- Record anything expensive to reverse in [`docs/decisions/`](docs/decisions/)
+
+### Project documents
+
+| Document | What it is for |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, conventions, and the checks CI runs |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | How we behave towards each other |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability privately, and what is in scope |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, and the known limitations |
+| [docs/decisions/](docs/decisions/) | **Why** things are the way they are |
+| [docs/](docs/) | Architecture and per-layer reference |
 
 ---
 
@@ -457,6 +499,6 @@ SOFTWARE.
 
 **Made with ❤️ using Flutter**
 
-[Report Bug](https://github.com/yourusername/chronos_planner/issues) • [Request Feature](https://github.com/yourusername/chronos_planner/issues) • [Discussions](https://github.com/yourusername/chronos_planner/discussions)
+[Report Bug](https://github.com/ajay99511/chronos_planner/issues/new?template=bug_report.yml) • [Request Feature](https://github.com/ajay99511/chronos_planner/issues/new?template=feature_request.yml) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md) • [Changelog](CHANGELOG.md)
 
 </div>

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chronosky/core/result.dart';
+import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/services/logger.dart';
@@ -17,12 +18,13 @@ class _FakeAlarmOutput implements AlarmOutput {
   int bringToFrontCount = 0;
   bool disposed = false;
 
-  /// When set, [playLooping] throws it — the moved-or-deleted sound file case.
-  Object? playError;
+  /// When set, [playLooping] throws this reason.
+  SoundFailure? playFailure;
 
   @override
   Future<void> playLooping(String path) async {
-    if (playError != null) throw playError!;
+    final failure = playFailure;
+    if (failure != null) throw SoundException(failure);
     played.add(path);
   }
 
@@ -36,16 +38,72 @@ class _FakeAlarmOutput implements AlarmOutput {
   Future<void> dispose() async => disposed = true;
 }
 
+/// Records what was handed to the OS scheduler.
+class _FakeAlarmNotifier implements AlarmNotifier {
+  int initialiseCount = 0;
+  int syncCount = 0;
+  int cancelAllCount = 0;
+  int requestCount = 0;
+  List<TodoItem> lastSynced = const [];
+  bool permitted = true;
+
+  @override
+  Future<void> initialise() async => initialiseCount++;
+
+  @override
+  Future<bool> hasPermission() async => permitted;
+
+  /// Whether the simulated user accepts the prompt.
+  bool grantOnRequest = true;
+
+  @override
+  Future<bool> requestPermission() async {
+    requestCount++;
+    permitted = grantOnRequest;
+    return grantOnRequest;
+  }
+
+  @override
+  Future<void> sync(List<TodoItem> alarms) async {
+    syncCount++;
+    lastSynced = alarms;
+  }
+
+  @override
+  Future<void> cancelAll() async => cancelAllCount++;
+}
+
+/// An OS scheduler that is unavailable, as on a platform without support.
+class _FailingAlarmNotifier implements AlarmNotifier {
+  @override
+  Future<void> initialise() async => throw Exception('no platform');
+
+  @override
+  Future<bool> hasPermission() async => throw Exception('no platform');
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> sync(List<TodoItem> alarms) async =>
+      throw Exception('no platform');
+
+  @override
+  Future<void> cancelAll() async {}
+}
+
 void main() {
   late MockTodoRepository repo;
   late StreamController<List<TodoItem>> alarms;
   late _FakeAlarmOutput output;
+  late _FakeAlarmNotifier notifier;
 
   setUpAll(registerCommonFallbacks);
 
   setUp(() {
     repo = MockTodoRepository();
     output = _FakeAlarmOutput();
+    notifier = _FakeAlarmNotifier();
     // Broadcast so a retry can resubscribe, matching Drift's watch().
     alarms = StreamController<List<TodoItem>>.broadcast();
     when(() => repo.watchByType(TodoItemType.alarm))
@@ -63,6 +121,7 @@ void main() {
         repo,
         const NoOpLogger(),
         output: output,
+        notifier: notifier,
         retryBaseDelay: retryBaseDelay,
       );
 
@@ -94,7 +153,7 @@ void main() {
 
       expect(subject.ringing?.id, 'alarm-1');
       expect(output.played, ['C:/sounds/wake.mp3']);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
     });
 
     test('firing disarms the alarm so it is one-shot', () async {
@@ -112,7 +171,7 @@ void main() {
 
     test('a missing sound file still rings, and says the sound failed',
         () async {
-      output.playError = Exception('file not found');
+      output.playFailure = SoundFailure.fileMissing;
       final subject = service();
       addTearDown(subject.dispose);
 
@@ -125,9 +184,10 @@ void main() {
         reason: 'the alarm must still ring without its sound',
       );
       expect(
-        subject.audioUnavailable,
-        isTrue,
-        reason: 'a silent alarm is otherwise indistinguishable from a mute',
+        subject.soundFailure,
+        SoundFailure.fileMissing,
+        reason: 'a silent alarm is otherwise indistinguishable from a mute, '
+            'and the reason decides whether the user can act on it',
       );
     });
 
@@ -141,7 +201,7 @@ void main() {
 
       expect(subject.ringing, isNotNull);
       expect(output.played, isEmpty);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
     });
 
     test('a disabled alarm never fires', () async {
@@ -170,6 +230,11 @@ void main() {
         reason: 'an alarm missed while the app was closed must not ambush',
       );
       verify(() => repo.updateTodo(any())).called(1);
+      expect(
+        subject.missedAlarms.map((a) => a.id),
+        ['alarm-1'],
+        reason: 'a missed alarm must be reported, not silently disarmed',
+      );
     });
 
     test('the soonest of several alarms is the one armed', () async {
@@ -198,7 +263,7 @@ void main() {
       await subject.dismiss();
 
       expect(subject.ringing, isNull);
-      expect(subject.audioUnavailable, isFalse);
+      expect(subject.soundFailure, isNull);
       expect(output.stopCount, 1);
     });
 
@@ -220,6 +285,209 @@ void main() {
       await trapped.dismiss();
 
       expect(trapped.ringing, isNull);
+    });
+  });
+
+  group('missed alarms', () {
+    test('an unsupported platform is reported as such, not as a missing file',
+        () async {
+      // just_audio declares android/ios/macos/web only, so on Windows and
+      // Linux -- both targeted here -- playback cannot work. Telling the user
+      // their file moved would send them after a problem that is not theirs.
+      output.playFailure = SoundFailure.unsupportedPlatform;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now())]);
+      await pumpEventQueue();
+
+      expect(subject.ringing, isNotNull);
+      expect(subject.soundFailure, SoundFailure.unsupportedPlatform);
+    });
+
+    test('acknowledging clears the notice', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([
+        alarm(at: DateTime.now().subtract(const Duration(hours: 2))),
+      ]);
+      await pumpEventQueue();
+      expect(subject.missedAlarms, hasLength(1));
+
+      subject.acknowledgeMissedAlarms();
+
+      expect(subject.missedAlarms, isEmpty);
+    });
+
+    test('the same missed alarm is not reported twice', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+      final missed = alarm(at: DateTime.now().subtract(const Duration(hours: 2)));
+
+      alarms.add([missed]);
+      await pumpEventQueue();
+      // A second emission of the same list must not duplicate the notice.
+      alarms.add([missed]);
+      await pumpEventQueue();
+
+      expect(subject.missedAlarms, hasLength(1));
+    });
+
+    test('refreshSchedule re-evaluates against the current clock', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      // Armed for the future, so nothing fires yet.
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 1)))]);
+      await pumpEventQueue();
+      expect(subject.ringing, isNull);
+
+      // A Dart Timer does not survive the machine sleeping through its
+      // deadline; resume calls this so a stale timer is recomputed.
+      subject.refreshSchedule();
+      await pumpEventQueue();
+
+      expect(subject.ringing, isNull);
+      expect(subject.missedAlarms, isEmpty);
+    });
+  });
+
+  group('OS-level scheduling', () {
+    test('mirrors the alarm list to the OS on every change', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+      final future = alarm(at: DateTime.now().add(const Duration(hours: 2)));
+
+      alarms.add([future]);
+      await pumpEventQueue();
+
+      expect(notifier.syncCount, 1);
+      expect(notifier.lastSynced.map((a) => a.id), [future.id]);
+    });
+
+    test('re-syncs when the list changes again', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      alarms.add(const []);
+      await pumpEventQueue();
+
+      // Replacing the whole schedule each time is what keeps the OS in step
+      // with what the user sees.
+      expect(notifier.syncCount, 2);
+      expect(notifier.lastSynced, isEmpty);
+    });
+
+    test('reports blocked notifications so the UI can say so', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+
+      // Without permission every scheduled alarm is silently useless, so the
+      // user must not be left believing one is set.
+      expect(subject.notificationsBlocked, isTrue);
+    });
+
+    test('clears the blocked flag once permission is granted', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      expect(subject.notificationsBlocked, isTrue);
+
+      await subject.requestNotificationPermission();
+
+      expect(notifier.requestCount, 1);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('reports a declined prompt to the caller that asked', () async {
+      notifier.permitted = false;
+      notifier.grantOnRequest = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      // A caller prompting in context has to know, so it can say what the
+      // refusal cost rather than implying the alarm is armed.
+      expect(await subject.requestNotificationPermission(), isFalse);
+      expect(subject.notificationsBlocked, isTrue);
+    });
+
+    test('ensure does not prompt a user who has already granted', () async {
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 0);
+    });
+
+    test('ensure prompts when the OS would drop the alarm', () async {
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 1);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('ensure re-checks rather than trusting the cached flag', () async {
+      // The flag is only as fresh as the last sync. Granting in system
+      // settings leaves it stale-true; prompting again on the strength of it
+      // would ask for something the user has already given.
+      notifier.permitted = false;
+      final subject = service();
+      addTearDown(subject.dispose);
+      alarms.add([alarm(at: DateTime.now().add(const Duration(hours: 2)))]);
+      await pumpEventQueue();
+      expect(subject.notificationsBlocked, isTrue);
+
+      notifier.permitted = true;
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(notifier.requestCount, 0);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('ensure treats a platform that cannot answer as permitted', () async {
+      // Reading the permission throws where there is no such concept. Nagging
+      // for a grant the user has no way to give is worse than assuming yes.
+      final subject = AlarmSchedulerService(
+        repo,
+        const NoOpLogger(),
+        output: output,
+        notifier: _FailingAlarmNotifier(),
+      );
+      addTearDown(subject.dispose);
+
+      expect(await subject.ensureNotificationPermission(), isTrue);
+      expect(subject.notificationsBlocked, isFalse);
+    });
+
+    test('an unavailable OS scheduler does not break the running app',
+        () async {
+      // Losing the OS schedule degrades the feature to in-session only. That
+      // is worse than nothing, but not a reason to take the app down.
+      final subject = AlarmSchedulerService(
+        repo,
+        const NoOpLogger(),
+        output: output,
+        notifier: _FailingAlarmNotifier(),
+      );
+      addTearDown(subject.dispose);
+
+      alarms.add([alarm(at: DateTime.now())]);
+      await pumpEventQueue();
+
+      expect(subject.ringing?.id, 'alarm-1');
+      expect(output.played, isNotEmpty);
     });
   });
 

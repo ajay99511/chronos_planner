@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/providers/todo_provider.dart';
@@ -354,7 +355,56 @@ class _TodoListViewState extends State<TodoListView> {
     AlarmSort.addedAsc: 'Date added (oldest first)',
   };
 
+  /// Warns when the OS will not deliver alarms.
+  ///
+  /// Without notification permission every scheduled alarm is silently
+  /// useless, so the list must not let the user believe one is set. Offers the
+  /// fix inline rather than just reporting the problem.
+  Widget _buildPermissionBanner(AlarmSchedulerService alarmService) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.pagePadding(context),
+        0,
+        AppResponsive.pagePadding(context),
+        AppSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: Colors.orangeAccent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: Colors.orangeAccent.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.notifications_off_rounded,
+              color: Colors.orangeAccent,
+              size: 18,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Notifications are off, so alarms will not go off.',
+                style: AppTextStyles.bodySmall
+                    .copyWith(color: Colors.orangeAccent),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: alarmService.requestNotificationPermission,
+              child: const Text('ALLOW'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAlarmsList(TodoProvider provider, List<domain.TodoItem> alarms) {
+    final alarmService = context.watch<AlarmSchedulerService>();
     final sortBar = Padding(
       padding: EdgeInsets.fromLTRB(
         AppResponsive.pagePadding(context),
@@ -404,7 +454,9 @@ class _TodoListViewState extends State<TodoListView> {
     if (alarms.isEmpty) {
       return Column(
         children: [
-          sortBar,
+          if (alarmService.notificationsBlocked)
+          _buildPermissionBanner(alarmService),
+        sortBar,
           Expanded(
             child: _query.isNotEmpty
                 ? _buildEmptyState(Icons.search_off_rounded, 'No matches')

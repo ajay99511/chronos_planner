@@ -101,6 +101,32 @@ void main() {
     });
   });
 
+  group('missedAlarms', () {
+    test('names a single missed alarm', () {
+      expect(
+        AppStrings.missedAlarms(['Wake up']),
+        'Missed alarm while the app was closed: "Wake up"',
+      );
+    });
+
+    test('names both when two were missed', () {
+      expect(
+        AppStrings.missedAlarms(['Wake up', 'Standup']),
+        'Missed 2 alarms while the app was closed: "Wake up" and "Standup"',
+      );
+    });
+
+    test('summarises with an example beyond two', () {
+      final message = AppStrings.missedAlarms(['A', 'B', 'C']);
+      expect(message, contains('Missed 3 alarms'));
+      expect(message, contains('including "A"'));
+    });
+
+    test('is empty when nothing was missed', () {
+      expect(AppStrings.missedAlarms(const []), isEmpty);
+    });
+  });
+
   group('accessibility summaries', () {
     test('daySummary reads as a sentence', () {
       expect(

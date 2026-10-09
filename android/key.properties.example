@@ -1,0 +1,14 @@
+# Copy to android/key.properties and fill in. That file is git-ignored;
+# never commit it or the keystore it points at.
+#
+# Generate a keystore once, and keep the backup somewhere safe: losing it means
+# you can never update the app on Play again under the same listing.
+#
+#   keytool -genkey -v -keystore upload-keystore.jks -storetype JKS \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+storePassword=
+keyPassword=
+keyAlias=upload
+# Relative to the android/ directory, or an absolute path outside the repo.
+storeFile=upload-keystore.jks

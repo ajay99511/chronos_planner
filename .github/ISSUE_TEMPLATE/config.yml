@@ -1,0 +1,21 @@
+# Blank issues stay enabled on purpose: the two forms cover the common cases,
+# but a question or an observation that fits neither should not be forced into
+# a bug report.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/ajay99511/chronos_planner/security/advisories/new
+    about: >
+      Never report a vulnerability in a public issue. This opens a private
+      advisory visible only to the maintainers.
+
+  - name: Contributing guide
+    url: https://github.com/ajay99511/chronos_planner/blob/master/CONTRIBUTING.md
+    about: Setup, the checks CI enforces, and the conventions this repo follows.
+
+  - name: Why the app behaves this way
+    url: https://github.com/ajay99511/chronos_planner/tree/master/docs/decisions
+    about: >
+      Decision records. Several known limitations are deliberate and are
+      explained here, including which platforms can play a custom alarm sound.
