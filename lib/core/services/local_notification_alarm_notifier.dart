@@ -61,7 +61,7 @@ class LocalNotificationAlarmNotifier implements AlarmNotifier {
         linux: LinuxInitializationSettings(defaultActionName: 'Open Chronos'),
         windows: WindowsInitializationSettings(
           appName: 'Chronos',
-          appUserModelId: 'com.example.chronos_planner',
+          appUserModelId: 'io.github.ajay99511.chronos_planner',
           guid: 'd4f7a1e2-8c3b-4a59-9f2d-6b1e7c0a5d38',
         ),
       ),

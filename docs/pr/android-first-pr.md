@@ -14,9 +14,9 @@ app **unshippable regardless of the Dart code**:
 2. Release builds were signed with the **debug key**, per the template's own
    comment. Anyone can reproduce that key.
 
-Neither is mine to decide: an applicationId is permanent once published and must
-be a domain you control, and a keystore is a secret. So instead of guessing, the
-build now **refuses** to produce a release with either problem, and says why:
+Neither was mine to decide: an applicationId is permanent once published, and a
+keystore is a secret. So the build was first made to **refuse** a release with
+either problem rather than guess, and say why:
 
 ```
 > Release build blocked:
@@ -25,8 +25,17 @@ build now **refuses** to produce a release with either problem, and says why:
     - No android/key.properties, so this build is signed with the debug key ...
 ```
 
-Verified by running it. `-PallowUnshippableRelease=true` downgrades it to a
-warning so the guard doesn't block its own testing.
+Verified by running it. The id has since been decided and set to
+`io.github.ajay99511.chronos_planner` — reverse-DNS of a namespace the owner
+controls, so it needs no domain renewal to stay valid — with the iOS, macOS and
+Windows identifiers moved to match. Free to do now and impossible later: nothing
+has been published, so no listing and no installed user depends on the old id.
+
+The signing key remains a secret and is still outside the repo, so the guard
+still fires on a release build until `android/key.properties` exists.
+`-PallowUnshippableRelease=true` downgrades it to a warning, for local
+verification only; it is deliberately not implicit, so no artifact that cannot
+be distributed is ever produced without someone asking for it by name.
 
 ## The value/risk calculation
 

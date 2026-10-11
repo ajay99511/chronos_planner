@@ -7,8 +7,8 @@ this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Nothing has been released yet.** `pubspec.yaml` reads `1.0.0+1`, but there
 > are no tags and no published build, so every entry below is unreleased. The
-> first tagged release needs an `applicationId` and a signing key that are not
-> in this repository — see [SECURITY.md](SECURITY.md) and
+> first tagged release still needs a signing key, which is deliberately not in
+> this repository — see [SECURITY.md](SECURITY.md) and
 > [ADR 0010](docs/decisions/0010-android-first-os-level-alarms.md).
 
 Entries describe what changed for a *user or a caller*. Refactors with no
@@ -44,6 +44,12 @@ observable effect are left to the git history, which is where they belong.
 
 ### Changed
 
+- **The application id is now `io.github.ajay99511.chronos_planner`**, replacing
+  the Flutter template's `com.example.chronos_planner`, with the iOS, macOS and
+  Windows identifiers moved to match. This is a one-way door for any *published*
+  build — the id cannot change later without losing the listing and every
+  installed user — but nothing has been published, so it is free to make now
+  and would not have been later.
 - **Android is the primary platform**; Windows and Linux are secondary. This
   reversed an earlier assessment, and with it the priority of the alarm work.
   ([ADR 0010](docs/decisions/0010-android-first-os-level-alarms.md))

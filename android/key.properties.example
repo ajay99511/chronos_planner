@@ -4,11 +4,20 @@
 # Generate a keystore once, and keep the backup somewhere safe: losing it means
 # you can never update the app on Play again under the same listing.
 #
-#   keytool -genkey -v -keystore upload-keystore.jks -storetype JKS \
+#   keytool -genkeypair -v -keystore upload-keystore.jks -storetype JKS \
 #     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Generating it now, before any release, is worth doing even with no release
+# planned: every APK built from here on is then signed with the real upload key,
+# so a test build installed on a device can be upgraded in place later instead
+# of having to be uninstalled first.
 #
 storePassword=
 keyPassword=
 keyAlias=upload
-# Relative to the android/ directory, or an absolute path outside the repo.
+# Relative to the android/ directory, or an absolute path outside the repo
+# (preferred -- a keystore inside the working tree is one `git add -f` away from
+# being published). This is a .properties file, so a backslash starts an escape
+# sequence: write Windows paths with forward slashes, as
+# C:/Users/you/keys/upload-keystore.jks, not C:\Users\...
 storeFile=upload-keystore.jks

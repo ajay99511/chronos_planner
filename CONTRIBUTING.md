@@ -535,6 +535,53 @@ release, because the user's rows are already gone. If you change the schema:
 
 ---
 
+## 🚀 Versions and releases
+
+**One number, in one place.** `version:` in `pubspec.yaml` is the only place
+either Android version field is set — `1.0.0+1` means `versionName` 1.0.0,
+`versionCode` 1. Nothing in `android/` needs editing to change a version, and
+`android/local.properties` is a git-ignored cache the `flutter` tool rewrites
+from `pubspec.yaml` on every build, so setting it there looks like it works and
+then reverts.
+
+The rules, and the reasoning behind them, are
+[ADR 0011](docs/decisions/0011-versioning-scheme.md):
+
+- The **name** (before the `+`) is semver and changes only on a release.
+- The **build number** (after the `+`) increases on **every build given to
+  anyone**, including a sideloaded test APK, and is **never reset** when the name
+  changes. Google Play treats a `versionCode` as permanently spent.
+- Keep the build number **under 1000**. `--split-per-abi` ships it as
+  `abi * 1000 + versionCode` (armeabi-v7a 1, arm64-v8a 2, x86_64 4), so `+1`
+  becomes 1001 / 2001 / 4001. At `+1000` the ranges collide, and it surfaces as
+  Play mis-ordering releases rather than as a build failure.
+
+### Cutting a release
+
+Nothing is automated and nothing in CI enforces this yet — deliberately, until
+it has been done by hand at least once.
+
+1. **Check the signing key exists.** No `android/key.properties` means the
+   artifact is debug-signed, cannot be distributed, and cannot be upgraded in
+   place later. Tagging that as a release is a tag you will want to delete. See
+   [`android/key.properties.example`](android/key.properties.example).
+2. **Bump `version:`** in `pubspec.yaml` — name if the release changes what users
+   see, build number always.
+3. **Close the changelog.** Rename `## [Unreleased]` to `## [<version>] - <YYYY-MM-DD>`
+   and open a fresh empty `## [Unreleased]` above it. Drop any section
+   (`Added`/`Changed`/`Fixed`) that ended up empty.
+4. **Run the full gate** — the checklist under *Before you open it*, above.
+5. **Build:** `flutter build appbundle --release` for Play, or
+   `flutter build apk --split-per-abi --release` for direct distribution.
+6. **Commit, then tag `v<version>`** — `git tag -a v1.0.0 -m "1.0.0"` — and push
+   the tag: `git push origin v1.0.0`. Tag the commit that contains the bumped
+   `pubspec.yaml`, so the tag and the artifact agree.
+
+Pre-release milestones can be tagged `v0.x.y` freely; those promise nothing and
+cost nothing to delete.
+
+---
+
 ## 🌍 Localization
 
 **The app ships one locale, and there is no `lib/l10n/` directory.** That is

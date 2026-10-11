@@ -163,12 +163,22 @@ flutter doctor
 ### Build for Production
 
 ```bash
-# Android (primary). NOTE: a release build deliberately FAILS until the
-# applicationId and a signing key are set -- it refuses to produce an
-# artifact that Google Play would reject or that is signed with the debug
-# key, and says which. See android/app/build.gradle.kts.
-flutter build apk --debug
-flutter build appbundle --release
+# Android (primary). A release build deliberately FAILS until a signing key is
+# configured: it refuses to hand back an artifact signed with the debug key,
+# because that key is reproducible by anyone and Play will not accept it. Set
+# one up once -- see android/key.properties.example.
+flutter build appbundle --release             # Play Store
+flutter build apk --split-per-abi --release   # sideloading, one APK per ABI
+
+# Local verification without a signing key. The artifacts are debug-signed:
+# installable on your own device, not distributable, and NOT upgradeable in
+# place by a later properly signed build.
+flutter build apk --split-per-abi -PallowUnshippableRelease=true
+
+# Version numbers come from `version:` in pubspec.yaml (`1.0.0+1` ->
+# versionName 1.0.0, versionCode 1). Bump it there, nowhere else -- and note
+# --split-per-abi reshapes the versionCode as abi*1000 + it. Rules and the
+# release checklist: CONTRIBUTING.md, "Versions and releases".
 
 # Windows executable
 flutter build windows --release
