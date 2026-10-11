@@ -8,7 +8,7 @@
 PRODUCT_NAME = chronos_planner
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.chronosPlanner
+PRODUCT_BUNDLE_IDENTIFIER = io.github.ajay99511.chronosPlanner
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 ajay99511. All rights reserved.

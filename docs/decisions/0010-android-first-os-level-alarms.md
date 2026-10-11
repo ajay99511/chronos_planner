@@ -23,9 +23,10 @@ processes, and Doze suspends timers even when the process survives.
 
 ## Value and risk, per option
 
-Assessed against the app's actual stage: pre-release (it could not even be
-published until the previous commit — `applicationId` was still `com.example.*`),
-Android primary, one developer.
+Assessed against the app's actual stage: pre-release (no tags, nothing
+published — when this branch opened the `applicationId` was still
+`com.example.*` and release builds were debug-signed), Android primary, one
+developer.
 
 | Option | Value | Risk | Verdict |
 |---|---|---|---|

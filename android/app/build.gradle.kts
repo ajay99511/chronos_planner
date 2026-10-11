@@ -19,7 +19,7 @@ val keystoreProperties = Properties().apply {
 val hasReleaseSigning = keystoreProperties.containsKey("storeFile")
 
 android {
-    namespace = "com.example.chronos_planner"
+    namespace = "io.github.ajay99511.chronos_planner"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -36,11 +36,12 @@ android {
     }
 
     defaultConfig {
-        // NOTE: still the Flutter template default. Google Play rejects any
-        // `com.example.*` id, and the id is permanent once published, so it has
-        // to be a domain you control. The release guard below fails the build
-        // rather than letting this ship by accident.
-        applicationId = "com.example.chronos_planner"
+        // Permanent: once a build is published this can never change without
+        // losing the listing and every installed user. Reverse-DNS of a
+        // namespace we control (github.com/ajay99511) rather than a domain, so
+        // it stays valid without a DNS renewal. The release guard below keeps
+        // the template's `com.example.*` from ever reappearing here.
+        applicationId = "io.github.ajay99511.chronos_planner"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -38,3 +38,4 @@ anyone who actually knows.
 | [0008](0008-error-reporting-sink.md) | Errors reach the platform log, not a remote service | **Open** — needs a product decision |
 | [0009](0009-audio-unsupported-on-windows-and-linux.md) | Alarm and timer sound do not work on Windows or Linux | Open — downgraded, secondary platform |
 | [0010](0010-android-first-os-level-alarms.md) | Android-first: schedule alarms with the OS | Accepted |
+| [0011](0011-versioning-scheme.md) | `pubspec.yaml` is the only version; the build number never resets | Accepted |
