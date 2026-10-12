@@ -124,6 +124,37 @@ class LocalScheduleRepository implements ScheduleRepository {
     });
   }
 
+  @override
+  Stream<List<domain.DayPlan>> watchUpcomingDays(int count) {
+    // Anchored at subscription time on purpose: a drift watch binds its query
+    // variables once, so the window cannot slide by itself. Callers that need
+    // it to follow the calendar re-subscribe — see
+    // `NotificationCoordinator.refresh`.
+    final today = _dayKey(DateTime.now());
+    final until = today.add(Duration(days: count));
+
+    return _taskDao.watchTasksBetween(today, until).map((rows) {
+      // Preserves the query's day ordering; LinkedHashMap keeps insertion
+      // order, and the SQL orders by date then start time.
+      final byPlan = <String, ({DateTime date, List<domain.Task> tasks})>{};
+      for (final row in rows) {
+        final entry = byPlan.putIfAbsent(
+          row.planId,
+          () => (date: row.date, tasks: <domain.Task>[]),
+        );
+        entry.tasks.add(_dbTaskToModel(row.task));
+      }
+      return [
+        for (final plan in byPlan.entries)
+          domain.DayPlan(
+            id: plan.key,
+            date: plan.value.date,
+            tasks: plan.value.tasks,
+          ),
+      ];
+    });
+  }
+
   /// Returns the id of the day plan for [targetDate], creating the row if it
   /// does not exist yet. The insert uses `INSERT OR IGNORE`, so under a race
   /// the id is re-resolved to whichever row survived.
@@ -236,6 +267,8 @@ class LocalScheduleRepository implements ScheduleRepository {
       actualCost: dbTask.actualCost,
       completed: dbTask.completed,
       sourceTemplateId: dbTask.sourceTemplateId,
+      reminderEnabled: dbTask.reminderEnabled,
+      reminderLeadMinutes: dbTask.reminderLeadMinutes,
     );
   }
 
@@ -254,6 +287,8 @@ class LocalScheduleRepository implements ScheduleRepository {
       completed: Value(task.completed),
       dayPlanId: Value(dayPlanId),
       sourceTemplateId: Value(task.sourceTemplateId),
+      reminderEnabled: Value(task.reminderEnabled),
+      reminderLeadMinutes: Value(task.reminderLeadMinutes),
     );
   }
 }

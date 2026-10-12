@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'package:chronosky/core/services/alarm_output.dart';
-import 'package:chronosky/core/services/alarm_scheduler_service.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -191,10 +191,10 @@ class _NewItemSheetState extends State<NewItemSheet> {
   /// this widget's own context is defunct afterwards.
   Future<void> _requestDeliveryPermission() async {
     final messenger = ScaffoldMessenger.of(context);
-    final alarmService = context.read<AlarmSchedulerService>();
+    final coordinator = context.read<NotificationCoordinator>();
     Navigator.pop(context);
 
-    final granted = await alarmService.ensureNotificationPermission();
+    final granted = await coordinator.ensureNotificationPermission();
     if (granted) return;
     messenger.showSnackBar(
       const SnackBar(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/domain/clock_time.dart';
+import 'package:chronosky/ui/widgets/reminder_control.dart';
 
 /// Premium task detail panel widget.
 ///
@@ -21,6 +22,15 @@ class TaskDetailPanel extends StatelessWidget {
   final VoidCallback onClose;
   final bool isCompleted;
 
+  /// The day [task] is scheduled on.
+  ///
+  /// The task itself only carries a clock time, so the reminder control needs
+  /// the date to work out whether its moment has already passed.
+  final DateTime date;
+
+  /// Called with the task as its reminder settings should now be.
+  final ValueChanged<Task> onReminderChanged;
+
   const TaskDetailPanel({
     super.key,
     required this.task,
@@ -28,6 +38,8 @@ class TaskDetailPanel extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onClose,
+    required this.date,
+    required this.onReminderChanged,
     this.isCompleted = false,
   });
 
@@ -212,6 +224,12 @@ class TaskDetailPanel extends StatelessWidget {
                 const SizedBox(height: AppSpacing.lg),
 
                 // Metadata Grid
+                ReminderControl(
+                  task: task,
+                  date: date,
+                  onChanged: onReminderChanged,
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 _buildMetadataGrid(context, typeColor),
 
                 const SizedBox(height: AppSpacing.lg),

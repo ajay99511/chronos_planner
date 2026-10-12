@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
@@ -51,6 +52,10 @@ class _ChronosHomeState extends State<ChronosHome>
       // A Dart Timer does not survive the machine sleeping through its
       // deadline, so a resumed app would hold an already-expired timer.
       context.read<AlarmSchedulerService>().refreshSchedule();
+      // The OS schedule goes stale for two reasons while backgrounded: moments
+      // that have since passed, and a rolling window still anchored to
+      // yesterday. Both need a re-subscribe, not just a recompute.
+      context.read<NotificationCoordinator>().refresh();
     }
   }
 

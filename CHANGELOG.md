@@ -18,6 +18,19 @@ observable effect are left to the git history, which is where they belong.
 
 ### Added
 
+- **Per-task reminders.** A scheduled task can be set to notify you a chosen
+  number of minutes before it starts — at start, 5, 10, 15, 30 or 60 — and the
+  notification arrives with the app closed. Off by default, armed from the task
+  detail panel or when adding the task, and shown as a pill on the task card so
+  you can see what is armed without opening anything. A completed, deleted or
+  already-started task is never reminded about. Reminders set on a WorkPlan are
+  carried onto the tasks when the plan is applied.
+  ([ADR 0012](docs/decisions/0012-task-reminders.md))
+- **Three starter WorkPlans** on a fresh install — Weekday Essentials, Weekend
+  Reset and Deep Work Day — so the plan library demonstrates what it is for
+  instead of opening empty. None of them is recurring, so nothing is written
+  into your week unless you apply it. Deleting them all is now permanent;
+  previously they reappeared on the next launch.
 - **Alarms are registered with the operating system**, so they fire with the app
   closed and survive a reboot. Previously a single in-process `Timer` armed the
   next alarm, which an Android process kill or Doze silently ended.
@@ -62,6 +75,20 @@ observable effect are left to the git history, which is where they belong.
 
 ### Fixed
 
+- **Scheduled notifications could never be delivered on Android.**
+  `flutter_local_notifications` requires the host app to declare the receivers
+  that show a scheduled notification and restore the schedule after a reboot,
+  and they were missing — so the OS fired the broadcast at the right moment and
+  nothing was listening. Every alarm was silently undeliverable. The permission
+  was declared, which made the gap look closed.
+- **An alarm and a reminder on the same item would have cancelled each other.**
+  Notification ids were derived from the bare item id, so two kinds of
+  notification for one item collided by construction. Ids are now namespaced by
+  kind.
+- **The notification permission banner was unreadable**, and only appeared on an
+  empty alarm list — so a user with one alarm and no permission was told
+  nothing. It now appears on both the Tasks and Schedule tabs whenever delivery
+  is blocked, and its action meets WCAG AA contrast (it measured 2.18:1).
 - **Foreign keys were never enforced.** SQLite defaults `PRAGMA foreign_keys` to
   *off* for every new connection, so the schema's relationships were decorative
   and orphaned rows could accumulate. They are now enabled on open, and
@@ -113,8 +140,17 @@ Deliberate, and recorded rather than hidden:
 
 - **Notification delivery, reboot survival and permission denial are not
   verified on a device.** Every decision behind the platform seam is unit
-  tested; the platform itself is not. Treat on-device verification as required
-  before any release.
+  tested; the platform itself is not. The required checklist is in
+  [docs/TASK_REMINDERS_DESIGN.md §8](docs/TASK_REMINDERS_DESIGN.md). Treat
+  on-device verification as required before any release.
+- **At most 48 notifications are held with the OS at once**, soonest first. iOS
+  keeps only 64 pending local notifications and recent Android caps an app's
+  alarms; a full week of plans with a reminder on every block can reach either.
+- **A reminder has no "Done" or "Snooze" action**, and tapping it opens the app
+  rather than the task. Both need a background isolate with its own database
+  connection ([ADR 0012](docs/decisions/0012-task-reminders.md)).
+- **Reminders apply to scheduled tasks only**, not to notes or checklists, which
+  have no due moment to count back from.
 - A **custom** alarm sound cannot play on Windows or Linux
   ([ADR 0009](docs/decisions/0009-audio-unsupported-on-windows-and-linux.md));
   alarms there arrive as a system notification.

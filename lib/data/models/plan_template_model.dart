@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/data/models/task_model.dart';
+import 'package:chronosky/domain/reminder_lead.dart';
 
 /// Core domain model representing a task within a template.
 @immutable
@@ -16,6 +17,11 @@ class TemplateTask {
   final double estimatedCost;
   final String description;
 
+  /// Carried onto every task this template materialises, so applying a plan
+  /// keeps the reminders the user set on it once.
+  final bool reminderEnabled;
+  final int reminderLeadMinutes;
+
   TemplateTask({
     required this.id,
     required this.templateId,
@@ -27,6 +33,8 @@ class TemplateTask {
     this.energyLevel = TaskEnergyLevel.medium,
     this.estimatedCost = 0.0,
     this.description = '',
+    this.reminderEnabled = false,
+    this.reminderLeadMinutes = defaultReminderLeadMinutes,
   }) {
     assert(title.isNotEmpty && title.length <= 200,
         'Title must be 1-200 characters',);
@@ -36,6 +44,8 @@ class TemplateTask {
     assert(timeRegex.hasMatch(endTime), 'Invalid endTime format: $endTime');
     assert(estimatedCost >= 0.0 && estimatedCost.isFinite,
         'estimatedCost must be >= 0.0 and finite',);
+    assert(isValidReminderLead(reminderLeadMinutes),
+        'reminderLeadMinutes must be 0..$maxReminderLeadMinutes',);
   }
 
   /// Validates the same invariants as [Task.create], returning either the
@@ -54,12 +64,15 @@ class TemplateTask {
     TaskEnergyLevel energyLevel = TaskEnergyLevel.medium,
     double estimatedCost = 0.0,
     String description = '',
+    bool reminderEnabled = false,
+    int reminderLeadMinutes = defaultReminderLeadMinutes,
   }) {
     final failure = validateTaskFields(
       title: title,
       startTime: startTime,
       endTime: endTime,
       estimatedCost: estimatedCost,
+      reminderLeadMinutes: reminderLeadMinutes,
     );
     if (failure != null) return Failure(failure);
 
@@ -75,6 +88,8 @@ class TemplateTask {
         energyLevel: energyLevel,
         estimatedCost: estimatedCost,
         description: description,
+        reminderEnabled: reminderEnabled,
+        reminderLeadMinutes: reminderLeadMinutes,
       ),
     );
   }
@@ -90,6 +105,8 @@ class TemplateTask {
     TaskEnergyLevel? energyLevel,
     double? estimatedCost,
     String? description,
+    bool? reminderEnabled,
+    int? reminderLeadMinutes,
   }) {
     return TemplateTask(
       id: id ?? this.id,
@@ -102,6 +119,8 @@ class TemplateTask {
       energyLevel: energyLevel ?? this.energyLevel,
       estimatedCost: estimatedCost ?? this.estimatedCost,
       description: description ?? this.description,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
     );
   }
 
@@ -116,6 +135,8 @@ class TemplateTask {
         'energyLevel': energyLevel.name,
         'estimatedCost': estimatedCost,
         'description': description,
+        'reminderEnabled': reminderEnabled,
+        'reminderLeadMinutes': reminderLeadMinutes,
       };
 
   factory TemplateTask.fromJson(Map<String, dynamic> json) {
@@ -139,6 +160,9 @@ class TemplateTask {
       ),
       estimatedCost: ((json['estimatedCost'] as num?) ?? 0.0).toDouble(),
       description: (json['description'] ?? '') as String,
+      reminderEnabled: (json['reminderEnabled'] ?? false) as bool,
+      reminderLeadMinutes:
+          (json['reminderLeadMinutes'] ?? defaultReminderLeadMinutes) as int,
     );
   }
 
@@ -156,7 +180,9 @@ class TemplateTask {
           priority == other.priority &&
           energyLevel == other.energyLevel &&
           estimatedCost == other.estimatedCost &&
-          description == other.description;
+          description == other.description &&
+          reminderEnabled == other.reminderEnabled &&
+          reminderLeadMinutes == other.reminderLeadMinutes;
 
   @override
   int get hashCode =>
@@ -169,7 +195,9 @@ class TemplateTask {
       priority.hashCode ^
       energyLevel.hashCode ^
       estimatedCost.hashCode ^
-      description.hashCode;
+      description.hashCode ^
+      reminderEnabled.hashCode ^
+      reminderLeadMinutes.hashCode;
 }
 
 /// Reusable template for creating recurring day plans.

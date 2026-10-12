@@ -1,4 +1,6 @@
 import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
+import 'package:chronosky/core/services/scheduled_notifier.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
@@ -19,6 +21,7 @@ Future<void> pumpWithProviders(
   Widget child, {
   required ScheduleStateProvider scheduleProvider,
   AnalyticsProvider? analyticsProvider,
+  NotificationCoordinator? notificationCoordinator,
   Size surfaceSize = const Size(1200, 900),
   bool reduceMotion = false,
 }) async {
@@ -33,6 +36,14 @@ Future<void> pumpWithProviders(
         ),
         ChangeNotifierProvider<AnalyticsProvider>.value(
           value: analyticsProvider ?? AnalyticsProvider(scheduleProvider),
+        ),
+        // The schedule and task screens read notification permission from
+        // here, so it has to be present even for tests about something else.
+        // The default is backed by a no-op notifier, which reports no
+        // permission — so the banner shows, which is the honest default for a
+        // test that has not said otherwise.
+        ChangeNotifierProvider<NotificationCoordinator>.value(
+          value: notificationCoordinator ?? _inertCoordinator(),
         ),
       ],
       child: MaterialApp(
@@ -58,6 +69,26 @@ Future<void> pumpWithProviders(
       ),
     ),
   );
+}
+
+/// A coordinator that reaches no platform and no database.
+///
+/// Built over fresh mocks rather than the caller's, because nothing in a
+/// widget test should depend on what the notification schedule happens to
+/// contain; tests that care construct their own and pass it in.
+NotificationCoordinator _inertCoordinator() {
+  final todoRepo = MockTodoRepository();
+  final scheduleRepo = MockScheduleRepository();
+  stubTodoRepoEmpty(todoRepo);
+  stubScheduleRepoSuccess(scheduleRepo);
+  final coordinator = NotificationCoordinator(
+    todoRepo: todoRepo,
+    scheduleRepo: scheduleRepo,
+    logger: const NoOpLogger(),
+    notifier: const NoOpScheduledNotifier(),
+  );
+  addTearDown(coordinator.dispose);
+  return coordinator;
 }
 
 /// Builds a [ScheduleStateProvider] over mocks, already stubbed to succeed.

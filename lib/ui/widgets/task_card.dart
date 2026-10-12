@@ -285,6 +285,17 @@ class _TaskCardState extends State<TaskCard>
                                   label: widget.task.estimatedCost.toStringAsFixed(0),
                                   color: AppColors.health,
                                 ),
+                              // Visible without opening the task: whether a
+                              // reminder is armed is exactly the sort of state
+                              // a user should not have to go looking for.
+                              if (widget.task.reminderEnabled)
+                                _buildPill(
+                                  icon: Icons.notifications_active_rounded,
+                                  label: AppStrings.reminderLeadLabel(
+                                    widget.task.reminderLeadMinutes,
+                                  ).toUpperCase(),
+                                  color: AppColors.neonBlue,
+                                ),
                             ],
                           ),
                           if (widget.task.description.isNotEmpty) ...[

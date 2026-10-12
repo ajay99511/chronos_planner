@@ -20,6 +20,17 @@ class Tasks extends Table {
       text().references(DayPlans, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceTemplateId => text().withDefault(const Constant(''))();
 
+  /// v11: whether to notify before this task starts.
+  ///
+  /// Default off. A planner that begins notifying about everything the moment
+  /// it updates is a planner people uninstall.
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// v11: minutes before [startTime] to notify. 0 means "when it starts".
+  IntColumn get reminderLeadMinutes =>
+      integer().withDefault(const Constant(10))();
+
   /// SQL-level guards on task data (schema v10).
   ///
   /// `Task.create` is the primary validation, but it only covers data this
@@ -46,6 +57,7 @@ class Tasks extends Table {
             "AND end_time <= '23:59')",
         'CHECK (estimated_cost >= 0.0)',
         'CHECK (actual_cost >= 0.0)',
+        'CHECK (reminder_lead_minutes BETWEEN 0 AND 1440)',
       ];
 
   @override
@@ -107,6 +119,16 @@ class TemplateTasks extends Table {
   TextColumn get energyLevel => text().withDefault(const Constant('medium'))();
   RealColumn get estimatedCost => real().withDefault(const Constant(0.0))();
 
+  /// v11: carried so applying a plan does not lose its reminders.
+  ///
+  /// Reminder state on the template is what makes "apply Weekday Essentials
+  /// and be nudged through it" work. Without it, every apply would silently
+  /// drop the reminders the user set up once.
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get reminderLeadMinutes =>
+      integer().withDefault(const Constant(10))();
+
   /// Mirrors [Tasks.customConstraints], minus `actual_cost`, which this table
   /// does not have. A template materialises into tasks, so a template row the
   /// tasks table would reject is a deferred failure.
@@ -118,6 +140,7 @@ class TemplateTasks extends Table {
         "CHECK (end_time GLOB '[0-2][0-9]:[0-5][0-9]' "
             "AND end_time <= '23:59')",
         'CHECK (estimated_cost >= 0.0)',
+        'CHECK (reminder_lead_minutes BETWEEN 0 AND 1440)',
       ];
 
   @override

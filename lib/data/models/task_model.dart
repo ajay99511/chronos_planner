@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/domain/clock_time.dart';
+import 'package:chronosky/domain/reminder_lead.dart';
 
 /// Validates the fields common to a task and a template task.
 ///
@@ -14,6 +15,7 @@ ValidationFailure? validateTaskFields({
   required String endTime,
   required double estimatedCost,
   double actualCost = 0,
+  int reminderLeadMinutes = defaultReminderLeadMinutes,
 }) {
   if (title.isEmpty || title.length > 200) {
     return const ValidationFailure('Title must be 1-200 characters.');
@@ -29,6 +31,12 @@ ValidationFailure? validateTaskFields({
   }
   if (actualCost < 0 || !actualCost.isFinite) {
     return const ValidationFailure('Actual cost must be zero or more.');
+  }
+  if (!isValidReminderLead(reminderLeadMinutes)) {
+    return ValidationFailure(
+      'Reminder lead time must be between 0 and $maxReminderLeadMinutes '
+      'minutes, not $reminderLeadMinutes.',
+    );
   }
   return null;
 }
@@ -58,6 +66,16 @@ class Task {
   final String sourceTemplateId;
   final bool completed;
 
+  /// Whether to notify the user before this task starts.
+  final bool reminderEnabled;
+
+  /// Minutes before [startTime] to notify. 0 means "when it starts".
+  ///
+  /// Kept meaningful even while [reminderEnabled] is false, so toggling a
+  /// reminder back on restores the lead time the user chose rather than
+  /// resetting it.
+  final int reminderLeadMinutes;
+
   Task({
     required this.id,
     required this.title,
@@ -71,6 +89,8 @@ class Task {
     this.description = '',
     this.sourceTemplateId = '',
     this.completed = false,
+    this.reminderEnabled = false,
+    this.reminderLeadMinutes = defaultReminderLeadMinutes,
   }) {
     assert(title.isNotEmpty && title.length <= 200,
         'Title must be 1-200 characters',);
@@ -82,6 +102,8 @@ class Task {
         'estimatedCost must be >= 0.0 and finite',);
     assert(actualCost >= 0.0 && actualCost.isFinite,
         'actualCost must be >= 0.0 and finite',);
+    assert(isValidReminderLead(reminderLeadMinutes),
+        'reminderLeadMinutes must be 0..$maxReminderLeadMinutes',);
   }
 
   /// Validates [title], the clock times and the costs, returning either the
@@ -106,6 +128,8 @@ class Task {
     String description = '',
     String sourceTemplateId = '',
     bool completed = false,
+    bool reminderEnabled = false,
+    int reminderLeadMinutes = defaultReminderLeadMinutes,
   }) {
     final failure = validateTaskFields(
       title: title,
@@ -113,6 +137,7 @@ class Task {
       endTime: endTime,
       estimatedCost: estimatedCost,
       actualCost: actualCost,
+      reminderLeadMinutes: reminderLeadMinutes,
     );
     if (failure != null) return Failure(failure);
 
@@ -130,6 +155,8 @@ class Task {
         description: description,
         sourceTemplateId: sourceTemplateId,
         completed: completed,
+        reminderEnabled: reminderEnabled,
+        reminderLeadMinutes: reminderLeadMinutes,
       ),
     );
   }
@@ -147,6 +174,8 @@ class Task {
     String? description,
     String? sourceTemplateId,
     bool? completed,
+    bool? reminderEnabled,
+    int? reminderLeadMinutes,
   }) {
     return Task(
       id: id ?? this.id,
@@ -161,6 +190,8 @@ class Task {
       description: description ?? this.description,
       sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
       completed: completed ?? this.completed,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
     );
   }
 
@@ -177,6 +208,8 @@ class Task {
         'description': description,
         'sourceTemplateId': sourceTemplateId,
         'completed': completed,
+        'reminderEnabled': reminderEnabled,
+        'reminderLeadMinutes': reminderLeadMinutes,
       };
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -202,6 +235,9 @@ class Task {
       description: (json['description'] ?? '') as String,
       sourceTemplateId: (json['sourceTemplateId'] ?? '') as String,
       completed: (json['completed'] ?? false) as bool,
+      reminderEnabled: (json['reminderEnabled'] ?? false) as bool,
+      reminderLeadMinutes:
+          (json['reminderLeadMinutes'] ?? defaultReminderLeadMinutes) as int,
     );
   }
 
@@ -221,7 +257,9 @@ class Task {
           actualCost == other.actualCost &&
           description == other.description &&
           sourceTemplateId == other.sourceTemplateId &&
-          completed == other.completed;
+          completed == other.completed &&
+          reminderEnabled == other.reminderEnabled &&
+          reminderLeadMinutes == other.reminderLeadMinutes;
 
   @override
   int get hashCode =>
@@ -236,5 +274,7 @@ class Task {
       actualCost.hashCode ^
       description.hashCode ^
       sourceTemplateId.hashCode ^
-      completed.hashCode;
+      completed.hashCode ^
+      reminderEnabled.hashCode ^
+      reminderLeadMinutes.hashCode;
 }
