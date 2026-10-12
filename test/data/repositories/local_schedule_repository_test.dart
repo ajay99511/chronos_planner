@@ -43,6 +43,8 @@ Task _taskRow({
       energyLevel: 'medium',
       estimatedCost: 0,
       actualCost: 0,
+      reminderEnabled: false,
+      reminderLeadMinutes: 10,
       completed: false,
       dayPlanId: dayPlanId,
       sourceTemplateId: '',

@@ -47,6 +47,33 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- flutter_local_notifications ships only POST_NOTIFICATIONS and
+             VIBRATE in its own manifest; since v16 the host app must declare
+             the receivers that do the delivering. Without them zonedSchedule
+             registers the alarm, the OS fires the broadcast at the right
+             moment, and nothing is listening — so no notification is ever
+             shown and RECEIVE_BOOT_COMPLETED above is held but never used.
+
+             That failure is invisible to `flutter analyze`, to the test suite
+             (the AlarmNotifier seam is mocked) and to the build, which is why
+             it survived until a merged-manifest check. Only a device shows it.
+
+             MY_PACKAGE_REPLACED is not optional during development: without
+             it every app update silently drops the pending schedule. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

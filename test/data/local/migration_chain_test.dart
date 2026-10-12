@@ -164,6 +164,63 @@ void main() {
       await columnsOf(db, 'template_tasks'),
       containsAll(['energy_level', 'estimated_cost']),
     );
+
+    // v11 added the reminder columns to both task tables. They are added
+    // first in onUpgrade, out of version order, because the v5 and v10
+    // rebuilds copy from the current Dart definition — so a column added
+    // after them has no source to copy from and the rebuild fails.
+    expect(
+      await columnsOf(db, 'tasks'),
+      containsAll(['reminder_enabled', 'reminder_lead_minutes']),
+    );
+    expect(
+      await columnsOf(db, 'template_tasks'),
+      containsAll(['reminder_enabled', 'reminder_lead_minutes']),
+    );
+  });
+
+  test('v11 defaults an existing task to no reminder', () async {
+    final db = await upgradedFromV1();
+    addTearDown(db.close);
+
+    // A user upgrading must not suddenly start being notified about every
+    // task they ever created.
+    final row = await db.customSelect(
+      'SELECT reminder_enabled, reminder_lead_minutes FROM tasks '
+      "WHERE id = 'task-1'",
+    ).getSingle();
+
+    expect(row.read<bool>('reminder_enabled'), isFalse);
+    expect(row.read<int>('reminder_lead_minutes'), 10);
+  });
+
+  test('the v11 lead-time constraint is live after upgrading', () async {
+    final db = await upgradedFromV1();
+    addTearDown(db.close);
+
+    // ADD COLUMN cannot attach a table-level CHECK, so this only holds if the
+    // rebuild carried it across — otherwise upgraded users keep an unguarded
+    // column forever while fresh installs are protected.
+    await expectLater(
+      db.customStatement(
+        'INSERT INTO tasks '
+        '(id, title, start_time, end_time, type, day_plan_id, '
+        'reminder_lead_minutes) '
+        "VALUES ('bad-lead', 'Fine', '09:00', '10:00', 'work', 'dp-1', 5000)",
+      ),
+      throwsA(isA<Exception>()),
+      reason: 'a lead time beyond a day must be rejected after an upgrade',
+    );
+    await expectLater(
+      db.customStatement(
+        'INSERT INTO tasks '
+        '(id, title, start_time, end_time, type, day_plan_id, '
+        'reminder_lead_minutes) '
+        "VALUES ('neg-lead', 'Fine', '09:00', '10:00', 'work', 'dp-1', -1)",
+      ),
+      throwsA(isA<Exception>()),
+      reason: 'a negative lead time must be rejected after an upgrade',
+    );
   });
 
   test('tables added along the way exist at the end', () async {

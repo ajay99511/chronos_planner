@@ -7,6 +7,18 @@ abstract class ScheduleRepository {
   /// Get the upcoming [count] days starting from Today.
   Future<Result<List<DayPlan>>> getUpcomingDays(int count);
 
+  /// Watches the tasks scheduled in the next [count] days, grouped by day.
+  ///
+  /// Read-only, unlike [getUpcomingDays], which creates any missing day rows:
+  /// a watcher must not write. Days with no tasks are therefore omitted rather
+  /// than returned empty — a caller that needs the full window for display
+  /// should use [getUpcomingDays]; this exists for callers that only care
+  /// about the tasks themselves, such as the notification schedule.
+  ///
+  /// The window is bound when the stream is subscribed, so a caller that must
+  /// follow the calendar past midnight has to re-subscribe.
+  Stream<List<DayPlan>> watchUpcomingDays(int count);
+
   /// Add a task to a specific date.
   Future<Result<void>> addTaskToDate(DateTime date, Task task);
 

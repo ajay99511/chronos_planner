@@ -48,6 +48,46 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     return (delete(tasks)..where((t) => t.id.equals(taskId))).go();
   }
 
+  /// Watches every task whose owning day plan falls in `[from, to)`, paired
+  /// with the date and id of that day.
+  ///
+  /// Reactive rather than a one-shot read because the OS notification
+  /// schedule has to follow every write — an add, an edit, a completion, a
+  /// deletion, a plan being applied, a recurring template auto-applying. A
+  /// caller that recomputed only when it remembered to would silently drift
+  /// out of step with what the user sees, which is exactly what
+  /// `ScheduledNotifier.sync`'s wholesale replacement exists to prevent.
+  ///
+  /// [readsFrom] names both tables, so an emission follows a change to either.
+  /// The window is bound at subscription, so a caller that must follow the
+  /// calendar past midnight has to re-subscribe; `NotificationCoordinator`
+  /// does that in `refresh()`.
+  Stream<List<({String planId, DateTime date, Task task})>> watchTasksBetween(
+    DateTime from,
+    DateTime to,
+  ) {
+    return customSelect(
+      'SELECT t.*, d.date AS plan_date, d.id AS plan_id FROM tasks t '
+      'INNER JOIN day_plans d ON t.day_plan_id = d.id '
+      'WHERE d.date >= ? AND d.date < ? '
+      'ORDER BY d.date ASC, t.start_time ASC',
+      variables: [
+        Variable.withDateTime(from),
+        Variable.withDateTime(to),
+      ],
+      readsFrom: {tasks, attachedDatabase.dayPlans},
+    ).watch().map(
+          (rows) => [
+            for (final row in rows)
+              (
+                planId: row.read<String>('plan_id'),
+                date: row.read<DateTime>('plan_date'),
+                task: tasks.map(row.data),
+              ),
+          ],
+        );
+  }
+
   /// Returns all tasks whose owning day plan falls on or after [since],
   /// joined across the `day_plans` table by date.
   ///

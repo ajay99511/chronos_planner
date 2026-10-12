@@ -185,6 +185,8 @@ class LocalTemplateRepository implements TemplateRepository {
         orElse: () => domain.TaskEnergyLevel.medium,
       ),
       estimatedCost: dbTask.estimatedCost,
+      reminderEnabled: dbTask.reminderEnabled,
+      reminderLeadMinutes: dbTask.reminderLeadMinutes,
     );
   }
 
@@ -203,6 +205,8 @@ class LocalTemplateRepository implements TemplateRepository {
       priority: Value(task.priority.name),
       energyLevel: Value(task.energyLevel.name),
       estimatedCost: Value(task.estimatedCost),
+      reminderEnabled: Value(task.reminderEnabled),
+      reminderLeadMinutes: Value(task.reminderLeadMinutes),
     );
   }
 }

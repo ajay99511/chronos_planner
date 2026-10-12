@@ -7,8 +7,9 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
-import 'package:chronosky/core/services/local_notification_alarm_notifier.dart';
+import 'package:chronosky/core/services/local_scheduled_notifier.dart';
 import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/local/app_database.dart';
 import 'package:chronosky/data/local/migration_helper.dart';
@@ -207,13 +208,22 @@ class MyApp extends StatelessWidget {
           create: (_) => TodoProvider(todoRepo, prefRepo: prefRepo),
         ),
         ChangeNotifierProvider(
-          create: (_) => AlarmSchedulerService(
-            todoRepo,
-            logger,
-            // Registers alarms with the OS so they fire with the app closed.
-            notifier: LocalNotificationAlarmNotifier(logger),
-          ),
+          create: (_) => AlarmSchedulerService(todoRepo, logger),
           lazy: false, // Alarms must arm at startup, not on first UI access.
+        ),
+        ChangeNotifierProvider(
+          // The single owner of the OS notification schedule: todo alarms and
+          // task reminders both leave through here, because replacing the
+          // schedule wholesale only stays correct with one caller.
+          create: (_) => NotificationCoordinator(
+            todoRepo: todoRepo,
+            scheduleRepo: scheduleRepo,
+            logger: logger,
+            notifier: LocalScheduledNotifier(logger),
+          ),
+          // Must arm at startup, not on first UI access: a user who never
+          // opens the Tasks tab still expects their reminders.
+          lazy: false,
         ),
       ],
       child: MaterialApp(

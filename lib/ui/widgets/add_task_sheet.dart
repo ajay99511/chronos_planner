@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
+import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/domain/clock_time.dart';
+import 'package:chronosky/domain/reminder_lead.dart';
 import 'package:chronosky/core/services/intelligence_service.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 
@@ -49,6 +51,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   TaskType _selectedType = TaskType.work;
   TaskPriority _selectedPriority = TaskPriority.medium;
   TaskEnergyLevel _selectedEnergy = TaskEnergyLevel.medium;
+  bool _reminderEnabled = false;
+  int _reminderLead = defaultReminderLeadMinutes;
   String? _formError;
 
   final _intelService = IntelligenceService();
@@ -72,6 +76,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
       _selectedType = t.type;
       _selectedPriority = t.priority;
       _selectedEnergy = t.energyLevel;
+      _reminderEnabled = t.reminderEnabled;
+      _reminderLead = t.reminderLeadMinutes;
     }
   }
 
@@ -162,6 +168,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
               _buildPrioritySelector(),
               const SizedBox(height: 16),
               _buildEnergySelector(),
+              const SizedBox(height: 16),
+              _buildReminderSelector(),
               if (_formError != null) ...[
                 const SizedBox(height: 16),
                 Row(
@@ -639,6 +647,68 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     );
   }
 
+  /// Arms a reminder at creation time, rather than making the user save the
+  /// task and then reopen it.
+  ///
+  /// Permission is deliberately *not* requested here: the task does not exist
+  /// yet, so a system prompt would be about something the user cannot see.
+  /// `ReminderControl` on the saved task asks at the moment the request has a
+  /// visible reason. Until then this is a stated intention, and the Schedule
+  /// tab's banner reports it if the OS would drop it.
+  Widget _buildReminderSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'REMIND ME',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Semantics(
+              label: AppStrings.reminderToggleLabel(
+                taskTitle: _titleCtrl.text.trim().isEmpty
+                    ? 'this task'
+                    : _titleCtrl.text.trim(),
+                enabled: _reminderEnabled,
+                leadMinutes: _reminderLead,
+              ),
+              child: Switch(
+                value: _reminderEnabled,
+                onChanged: (v) => setState(() => _reminderEnabled = v),
+              ),
+            ),
+          ],
+        ),
+        if (_reminderEnabled)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final minutes in reminderLeadChoices)
+                ChoiceChip(
+                  label: Text(
+                    AppStrings.reminderLeadLabel(minutes),
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  selected: _reminderLead == minutes,
+                  onSelected: (selected) {
+                    if (!selected) return;
+                    setState(() => _reminderLead = minutes);
+                  },
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
   Widget _buildSubmitButton() {
     return ElevatedButton(
       onPressed: () {
@@ -680,6 +750,8 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
           actualCost: _isEditing ? widget.editingTask!.actualCost : 0.0,
           description: _descCtrl.text.trim(),
           completed: _isEditing ? widget.editingTask!.completed : false,
+          reminderEnabled: _reminderEnabled,
+          reminderLeadMinutes: _reminderLead,
         );
         if (built is Failure<Task>) {
           setState(() => _formError = built.failure.message);

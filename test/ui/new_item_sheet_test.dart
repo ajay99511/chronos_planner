@@ -1,10 +1,11 @@
 import 'dart:async';
 
 import 'package:chronosky/core/result.dart';
-import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
-import 'package:chronosky/core/services/alarm_scheduler_service.dart';
 import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
+import 'package:chronosky/core/services/scheduled_notification.dart';
+import 'package:chronosky/core/services/scheduled_notifier.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/todo_item_model.dart';
 import 'package:chronosky/providers/todo_provider.dart';
@@ -17,7 +18,7 @@ import 'package:provider/provider.dart';
 import '../helpers/mocks.dart';
 
 /// Records whether the sheet asked the OS for anything.
-class _FakeAlarmNotifier implements AlarmNotifier {
+class _FakeNotifier implements ScheduledNotifier {
   int requestCount = 0;
   bool permitted = true;
   bool grantOnRequest = true;
@@ -36,31 +37,17 @@ class _FakeAlarmNotifier implements AlarmNotifier {
   }
 
   @override
-  Future<void> sync(List<TodoItem> alarms) async {}
+  Future<void> sync(List<ScheduledNotification> items) async {}
 
   @override
   Future<void> cancelAll() async {}
 }
 
-/// Keeps `just_audio` and `window_manager` out of a widget test.
-class _SilentAlarmOutput implements AlarmOutput {
-  @override
-  Future<void> playLooping(String path) async {}
-
-  @override
-  Future<void> stop() async {}
-
-  @override
-  Future<void> bringToFront() async {}
-
-  @override
-  Future<void> dispose() async {}
-}
-
 void main() {
   late MockTodoRepository repo;
   late MockPreferenceRepository prefRepo;
-  late _FakeAlarmNotifier notifier;
+  late MockScheduleRepository scheduleRepo;
+  late _FakeNotifier notifier;
   late StreamController<List<TodoItem>> alarmStream;
 
   setUpAll(registerCommonFallbacks);
@@ -68,7 +55,9 @@ void main() {
   setUp(() {
     repo = MockTodoRepository();
     prefRepo = MockPreferenceRepository();
-    notifier = _FakeAlarmNotifier();
+    scheduleRepo = MockScheduleRepository();
+    stubScheduleRepoSuccess(scheduleRepo);
+    notifier = _FakeNotifier();
     alarmStream = StreamController<List<TodoItem>>.broadcast();
 
     for (final type in TodoItemType.values) {
@@ -91,7 +80,7 @@ void main() {
   /// Mounts the sheet over the providers the real app supplies, already open
   /// on [tab]. Opened through [NewItemSheet.show] rather than pumped directly,
   /// because whether the sheet closes is part of what is under test.
-  Future<AlarmSchedulerService> openSheet(
+  Future<NotificationCoordinator> openSheet(
     WidgetTester tester, {
     required int tab,
   }) async {
@@ -99,21 +88,21 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final todoProvider = TodoProvider(repo, prefRepo: prefRepo);
-    final alarmService = AlarmSchedulerService(
-      repo,
-      const NoOpLogger(),
-      output: _SilentAlarmOutput(),
+    final coordinator = NotificationCoordinator(
+      todoRepo: repo,
+      scheduleRepo: scheduleRepo,
+      logger: const NoOpLogger(),
       notifier: notifier,
     );
     addTearDown(todoProvider.dispose);
-    addTearDown(alarmService.dispose);
+    addTearDown(coordinator.dispose);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<TodoProvider>.value(value: todoProvider),
-          ChangeNotifierProvider<AlarmSchedulerService>.value(
-            value: alarmService,
+          ChangeNotifierProvider<NotificationCoordinator>.value(
+            value: coordinator,
           ),
         ],
         child: MaterialApp(
@@ -131,7 +120,7 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    return alarmService;
+    return coordinator;
   }
 
   group('saving', () {
@@ -167,14 +156,14 @@ void main() {
   group('alarm delivery permission', () {
     testWidgets('is asked for when an alarm is created', (tester) async {
       notifier.permitted = false;
-      final service = await openSheet(tester, tab: 2);
+      final coordinator = await openSheet(tester, tab: 2);
 
       await fillAlarmForm(tester);
 
       // Asked here, not at launch: this is the first moment the request has a
       // reason the user can see.
       expect(notifier.requestCount, 1);
-      expect(service.notificationsBlocked, isFalse);
+      expect(coordinator.notificationsBlocked, isFalse);
       expect(find.byType(NewItemSheet), findsNothing);
     });
 
