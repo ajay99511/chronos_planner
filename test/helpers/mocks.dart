@@ -8,6 +8,7 @@ import 'package:chronosky/data/repositories/preference_repository.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
 import 'package:chronosky/data/repositories/template_repository.dart';
 import 'package:chronosky/data/repositories/todo_repository.dart';
+import 'package:chronosky/domain/reminder_lead.dart';
 import 'package:mocktail/mocktail.dart';
 
 /// Shared repository doubles and domain fixtures.
@@ -61,6 +62,8 @@ Task taskFixture({
   TaskType type = TaskType.work,
   bool completed = false,
   String sourceTemplateId = '',
+  bool reminderEnabled = false,
+  int reminderLeadMinutes = defaultReminderLeadMinutes,
 }) =>
     Task(
       id: id,
@@ -70,6 +73,8 @@ Task taskFixture({
       type: type,
       completed: completed,
       sourceTemplateId: sourceTemplateId,
+      reminderEnabled: reminderEnabled,
+      reminderLeadMinutes: reminderLeadMinutes,
     );
 
 /// A day plan for [date], defaulting to today so it lands inside the rolling
@@ -120,6 +125,24 @@ void stubScheduleRepoSuccess(
       .thenAnswer((_) async => const Success(null));
   when(() => repo.getTaskHistory(any()))
       .thenAnswer((_) async => const Success(<Task>[]));
+  // An empty stream rather than a never-completing one: a subscriber should
+  // settle, not hang waiting for a first emission that never comes.
+  when(() => repo.watchUpcomingDays(any()))
+      .thenAnswer((_) => Stream.value(days ?? sevenEmptyDays()));
+}
+
+/// Stubs every [MockTodoRepository] read to return nothing.
+void stubTodoRepoEmpty(MockTodoRepository repo) {
+  for (final type in TodoItemType.values) {
+    when(() => repo.watchByType(type))
+        .thenAnswer((_) => Stream.value(const <TodoItem>[]));
+  }
+  when(repo.watchTodos).thenAnswer((_) => Stream.value(const <TodoItem>[]));
+  when(() => repo.addTodo(any())).thenAnswer((_) async => const Success(null));
+  when(() => repo.updateTodo(any()))
+      .thenAnswer((_) async => const Success(null));
+  when(() => repo.deleteTodo(any()))
+      .thenAnswer((_) async => const Success(null));
 }
 
 /// Stubs the template and preference repositories to succeed with empty data.

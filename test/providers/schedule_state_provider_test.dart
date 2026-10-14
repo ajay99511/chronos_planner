@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
+import 'package:chronosky/data/seeds/default_plan_templates.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
@@ -45,6 +46,8 @@ void main() {
     when(() => mockTemplateRepo.getAllTemplates())
         .thenAnswer((_) async => const Success(<PlanTemplate>[])); // Non-const for mutability
     when(() => mockPrefRepo.get(any()))
+        .thenAnswer((_) async => const Success(null));
+    when(() => mockPrefRepo.set(any(), any()))
         .thenAnswer((_) async => const Success(null));
     when(() => mockTemplateRepo.addTemplate(any()))
         .thenAnswer((_) async => const Success(null));
@@ -295,6 +298,111 @@ void main() {
         appliedDates.map((d) => d.weekday).toSet(),
         {DateTime.monday, DateTime.wednesday},
       );
+    });
+
+    test('applying a template carries its reminder settings onto the tasks',
+        () async {
+      // A plan is the main way tasks get created, so dropping reminder state
+      // here would mean the user re-arms every reminder after every apply.
+      final added = <Task>[];
+      when(() => mockScheduleRepo.addTasksToDate(any(), any()))
+          .thenAnswer((inv) async {
+        added.addAll(inv.positionalArguments[1] as List<Task>);
+        return const Success(null);
+      });
+
+      final template = PlanTemplate(
+        id: 'tmpl-1',
+        name: 'Weekday Essentials',
+        description: '',
+        tasks: [
+          TemplateTask(
+            id: 'tt-1',
+            templateId: 'tmpl-1',
+            title: 'Deep work block',
+            startTime: '09:00',
+            endTime: '11:00',
+            type: TaskType.work,
+            reminderEnabled: true,
+            reminderLeadMinutes: 30,
+          ),
+        ],
+      );
+
+      provider = ScheduleStateProvider(
+        scheduleRepo: mockScheduleRepo,
+        templateRepo: mockTemplateRepo,
+        prefRepo: mockPrefRepo,
+        logger: mockLogger,
+      );
+      await provider.loadData();
+
+      await provider.applyTemplate(template, 0);
+
+      expect(added, hasLength(1));
+      expect(added.single.reminderEnabled, isTrue);
+      expect(added.single.reminderLeadMinutes, 30);
+    });
+
+    group('starter templates', () {
+      test('an empty library on a first run is seeded once', () async {
+        final seeded = <PlanTemplate>[];
+        when(() => mockTemplateRepo.addTemplate(any())).thenAnswer((inv) async {
+          seeded.add(inv.positionalArguments.first as PlanTemplate);
+          return const Success(null);
+        });
+
+        provider = ScheduleStateProvider(
+          scheduleRepo: mockScheduleRepo,
+          templateRepo: mockTemplateRepo,
+          prefRepo: mockPrefRepo,
+          logger: mockLogger,
+        );
+        await provider.loadData();
+        // Seeding is fired without awaiting so the first frame is not held
+        // behind it.
+        await Future<void>.delayed(Duration.zero);
+
+        expect(seeded.length, defaultPlanTemplates().length);
+        // Never recurring: a seeded recurring plan would write itself into the
+        // user's week on first launch without being asked.
+        expect(seeded.every((t) => t.isRecurring), isFalse);
+        verify(() => mockPrefRepo.set('templates_seeded', any())).called(1);
+      });
+
+      test('an empty library is not re-seeded once the flag is set', () async {
+        when(() => mockPrefRepo.get('templates_seeded'))
+            .thenAnswer((_) async => const Success('true'));
+
+        provider = ScheduleStateProvider(
+          scheduleRepo: mockScheduleRepo,
+          templateRepo: mockTemplateRepo,
+          prefRepo: mockPrefRepo,
+          logger: mockLogger,
+        );
+        await provider.loadData();
+        await Future<void>.delayed(Duration.zero);
+
+        // Deleting every plan is a decision, not missing data.
+        verifyNever(() => mockTemplateRepo.addTemplate(any()));
+      });
+
+      test('an unreadable flag is treated as already seeded', () async {
+        when(() => mockPrefRepo.get('templates_seeded')).thenAnswer(
+          (_) async => const Failure(DatabaseFailure('pref read failed')),
+        );
+
+        provider = ScheduleStateProvider(
+          scheduleRepo: mockScheduleRepo,
+          templateRepo: mockTemplateRepo,
+          prefRepo: mockPrefRepo,
+          logger: mockLogger,
+        );
+        await provider.loadData();
+        await Future<void>.delayed(Duration.zero);
+
+        verifyNever(() => mockTemplateRepo.addTemplate(any()));
+      });
     });
   });
 }

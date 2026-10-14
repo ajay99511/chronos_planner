@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +8,9 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:chronosky/core/services/alarm_scheduler_service.dart';
-import 'package:chronosky/core/services/local_notification_alarm_notifier.dart';
+import 'package:chronosky/core/services/local_scheduled_notifier.dart';
 import 'package:chronosky/core/services/logger.dart';
+import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/local/app_database.dart';
 import 'package:chronosky/data/local/migration_helper.dart';
@@ -20,6 +22,7 @@ import 'package:chronosky/data/repositories/preference_repository.dart';
 import 'package:chronosky/data/repositories/todo_repository.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/ui/screens/home_screen.dart';
 
@@ -207,13 +210,37 @@ class MyApp extends StatelessWidget {
           create: (_) => TodoProvider(todoRepo, prefRepo: prefRepo),
         ),
         ChangeNotifierProvider(
-          create: (_) => AlarmSchedulerService(
-            todoRepo,
-            logger,
-            // Registers alarms with the OS so they fire with the app closed.
-            notifier: LocalNotificationAlarmNotifier(logger),
-          ),
+          // Not lazy: it seeds the Workspace samples on a first run, and the
+          // user may open any tab first.
+          create: (_) {
+            final settings = SettingsProvider(
+              prefRepo: prefRepo,
+              todoRepo: todoRepo,
+              logger: logger,
+            );
+            unawaited(settings.seedDemoItemsIfNeeded());
+            return settings;
+          },
+          lazy: false,
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AlarmSchedulerService(todoRepo, logger),
           lazy: false, // Alarms must arm at startup, not on first UI access.
+        ),
+        ChangeNotifierProvider(
+          // The single owner of the OS notification schedule: todo alarms and
+          // task reminders both leave through here, because replacing the
+          // schedule wholesale only stays correct with one caller.
+          create: (_) => NotificationCoordinator(
+            todoRepo: todoRepo,
+            scheduleRepo: scheduleRepo,
+            prefRepo: prefRepo,
+            logger: logger,
+            notifier: LocalScheduledNotifier(logger),
+          ),
+          // Must arm at startup, not on first UI access: a user who never
+          // opens the Tasks tab still expects their reminders.
+          lazy: false,
         ),
       ],
       child: MaterialApp(
@@ -228,6 +255,16 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         theme: AppTheme.dark,
+        // Applied here rather than per screen because `builder` wraps every
+        // route, including dialogs and bottom sheets, which build in their own
+        // subtree and would otherwise escape the cap. See
+        // AppResponsive.maxTextScale for why there is a cap at all.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: AppResponsive.clampedTextScaler(context),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const ChronosHome(),
       ),
     );

@@ -330,6 +330,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
+  static const VerificationMeta _reminderEnabledMeta =
+      const VerificationMeta('reminderEnabled');
+  @override
+  late final GeneratedColumn<bool> reminderEnabled = GeneratedColumn<bool>(
+      'reminder_enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("reminder_enabled" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _reminderLeadMinutesMeta =
+      const VerificationMeta('reminderLeadMinutes');
+  @override
+  late final GeneratedColumn<int> reminderLeadMinutes = GeneratedColumn<int>(
+      'reminder_lead_minutes', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(10));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -344,7 +362,9 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         actualCost,
         completed,
         dayPlanId,
-        sourceTemplateId
+        sourceTemplateId,
+        reminderEnabled,
+        reminderLeadMinutes
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -431,6 +451,18 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           sourceTemplateId.isAcceptableOrUnknown(
               data['source_template_id']!, _sourceTemplateIdMeta));
     }
+    if (data.containsKey('reminder_enabled')) {
+      context.handle(
+          _reminderEnabledMeta,
+          reminderEnabled.isAcceptableOrUnknown(
+              data['reminder_enabled']!, _reminderEnabledMeta));
+    }
+    if (data.containsKey('reminder_lead_minutes')) {
+      context.handle(
+          _reminderLeadMinutesMeta,
+          reminderLeadMinutes.isAcceptableOrUnknown(
+              data['reminder_lead_minutes']!, _reminderLeadMinutesMeta));
+    }
     return context;
   }
 
@@ -466,6 +498,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.string, data['${effectivePrefix}day_plan_id'])!,
       sourceTemplateId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_template_id'])!,
+      reminderEnabled: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}reminder_enabled'])!,
+      reminderLeadMinutes: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}reminder_lead_minutes'])!,
     );
   }
 
@@ -489,6 +525,15 @@ class Task extends DataClass implements Insertable<Task> {
   final bool completed;
   final String dayPlanId;
   final String sourceTemplateId;
+
+  /// v11: whether to notify before this task starts.
+  ///
+  /// Default off. A planner that begins notifying about everything the moment
+  /// it updates is a planner people uninstall.
+  final bool reminderEnabled;
+
+  /// v11: minutes before [startTime] to notify. 0 means "when it starts".
+  final int reminderLeadMinutes;
   const Task(
       {required this.id,
       required this.title,
@@ -502,7 +547,9 @@ class Task extends DataClass implements Insertable<Task> {
       required this.actualCost,
       required this.completed,
       required this.dayPlanId,
-      required this.sourceTemplateId});
+      required this.sourceTemplateId,
+      required this.reminderEnabled,
+      required this.reminderLeadMinutes});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -519,6 +566,8 @@ class Task extends DataClass implements Insertable<Task> {
     map['completed'] = Variable<bool>(completed);
     map['day_plan_id'] = Variable<String>(dayPlanId);
     map['source_template_id'] = Variable<String>(sourceTemplateId);
+    map['reminder_enabled'] = Variable<bool>(reminderEnabled);
+    map['reminder_lead_minutes'] = Variable<int>(reminderLeadMinutes);
     return map;
   }
 
@@ -537,6 +586,8 @@ class Task extends DataClass implements Insertable<Task> {
       completed: Value(completed),
       dayPlanId: Value(dayPlanId),
       sourceTemplateId: Value(sourceTemplateId),
+      reminderEnabled: Value(reminderEnabled),
+      reminderLeadMinutes: Value(reminderLeadMinutes),
     );
   }
 
@@ -557,6 +608,9 @@ class Task extends DataClass implements Insertable<Task> {
       completed: serializer.fromJson<bool>(json['completed']),
       dayPlanId: serializer.fromJson<String>(json['dayPlanId']),
       sourceTemplateId: serializer.fromJson<String>(json['sourceTemplateId']),
+      reminderEnabled: serializer.fromJson<bool>(json['reminderEnabled']),
+      reminderLeadMinutes:
+          serializer.fromJson<int>(json['reminderLeadMinutes']),
     );
   }
   @override
@@ -576,6 +630,8 @@ class Task extends DataClass implements Insertable<Task> {
       'completed': serializer.toJson<bool>(completed),
       'dayPlanId': serializer.toJson<String>(dayPlanId),
       'sourceTemplateId': serializer.toJson<String>(sourceTemplateId),
+      'reminderEnabled': serializer.toJson<bool>(reminderEnabled),
+      'reminderLeadMinutes': serializer.toJson<int>(reminderLeadMinutes),
     };
   }
 
@@ -592,7 +648,9 @@ class Task extends DataClass implements Insertable<Task> {
           double? actualCost,
           bool? completed,
           String? dayPlanId,
-          String? sourceTemplateId}) =>
+          String? sourceTemplateId,
+          bool? reminderEnabled,
+          int? reminderLeadMinutes}) =>
       Task(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -607,6 +665,8 @@ class Task extends DataClass implements Insertable<Task> {
         completed: completed ?? this.completed,
         dayPlanId: dayPlanId ?? this.dayPlanId,
         sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
+        reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+        reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
       );
   Task copyWithCompanion(TasksCompanion data) {
     return Task(
@@ -630,6 +690,12 @@ class Task extends DataClass implements Insertable<Task> {
       sourceTemplateId: data.sourceTemplateId.present
           ? data.sourceTemplateId.value
           : this.sourceTemplateId,
+      reminderEnabled: data.reminderEnabled.present
+          ? data.reminderEnabled.value
+          : this.reminderEnabled,
+      reminderLeadMinutes: data.reminderLeadMinutes.present
+          ? data.reminderLeadMinutes.value
+          : this.reminderLeadMinutes,
     );
   }
 
@@ -648,7 +714,9 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('actualCost: $actualCost, ')
           ..write('completed: $completed, ')
           ..write('dayPlanId: $dayPlanId, ')
-          ..write('sourceTemplateId: $sourceTemplateId')
+          ..write('sourceTemplateId: $sourceTemplateId, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderLeadMinutes: $reminderLeadMinutes')
           ..write(')'))
         .toString();
   }
@@ -667,7 +735,9 @@ class Task extends DataClass implements Insertable<Task> {
       actualCost,
       completed,
       dayPlanId,
-      sourceTemplateId);
+      sourceTemplateId,
+      reminderEnabled,
+      reminderLeadMinutes);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -684,7 +754,9 @@ class Task extends DataClass implements Insertable<Task> {
           other.actualCost == this.actualCost &&
           other.completed == this.completed &&
           other.dayPlanId == this.dayPlanId &&
-          other.sourceTemplateId == this.sourceTemplateId);
+          other.sourceTemplateId == this.sourceTemplateId &&
+          other.reminderEnabled == this.reminderEnabled &&
+          other.reminderLeadMinutes == this.reminderLeadMinutes);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -701,6 +773,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<bool> completed;
   final Value<String> dayPlanId;
   final Value<String> sourceTemplateId;
+  final Value<bool> reminderEnabled;
+  final Value<int> reminderLeadMinutes;
   final Value<int> rowid;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -716,6 +790,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.completed = const Value.absent(),
     this.dayPlanId = const Value.absent(),
     this.sourceTemplateId = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderLeadMinutes = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -732,6 +808,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.completed = const Value.absent(),
     required String dayPlanId,
     this.sourceTemplateId = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderLeadMinutes = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
@@ -753,6 +831,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<bool>? completed,
     Expression<String>? dayPlanId,
     Expression<String>? sourceTemplateId,
+    Expression<bool>? reminderEnabled,
+    Expression<int>? reminderLeadMinutes,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -769,6 +849,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (completed != null) 'completed': completed,
       if (dayPlanId != null) 'day_plan_id': dayPlanId,
       if (sourceTemplateId != null) 'source_template_id': sourceTemplateId,
+      if (reminderEnabled != null) 'reminder_enabled': reminderEnabled,
+      if (reminderLeadMinutes != null)
+        'reminder_lead_minutes': reminderLeadMinutes,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -787,6 +870,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<bool>? completed,
       Value<String>? dayPlanId,
       Value<String>? sourceTemplateId,
+      Value<bool>? reminderEnabled,
+      Value<int>? reminderLeadMinutes,
       Value<int>? rowid}) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -802,6 +887,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
       completed: completed ?? this.completed,
       dayPlanId: dayPlanId ?? this.dayPlanId,
       sourceTemplateId: sourceTemplateId ?? this.sourceTemplateId,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -848,6 +935,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (sourceTemplateId.present) {
       map['source_template_id'] = Variable<String>(sourceTemplateId.value);
     }
+    if (reminderEnabled.present) {
+      map['reminder_enabled'] = Variable<bool>(reminderEnabled.value);
+    }
+    if (reminderLeadMinutes.present) {
+      map['reminder_lead_minutes'] = Variable<int>(reminderLeadMinutes.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -870,6 +963,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('completed: $completed, ')
           ..write('dayPlanId: $dayPlanId, ')
           ..write('sourceTemplateId: $sourceTemplateId, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderLeadMinutes: $reminderLeadMinutes, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -903,8 +998,17 @@ class $PlanTemplatesTable extends PlanTemplates
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
+  static const VerificationMeta _isDemoMeta = const VerificationMeta('isDemo');
   @override
-  List<GeneratedColumn> get $columns => [id, name, description];
+  late final GeneratedColumn<bool> isDemo = GeneratedColumn<bool>(
+      'is_demo', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_demo" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, description, isDemo];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -932,6 +1036,10 @@ class $PlanTemplatesTable extends PlanTemplates
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
     }
+    if (data.containsKey('is_demo')) {
+      context.handle(_isDemoMeta,
+          isDemo.isAcceptableOrUnknown(data['is_demo']!, _isDemoMeta));
+    }
     return context;
   }
 
@@ -947,6 +1055,8 @@ class $PlanTemplatesTable extends PlanTemplates
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      isDemo: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_demo'])!,
     );
   }
 
@@ -960,14 +1070,25 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
   final String id;
   final String name;
   final String description;
+
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// A flag rather than a naming convention because the switch has to keep
+  /// working after the user renames or edits a sample, and because "hide" has
+  /// to be reversible — see [TodoItems.isDemo].
+  final bool isDemo;
   const PlanTemplate(
-      {required this.id, required this.name, required this.description});
+      {required this.id,
+      required this.name,
+      required this.description,
+      required this.isDemo});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['description'] = Variable<String>(description);
+    map['is_demo'] = Variable<bool>(isDemo);
     return map;
   }
 
@@ -976,6 +1097,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: Value(id),
       name: Value(name),
       description: Value(description),
+      isDemo: Value(isDemo),
     );
   }
 
@@ -986,6 +1108,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String>(json['description']),
+      isDemo: serializer.fromJson<bool>(json['isDemo']),
     );
   }
   @override
@@ -995,14 +1118,17 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String>(description),
+      'isDemo': serializer.toJson<bool>(isDemo),
     };
   }
 
-  PlanTemplate copyWith({String? id, String? name, String? description}) =>
+  PlanTemplate copyWith(
+          {String? id, String? name, String? description, bool? isDemo}) =>
       PlanTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
         description: description ?? this.description,
+        isDemo: isDemo ?? this.isDemo,
       );
   PlanTemplate copyWithCompanion(PlanTemplatesCompanion data) {
     return PlanTemplate(
@@ -1010,6 +1136,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
+      isDemo: data.isDemo.present ? data.isDemo.value : this.isDemo,
     );
   }
 
@@ -1018,37 +1145,42 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
     return (StringBuffer('PlanTemplate(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('description: $description')
+          ..write('description: $description, ')
+          ..write('isDemo: $isDemo')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, description);
+  int get hashCode => Object.hash(id, name, description, isDemo);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlanTemplate &&
           other.id == this.id &&
           other.name == this.name &&
-          other.description == this.description);
+          other.description == this.description &&
+          other.isDemo == this.isDemo);
 }
 
 class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> description;
+  final Value<bool> isDemo;
   final Value<int> rowid;
   const PlanTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlanTemplatesCompanion.insert({
     required String id,
     required String name,
     this.description = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name);
@@ -1056,12 +1188,14 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? description,
+    Expression<bool>? isDemo,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
+      if (isDemo != null) 'is_demo': isDemo,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1070,11 +1204,13 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
       {Value<String>? id,
       Value<String>? name,
       Value<String>? description,
+      Value<bool>? isDemo,
       Value<int>? rowid}) {
     return PlanTemplatesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      isDemo: isDemo ?? this.isDemo,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1091,6 +1227,9 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (isDemo.present) {
+      map['is_demo'] = Variable<bool>(isDemo.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1103,6 +1242,7 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
+          ..write('isDemo: $isDemo, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1386,6 +1526,24 @@ class $TemplateTasksTable extends TemplateTasks
       type: DriftSqlType.double,
       requiredDuringInsert: false,
       defaultValue: const Constant(0.0));
+  static const VerificationMeta _reminderEnabledMeta =
+      const VerificationMeta('reminderEnabled');
+  @override
+  late final GeneratedColumn<bool> reminderEnabled = GeneratedColumn<bool>(
+      'reminder_enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("reminder_enabled" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _reminderLeadMinutesMeta =
+      const VerificationMeta('reminderLeadMinutes');
+  @override
+  late final GeneratedColumn<int> reminderLeadMinutes = GeneratedColumn<int>(
+      'reminder_lead_minutes', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(10));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1397,7 +1555,9 @@ class $TemplateTasksTable extends TemplateTasks
         type,
         priority,
         energyLevel,
-        estimatedCost
+        estimatedCost,
+        reminderEnabled,
+        reminderLeadMinutes
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1468,6 +1628,18 @@ class $TemplateTasksTable extends TemplateTasks
           estimatedCost.isAcceptableOrUnknown(
               data['estimated_cost']!, _estimatedCostMeta));
     }
+    if (data.containsKey('reminder_enabled')) {
+      context.handle(
+          _reminderEnabledMeta,
+          reminderEnabled.isAcceptableOrUnknown(
+              data['reminder_enabled']!, _reminderEnabledMeta));
+    }
+    if (data.containsKey('reminder_lead_minutes')) {
+      context.handle(
+          _reminderLeadMinutesMeta,
+          reminderLeadMinutes.isAcceptableOrUnknown(
+              data['reminder_lead_minutes']!, _reminderLeadMinutesMeta));
+    }
     return context;
   }
 
@@ -1497,6 +1669,10 @@ class $TemplateTasksTable extends TemplateTasks
           .read(DriftSqlType.string, data['${effectivePrefix}energy_level'])!,
       estimatedCost: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}estimated_cost'])!,
+      reminderEnabled: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}reminder_enabled'])!,
+      reminderLeadMinutes: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}reminder_lead_minutes'])!,
     );
   }
 
@@ -1517,6 +1693,14 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
   final String priority;
   final String energyLevel;
   final double estimatedCost;
+
+  /// v11: carried so applying a plan does not lose its reminders.
+  ///
+  /// Reminder state on the template is what makes "apply Weekday Essentials
+  /// and be nudged through it" work. Without it, every apply would silently
+  /// drop the reminders the user set up once.
+  final bool reminderEnabled;
+  final int reminderLeadMinutes;
   const TemplateTask(
       {required this.id,
       required this.templateId,
@@ -1527,7 +1711,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       required this.type,
       required this.priority,
       required this.energyLevel,
-      required this.estimatedCost});
+      required this.estimatedCost,
+      required this.reminderEnabled,
+      required this.reminderLeadMinutes});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1541,6 +1727,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
     map['priority'] = Variable<String>(priority);
     map['energy_level'] = Variable<String>(energyLevel);
     map['estimated_cost'] = Variable<double>(estimatedCost);
+    map['reminder_enabled'] = Variable<bool>(reminderEnabled);
+    map['reminder_lead_minutes'] = Variable<int>(reminderLeadMinutes);
     return map;
   }
 
@@ -1556,6 +1744,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       priority: Value(priority),
       energyLevel: Value(energyLevel),
       estimatedCost: Value(estimatedCost),
+      reminderEnabled: Value(reminderEnabled),
+      reminderLeadMinutes: Value(reminderLeadMinutes),
     );
   }
 
@@ -1573,6 +1763,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       priority: serializer.fromJson<String>(json['priority']),
       energyLevel: serializer.fromJson<String>(json['energyLevel']),
       estimatedCost: serializer.fromJson<double>(json['estimatedCost']),
+      reminderEnabled: serializer.fromJson<bool>(json['reminderEnabled']),
+      reminderLeadMinutes:
+          serializer.fromJson<int>(json['reminderLeadMinutes']),
     );
   }
   @override
@@ -1589,6 +1782,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       'priority': serializer.toJson<String>(priority),
       'energyLevel': serializer.toJson<String>(energyLevel),
       'estimatedCost': serializer.toJson<double>(estimatedCost),
+      'reminderEnabled': serializer.toJson<bool>(reminderEnabled),
+      'reminderLeadMinutes': serializer.toJson<int>(reminderLeadMinutes),
     };
   }
 
@@ -1602,7 +1797,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           String? type,
           String? priority,
           String? energyLevel,
-          double? estimatedCost}) =>
+          double? estimatedCost,
+          bool? reminderEnabled,
+          int? reminderLeadMinutes}) =>
       TemplateTask(
         id: id ?? this.id,
         templateId: templateId ?? this.templateId,
@@ -1614,6 +1811,8 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
         priority: priority ?? this.priority,
         energyLevel: energyLevel ?? this.energyLevel,
         estimatedCost: estimatedCost ?? this.estimatedCost,
+        reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+        reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
       );
   TemplateTask copyWithCompanion(TemplateTasksCompanion data) {
     return TemplateTask(
@@ -1632,6 +1831,12 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
       estimatedCost: data.estimatedCost.present
           ? data.estimatedCost.value
           : this.estimatedCost,
+      reminderEnabled: data.reminderEnabled.present
+          ? data.reminderEnabled.value
+          : this.reminderEnabled,
+      reminderLeadMinutes: data.reminderLeadMinutes.present
+          ? data.reminderLeadMinutes.value
+          : this.reminderLeadMinutes,
     );
   }
 
@@ -1647,14 +1852,27 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           ..write('type: $type, ')
           ..write('priority: $priority, ')
           ..write('energyLevel: $energyLevel, ')
-          ..write('estimatedCost: $estimatedCost')
+          ..write('estimatedCost: $estimatedCost, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderLeadMinutes: $reminderLeadMinutes')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, templateId, title, description, startTime,
-      endTime, type, priority, energyLevel, estimatedCost);
+  int get hashCode => Object.hash(
+      id,
+      templateId,
+      title,
+      description,
+      startTime,
+      endTime,
+      type,
+      priority,
+      energyLevel,
+      estimatedCost,
+      reminderEnabled,
+      reminderLeadMinutes);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1668,7 +1886,9 @@ class TemplateTask extends DataClass implements Insertable<TemplateTask> {
           other.type == this.type &&
           other.priority == this.priority &&
           other.energyLevel == this.energyLevel &&
-          other.estimatedCost == this.estimatedCost);
+          other.estimatedCost == this.estimatedCost &&
+          other.reminderEnabled == this.reminderEnabled &&
+          other.reminderLeadMinutes == this.reminderLeadMinutes);
 }
 
 class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
@@ -1682,6 +1902,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
   final Value<String> priority;
   final Value<String> energyLevel;
   final Value<double> estimatedCost;
+  final Value<bool> reminderEnabled;
+  final Value<int> reminderLeadMinutes;
   final Value<int> rowid;
   const TemplateTasksCompanion({
     this.id = const Value.absent(),
@@ -1694,6 +1916,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     this.priority = const Value.absent(),
     this.energyLevel = const Value.absent(),
     this.estimatedCost = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderLeadMinutes = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TemplateTasksCompanion.insert({
@@ -1707,6 +1931,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     this.priority = const Value.absent(),
     this.energyLevel = const Value.absent(),
     this.estimatedCost = const Value.absent(),
+    this.reminderEnabled = const Value.absent(),
+    this.reminderLeadMinutes = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         templateId = Value(templateId),
@@ -1725,6 +1951,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     Expression<String>? priority,
     Expression<String>? energyLevel,
     Expression<double>? estimatedCost,
+    Expression<bool>? reminderEnabled,
+    Expression<int>? reminderLeadMinutes,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1738,6 +1966,9 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       if (priority != null) 'priority': priority,
       if (energyLevel != null) 'energy_level': energyLevel,
       if (estimatedCost != null) 'estimated_cost': estimatedCost,
+      if (reminderEnabled != null) 'reminder_enabled': reminderEnabled,
+      if (reminderLeadMinutes != null)
+        'reminder_lead_minutes': reminderLeadMinutes,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1753,6 +1984,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       Value<String>? priority,
       Value<String>? energyLevel,
       Value<double>? estimatedCost,
+      Value<bool>? reminderEnabled,
+      Value<int>? reminderLeadMinutes,
       Value<int>? rowid}) {
     return TemplateTasksCompanion(
       id: id ?? this.id,
@@ -1765,6 +1998,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
       priority: priority ?? this.priority,
       energyLevel: energyLevel ?? this.energyLevel,
       estimatedCost: estimatedCost ?? this.estimatedCost,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1802,6 +2037,12 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
     if (estimatedCost.present) {
       map['estimated_cost'] = Variable<double>(estimatedCost.value);
     }
+    if (reminderEnabled.present) {
+      map['reminder_enabled'] = Variable<bool>(reminderEnabled.value);
+    }
+    if (reminderLeadMinutes.present) {
+      map['reminder_lead_minutes'] = Variable<int>(reminderLeadMinutes.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1821,6 +2062,8 @@ class TemplateTasksCompanion extends UpdateCompanion<TemplateTask> {
           ..write('priority: $priority, ')
           ..write('energyLevel: $energyLevel, ')
           ..write('estimatedCost: $estimatedCost, ')
+          ..write('reminderEnabled: $reminderEnabled, ')
+          ..write('reminderLeadMinutes: $reminderLeadMinutes, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2118,6 +2361,15 @@ class $TodoItemsTable extends TodoItems
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _isDemoMeta = const VerificationMeta('isDemo');
+  @override
+  late final GeneratedColumn<bool> isDemo = GeneratedColumn<bool>(
+      'is_demo', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_demo" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2131,7 +2383,8 @@ class $TodoItemsTable extends TodoItems
         checklistJson,
         audioFilePath,
         scheduledAt,
-        enabled
+        enabled,
+        isDemo
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2204,6 +2457,10 @@ class $TodoItemsTable extends TodoItems
       context.handle(_enabledMeta,
           enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
     }
+    if (data.containsKey('is_demo')) {
+      context.handle(_isDemoMeta,
+          isDemo.isAcceptableOrUnknown(data['is_demo']!, _isDemoMeta));
+    }
     return context;
   }
 
@@ -2237,6 +2494,8 @@ class $TodoItemsTable extends TodoItems
           .read(DriftSqlType.dateTime, data['${effectivePrefix}scheduled_at']),
       enabled: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
+      isDemo: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_demo'])!,
     );
   }
 
@@ -2259,6 +2518,16 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final String audioFilePath;
   final DateTime? scheduledAt;
   final bool enabled;
+
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// The rows are kept and filtered rather than deleted, so turning the switch
+  /// back on restores exactly what was there — including any edits the user
+  /// made to a sample. A toggle that destroys data is not a toggle.
+  ///
+  /// Demo rows are also excluded from the OS notification schedule, or a
+  /// sample alarm would genuinely go off on the user's phone.
+  final bool isDemo;
   const TodoItem(
       {required this.id,
       required this.title,
@@ -2271,7 +2540,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       required this.checklistJson,
       required this.audioFilePath,
       this.scheduledAt,
-      required this.enabled});
+      required this.enabled,
+      required this.isDemo});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2289,6 +2559,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       map['scheduled_at'] = Variable<DateTime>(scheduledAt);
     }
     map['enabled'] = Variable<bool>(enabled);
+    map['is_demo'] = Variable<bool>(isDemo);
     return map;
   }
 
@@ -2308,6 +2579,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ? const Value.absent()
           : Value(scheduledAt),
       enabled: Value(enabled),
+      isDemo: Value(isDemo),
     );
   }
 
@@ -2327,6 +2599,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       audioFilePath: serializer.fromJson<String>(json['audioFilePath']),
       scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
       enabled: serializer.fromJson<bool>(json['enabled']),
+      isDemo: serializer.fromJson<bool>(json['isDemo']),
     );
   }
   @override
@@ -2345,6 +2618,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       'audioFilePath': serializer.toJson<String>(audioFilePath),
       'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
       'enabled': serializer.toJson<bool>(enabled),
+      'isDemo': serializer.toJson<bool>(isDemo),
     };
   }
 
@@ -2360,7 +2634,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           String? checklistJson,
           String? audioFilePath,
           Value<DateTime?> scheduledAt = const Value.absent(),
-          bool? enabled}) =>
+          bool? enabled,
+          bool? isDemo}) =>
       TodoItem(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -2374,6 +2649,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
         audioFilePath: audioFilePath ?? this.audioFilePath,
         scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
         enabled: enabled ?? this.enabled,
+        isDemo: isDemo ?? this.isDemo,
       );
   TodoItem copyWithCompanion(TodoItemsCompanion data) {
     return TodoItem(
@@ -2397,6 +2673,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       scheduledAt:
           data.scheduledAt.present ? data.scheduledAt.value : this.scheduledAt,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      isDemo: data.isDemo.present ? data.isDemo.value : this.isDemo,
     );
   }
 
@@ -2414,7 +2691,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ..write('checklistJson: $checklistJson, ')
           ..write('audioFilePath: $audioFilePath, ')
           ..write('scheduledAt: $scheduledAt, ')
-          ..write('enabled: $enabled')
+          ..write('enabled: $enabled, ')
+          ..write('isDemo: $isDemo')
           ..write(')'))
         .toString();
   }
@@ -2432,7 +2710,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       checklistJson,
       audioFilePath,
       scheduledAt,
-      enabled);
+      enabled,
+      isDemo);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2448,7 +2727,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           other.checklistJson == this.checklistJson &&
           other.audioFilePath == this.audioFilePath &&
           other.scheduledAt == this.scheduledAt &&
-          other.enabled == this.enabled);
+          other.enabled == this.enabled &&
+          other.isDemo == this.isDemo);
 }
 
 class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
@@ -2464,6 +2744,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
   final Value<String> audioFilePath;
   final Value<DateTime?> scheduledAt;
   final Value<bool> enabled;
+  final Value<bool> isDemo;
   final Value<int> rowid;
   const TodoItemsCompanion({
     this.id = const Value.absent(),
@@ -2478,6 +2759,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.audioFilePath = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TodoItemsCompanion.insert({
@@ -2493,6 +2775,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.audioFilePath = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title);
@@ -2509,6 +2792,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     Expression<String>? audioFilePath,
     Expression<DateTime>? scheduledAt,
     Expression<bool>? enabled,
+    Expression<bool>? isDemo,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2524,6 +2808,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       if (audioFilePath != null) 'audio_file_path': audioFilePath,
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (enabled != null) 'enabled': enabled,
+      if (isDemo != null) 'is_demo': isDemo,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2541,6 +2826,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       Value<String>? audioFilePath,
       Value<DateTime?>? scheduledAt,
       Value<bool>? enabled,
+      Value<bool>? isDemo,
       Value<int>? rowid}) {
     return TodoItemsCompanion(
       id: id ?? this.id,
@@ -2555,6 +2841,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       audioFilePath: audioFilePath ?? this.audioFilePath,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       enabled: enabled ?? this.enabled,
+      isDemo: isDemo ?? this.isDemo,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2598,6 +2885,9 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
+    if (isDemo.present) {
+      map['is_demo'] = Variable<bool>(isDemo.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2619,6 +2909,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
           ..write('audioFilePath: $audioFilePath, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('enabled: $enabled, ')
+          ..write('isDemo: $isDemo, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2927,6 +3218,8 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<bool> completed,
   required String dayPlanId,
   Value<String> sourceTemplateId,
+  Value<bool> reminderEnabled,
+  Value<int> reminderLeadMinutes,
   Value<int> rowid,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
@@ -2943,6 +3236,8 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<bool> completed,
   Value<String> dayPlanId,
   Value<String> sourceTemplateId,
+  Value<bool> reminderEnabled,
+  Value<int> reminderLeadMinutes,
   Value<int> rowid,
 });
 
@@ -3008,6 +3303,14 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get sourceTemplateId => $composableBuilder(
       column: $table.sourceTemplateId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes,
       builder: (column) => ColumnFilters(column));
 
   $$DayPlansTableFilterComposer get dayPlanId {
@@ -3078,6 +3381,14 @@ class $$TasksTableOrderingComposer
       column: $table.sourceTemplateId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes,
+      builder: (column) => ColumnOrderings(column));
+
   $$DayPlansTableOrderingComposer get dayPlanId {
     final $$DayPlansTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -3144,6 +3455,12 @@ class $$TasksTableAnnotationComposer
   GeneratedColumn<String> get sourceTemplateId => $composableBuilder(
       column: $table.sourceTemplateId, builder: (column) => column);
 
+  GeneratedColumn<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled, builder: (column) => column);
+
+  GeneratedColumn<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes, builder: (column) => column);
+
   $$DayPlansTableAnnotationComposer get dayPlanId {
     final $$DayPlansTableAnnotationComposer composer = $composerBuilder(
         composer: this,
@@ -3201,6 +3518,8 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<bool> completed = const Value.absent(),
             Value<String> dayPlanId = const Value.absent(),
             Value<String> sourceTemplateId = const Value.absent(),
+            Value<bool> reminderEnabled = const Value.absent(),
+            Value<int> reminderLeadMinutes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion(
@@ -3217,6 +3536,8 @@ class $$TasksTableTableManager extends RootTableManager<
             completed: completed,
             dayPlanId: dayPlanId,
             sourceTemplateId: sourceTemplateId,
+            reminderEnabled: reminderEnabled,
+            reminderLeadMinutes: reminderLeadMinutes,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3233,6 +3554,8 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<bool> completed = const Value.absent(),
             required String dayPlanId,
             Value<String> sourceTemplateId = const Value.absent(),
+            Value<bool> reminderEnabled = const Value.absent(),
+            Value<int> reminderLeadMinutes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion.insert(
@@ -3249,6 +3572,8 @@ class $$TasksTableTableManager extends RootTableManager<
             completed: completed,
             dayPlanId: dayPlanId,
             sourceTemplateId: sourceTemplateId,
+            reminderEnabled: reminderEnabled,
+            reminderLeadMinutes: reminderLeadMinutes,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -3309,6 +3634,7 @@ typedef $$PlanTemplatesTableCreateCompanionBuilder = PlanTemplatesCompanion
   required String id,
   required String name,
   Value<String> description,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
@@ -3316,6 +3642,7 @@ typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
   Value<String> id,
   Value<String> name,
   Value<String> description,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 
@@ -3374,6 +3701,9 @@ class $$PlanTemplatesTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnFilters(column));
 
   Expression<bool> templateActiveDaysRefs(
       Expression<bool> Function($$TemplateActiveDaysTableFilterComposer f) f) {
@@ -3435,6 +3765,9 @@ class $$PlanTemplatesTableOrderingComposer
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlanTemplatesTableAnnotationComposer
@@ -3454,6 +3787,9 @@ class $$PlanTemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDemo =>
+      $composableBuilder(column: $table.isDemo, builder: (column) => column);
 
   Expression<T> templateActiveDaysRefs<T extends Object>(
       Expression<T> Function($$TemplateActiveDaysTableAnnotationComposer a) f) {
@@ -3526,24 +3862,28 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String> description = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion(
             id: id,
             name: name,
             description: description,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
             required String name,
             Value<String> description = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion.insert(
             id: id,
             name: name,
             description: description,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -3855,6 +4195,8 @@ typedef $$TemplateTasksTableCreateCompanionBuilder = TemplateTasksCompanion
   Value<String> priority,
   Value<String> energyLevel,
   Value<double> estimatedCost,
+  Value<bool> reminderEnabled,
+  Value<int> reminderLeadMinutes,
   Value<int> rowid,
 });
 typedef $$TemplateTasksTableUpdateCompanionBuilder = TemplateTasksCompanion
@@ -3869,6 +4211,8 @@ typedef $$TemplateTasksTableUpdateCompanionBuilder = TemplateTasksCompanion
   Value<String> priority,
   Value<String> energyLevel,
   Value<double> estimatedCost,
+  Value<bool> reminderEnabled,
+  Value<int> reminderLeadMinutes,
   Value<int> rowid,
 });
 
@@ -3929,6 +4273,14 @@ class $$TemplateTasksTableFilterComposer
   ColumnFilters<double> get estimatedCost => $composableBuilder(
       column: $table.estimatedCost, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes,
+      builder: (column) => ColumnFilters(column));
+
   $$PlanTemplatesTableFilterComposer get templateId {
     final $$PlanTemplatesTableFilterComposer composer = $composerBuilder(
         composer: this,
@@ -3985,6 +4337,14 @@ class $$TemplateTasksTableOrderingComposer
 
   ColumnOrderings<double> get estimatedCost => $composableBuilder(
       column: $table.estimatedCost,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes,
       builder: (column) => ColumnOrderings(column));
 
   $$PlanTemplatesTableOrderingComposer get templateId {
@@ -4044,6 +4404,12 @@ class $$TemplateTasksTableAnnotationComposer
   GeneratedColumn<double> get estimatedCost => $composableBuilder(
       column: $table.estimatedCost, builder: (column) => column);
 
+  GeneratedColumn<bool> get reminderEnabled => $composableBuilder(
+      column: $table.reminderEnabled, builder: (column) => column);
+
+  GeneratedColumn<int> get reminderLeadMinutes => $composableBuilder(
+      column: $table.reminderLeadMinutes, builder: (column) => column);
+
   $$PlanTemplatesTableAnnotationComposer get templateId {
     final $$PlanTemplatesTableAnnotationComposer composer = $composerBuilder(
         composer: this,
@@ -4098,6 +4464,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             Value<String> priority = const Value.absent(),
             Value<String> energyLevel = const Value.absent(),
             Value<double> estimatedCost = const Value.absent(),
+            Value<bool> reminderEnabled = const Value.absent(),
+            Value<int> reminderLeadMinutes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TemplateTasksCompanion(
@@ -4111,6 +4479,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             priority: priority,
             energyLevel: energyLevel,
             estimatedCost: estimatedCost,
+            reminderEnabled: reminderEnabled,
+            reminderLeadMinutes: reminderLeadMinutes,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4124,6 +4494,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             Value<String> priority = const Value.absent(),
             Value<String> energyLevel = const Value.absent(),
             Value<double> estimatedCost = const Value.absent(),
+            Value<bool> reminderEnabled = const Value.absent(),
+            Value<int> reminderLeadMinutes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TemplateTasksCompanion.insert(
@@ -4137,6 +4509,8 @@ class $$TemplateTasksTableTableManager extends RootTableManager<
             priority: priority,
             energyLevel: energyLevel,
             estimatedCost: estimatedCost,
+            reminderEnabled: reminderEnabled,
+            reminderLeadMinutes: reminderLeadMinutes,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -4330,6 +4704,7 @@ typedef $$TodoItemsTableCreateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> audioFilePath,
   Value<DateTime?> scheduledAt,
   Value<bool> enabled,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
@@ -4345,6 +4720,7 @@ typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> audioFilePath,
   Value<DateTime?> scheduledAt,
   Value<bool> enabled,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 
@@ -4393,6 +4769,9 @@ class $$TodoItemsTableFilterComposer
 
   ColumnFilters<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnFilters(column));
 }
 
 class $$TodoItemsTableOrderingComposer
@@ -4442,6 +4821,9 @@ class $$TodoItemsTableOrderingComposer
 
   ColumnOrderings<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TodoItemsTableAnnotationComposer
@@ -4488,6 +4870,9 @@ class $$TodoItemsTableAnnotationComposer
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDemo =>
+      $composableBuilder(column: $table.isDemo, builder: (column) => column);
 }
 
 class $$TodoItemsTableTableManager extends RootTableManager<
@@ -4525,6 +4910,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> audioFilePath = const Value.absent(),
             Value<DateTime?> scheduledAt = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion(
@@ -4540,6 +4926,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             audioFilePath: audioFilePath,
             scheduledAt: scheduledAt,
             enabled: enabled,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4555,6 +4942,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> audioFilePath = const Value.absent(),
             Value<DateTime?> scheduledAt = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion.insert(
@@ -4570,6 +4958,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             audioFilePath: audioFilePath,
             scheduledAt: scheduledAt,
             enabled: enabled,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

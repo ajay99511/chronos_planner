@@ -1,4 +1,4 @@
-package com.example.chronos_planner
+package io.github.ajay99511.chronos_planner
 
 import io.flutter.embedding.android.FlutterActivity
 

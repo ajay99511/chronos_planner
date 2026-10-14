@@ -52,6 +52,14 @@ Welcome to the Chronos Planner documentation suite!
 | [UI_SCREENS](UI_SCREENS.md) | UI screens | ✅ Complete |
 | [UI_WIDGETS](UI_WIDGETS.md) | UI widgets | ✅ Complete |
 
+### Design Records
+Requirements and reasoning too long for an [ADR](decisions/README.md), which
+links to them.
+
+| File | Description | Status |
+|------|-------------|--------|
+| [TASK_REMINDERS_DESIGN](TASK_REMINDERS_DESIGN.md) | Per-task reminders that fire outside the app ([ADR 0012](decisions/0012-task-reminders.md)) | ✅ Implemented |
+
 ### Workflow Documentation
 | File | Description | Status |
 |------|-------------|--------|

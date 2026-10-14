@@ -285,6 +285,17 @@ class _TaskCardState extends State<TaskCard>
                                   label: widget.task.estimatedCost.toStringAsFixed(0),
                                   color: AppColors.health,
                                 ),
+                              // Visible without opening the task: whether a
+                              // reminder is armed is exactly the sort of state
+                              // a user should not have to go looking for.
+                              if (widget.task.reminderEnabled)
+                                _buildPill(
+                                  icon: Icons.notifications_active_rounded,
+                                  label: AppStrings.reminderLeadShort(
+                                    widget.task.reminderLeadMinutes,
+                                  ),
+                                  color: AppColors.neonBlue,
+                                ),
                             ],
                           ),
                           if (widget.task.description.isNotEmpty) ...[
@@ -421,18 +432,26 @@ class _TaskCardState extends State<TaskCard>
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
+      // Flexible + ellipsis so a long label shrinks the pill instead of
+      // overflowing the card. The pills sit in a Wrap, which hands each child
+      // the full row width, so one over-long pill used to push past the edge
+      // rather than wrapping.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppTextStyles.chip.copyWith(
-              color: color, 
-              fontSize: 11, 
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.chip.copyWith(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ],

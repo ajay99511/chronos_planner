@@ -134,4 +134,58 @@ class AppStrings {
 
   static String planTaskCount(int count) =>
       count == 1 ? '1 task' : '$count tasks';
+
+  // ── Reminder messages ─────────────────────────
+
+  /// How a lead time reads in a chooser: "At start", "10 minutes before".
+  ///
+  /// Here rather than at the call site because it inflects a noun by a count
+  /// *and* pairs it with a preposition, and because zero is a different
+  /// sentence rather than "0 minutes before".
+  static String reminderLeadLabel(int minutes) {
+    if (minutes == 0) return 'At start';
+    if (minutes == 1) return '1 minute before';
+    if (minutes == 60) return '1 hour before';
+    return '$minutes minutes before';
+  }
+
+  /// Compact lead time for a card pill: "AT START", "10M", "1H".
+  ///
+  /// Separate from [reminderLeadLabel] rather than truncated from it, because
+  /// a card pill has room for a token, not a phrase — the long form overflowed
+  /// the task card at 320px — and because abbreviating a translated phrase by
+  /// cutting characters produces nonsense in most languages.
+  static String reminderLeadShort(int minutes) {
+    if (minutes == 0) return 'AT START';
+    if (minutes % 60 == 0) return '${minutes ~/ 60}H';
+    return '${minutes}M';
+  }
+
+  /// Body of the notification itself.
+  ///
+  /// Says when the task starts, because the reminder arrives minutes earlier
+  /// and "Deep work block" alone does not tell the user whether to move now.
+  static String reminderBody({
+    required String start,
+    required int leadMinutes,
+  }) {
+    if (leadMinutes == 0) return 'Starting now ($start)';
+    if (leadMinutes == 1) return 'Starts in 1 minute, at $start';
+    if (leadMinutes == 60) return 'Starts in 1 hour, at $start';
+    return 'Starts in $leadMinutes minutes, at $start';
+  }
+
+  /// Screen-reader label for a task's reminder switch.
+  ///
+  /// Names the task and the lead time: a bare "switch" leaves a
+  /// screen-reader user with no idea which of a day's blocks it belongs to.
+  static String reminderToggleLabel({
+    required String taskTitle,
+    required bool enabled,
+    required int leadMinutes,
+  }) =>
+      enabled
+          ? 'Reminder on, ${reminderLeadLabel(leadMinutes).toLowerCase()}, '
+              'for $taskTitle'
+          : 'Reminder off for $taskTitle';
 }

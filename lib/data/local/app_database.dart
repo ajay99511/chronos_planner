@@ -24,7 +24,7 @@ part 'app_database.g.dart';
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
 ///
-/// ## Schema Version: 10
+/// ## Schema Version: 12
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
@@ -39,6 +39,14 @@ part 'app_database.g.dart';
 /// - **v9→v10**: Added SQL CHECK constraints to task title, clock times and
 ///   costs (see [_quarantineInvalidTaskRows]); rows that violate them are
 ///   moved aside rather than blocking the upgrade
+/// - **v10→v11**: Added `reminderEnabled`/`reminderLeadMinutes` to tasks and
+///   template tasks, with a CHECK on the lead time. The ALTERs run *first* in
+///   [migration], ahead of every other step — `TableMigration` rebuilds from
+///   the current Dart definition, so a column added after the v5 and v10
+///   rebuilds has no source to copy from. Any future additive column goes in
+///   the same place
+/// - **v11→v12**: Added `isDemo` to todo items and plan templates, so sample
+///   content can be hidden and shown without being destroyed
 ///
 /// ## Tables:
 /// | Table | Purpose |
@@ -93,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 12;
 
   /// Tables whose child rows could be orphaned while foreign keys were off,
   /// paired with the parent they must reference.
@@ -222,6 +230,52 @@ class AppDatabase extends _$AppDatabase {
     return moved;
   }
 
+  /// Columns the v11 reminder step adds, with the SQL to add each.
+  static const Map<String, String> _reminderColumns = {
+    'reminder_enabled': 'INTEGER NOT NULL DEFAULT 0',
+    'reminder_lead_minutes': 'INTEGER NOT NULL DEFAULT 10',
+  };
+
+  /// Adds the v11 reminder columns to [table] if they are not already there.
+  Future<void> _addReminderColumns(String table) async {
+    for (final (name, definition) in _reminderColumns.entries.map(
+      (e) => (e.key, e.value),
+    )) {
+      await _addColumnIfMissing(table, name, definition);
+    }
+  }
+
+  /// Adds one column to [table] unless it is already present.
+  ///
+  /// Existence-checked rather than assumed, matching every step from v2
+  /// onwards: a database interrupted mid-upgrade is a real shape, and a
+  /// duplicate ADD COLUMN aborts the whole migration.
+  ///
+  /// [name] and [definition] are interpolated into SQL because SQL cannot
+  /// parameterize identifiers. Safe only because every caller passes a
+  /// compile-time literal — never widen this to accept runtime input.
+  Future<void> _addColumnIfMissing(
+    String table,
+    String name,
+    String definition,
+  ) async {
+    final cols = await customSelect('PRAGMA table_info($table)').get();
+    // Empty means the table does not exist. An ALTER against a missing table
+    // aborts the whole migration and leaves the app unable to open its own
+    // database — too high a price for an assumption.
+    if (cols.isEmpty) return;
+    final names = cols.map((c) => c.read<String>('name')).toSet();
+    if (names.contains(name)) return;
+    await customStatement('ALTER TABLE $table ADD COLUMN $name $definition');
+  }
+
+  /// Whether [table] carries both v11 reminder columns.
+  Future<bool> _hasReminderColumns(String table) async {
+    final cols = await customSelect('PRAGMA table_info($table)').get();
+    final names = cols.map((c) => c.read<String>('name')).toSet();
+    return names.containsAll(_reminderColumns.keys);
+  }
+
   /// Counts tasks still attached to a `day_plans` row that the v8 duplicate
   /// merge is about to delete.
   ///
@@ -256,6 +310,50 @@ class AppDatabase extends _$AppDatabase {
           await customStatement('PRAGMA foreign_keys = ON');
         },
         onUpgrade: (m, from, to) async {
+          // ── v11 columns, added first, deliberately out of version order ──
+          //
+          // `TableMigration` rebuilds a table from the **current** Dart
+          // definition, which now declares these two columns. The v5 and v10
+          // steps both rebuild `tasks` and `template_tasks`, so adding the
+          // columns after them left those rebuilds copying into a shape whose
+          // reminder columns had no source — and the copy died on drift's
+          // generated `CHECK (reminder_enabled IN (0, 1))`.
+          //
+          // Adding them before anything else makes every later rebuild a
+          // straight column-for-column copy. The step is still gated on the
+          // version that introduced it, and the ALTERs are existence-checked,
+          // so a database that already has them is untouched.
+          //
+          // The same hazard applies to any future additive column: add it
+          // here, not at the bottom.
+          if (from < 11) {
+            // Purely additive: two columns with defaults on both task tables,
+            // so no existing row changes meaning and nothing needs
+            // quarantining. `template_tasks` gets them too, or applying a
+            // plan would silently drop the reminders set on it.
+            await _addReminderColumns('tasks');
+            await _addReminderColumns('template_tasks');
+          }
+          if (from < 12) {
+            // Demo-data flag. Also additive, and also added here rather than
+            // at the bottom, for the reason above.
+            //
+            // Not on `tasks`: a task created by applying a demo plan is the
+            // user's own schedule, and must not vanish when demo data is
+            // switched off. The flag marks sample *content* — library plans
+            // and workspace items — not what the user did with it.
+            await _addColumnIfMissing(
+              'todo_items',
+              'is_demo',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+            await _addColumnIfMissing(
+              'plan_templates',
+              'is_demo',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+
           if (from < 2) {
             final taskCols =
                 await customSelect('PRAGMA table_info(tasks)').get();
@@ -570,6 +668,25 @@ class AppDatabase extends _$AppDatabase {
               await m.alterTable(TableMigration(tasks));
             }
             if (await _isConstrainable('template_tasks')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(templateTasks));
+            }
+          }
+          if (from == 10) {
+            // ADD COLUMN cannot attach a table-level CHECK, so
+            // `CHECK (reminder_lead_minutes BETWEEN 0 AND 1440)` would exist
+            // only for fresh installs. Rebuilding puts it in SQL for upgraded
+            // databases too, which is ADR 0004's whole point.
+            //
+            // Exactly `== 10`, not `< 11`: anything older went through the
+            // rebuild above, which already produced the current shape. Safe
+            // without a quarantine pass either way — every row was just given
+            // the default 10.
+            if (await _hasReminderColumns('tasks')) {
+              // ignore: experimental_member_use
+              await m.alterTable(TableMigration(tasks));
+            }
+            if (await _hasReminderColumns('template_tasks')) {
               // ignore: experimental_member_use
               await m.alterTable(TableMigration(templateTasks));
             }

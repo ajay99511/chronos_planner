@@ -13,6 +13,7 @@ import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/ui/widgets/add_task_sheet.dart';
 import 'package:chronosky/ui/widgets/glass_container.dart';
+import 'package:chronosky/ui/widgets/notification_permission_banner.dart';
 import 'package:chronosky/ui/widgets/task_card.dart';
 import 'package:chronosky/ui/widgets/task_detail_panel.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
@@ -66,6 +67,7 @@ class _ScheduleViewState extends State<ScheduleView> {
 
   void _openTaskDetail(Task task) {
     if (MediaQuery.sizeOf(context).width < 800) {
+      final provider = context.read<ScheduleStateProvider>();
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -78,39 +80,27 @@ class _ScheduleViewState extends State<ScheduleView> {
             color: AppColors.background,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: TaskDetailPanel(
+          child: _TaskDetailSheet(
             task: task,
-            isCompleted: task.completed,
-            onToggle: () {
-              context.read<ScheduleStateProvider>().updateTask(
-                    task.id,
-                    task.copyWith(completed: !task.completed),
-                  );
-              Navigator.pop(context);
-            },
-            onEdit: () {
+            date: provider.selectedDay.date,
+            onEdit: (current) {
               Navigator.pop(context);
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 builder: (_) => AddTaskSheet(
-                  editingTask: task,
+                  editingTask: current,
                   showDateControls: false,
                   onAdd: (_, __) {},
                   onUpdate: (updatedTask) => _updateTaskWithOverlapCheck(
-                    context.read<ScheduleStateProvider>(),
-                    task.id,
+                    provider,
+                    current.id,
                     updatedTask,
                   ),
                 ),
               );
             },
-            onDelete: () {
-              context.read<ScheduleStateProvider>().deleteTask(task.id);
-              Navigator.pop(context);
-            },
-            onClose: () => Navigator.pop(context),
           ),
         ),
       ).then((_) {
@@ -363,6 +353,15 @@ class _ScheduleViewState extends State<ScheduleView> {
                   _openAddTaskSheet(provider, provider.selectedDay),
               onSaveTemplate: () => _showSaveTemplateDialog(context, provider),
             ),
+            // Hides itself when delivery is permitted, so it costs nothing in
+            // the common case. Here as well as on the Tasks tab because a
+            // reminder is armed from this screen, and a toggle that looks set
+            // while the OS drops everything is the dishonest state worth
+            // spending a banner to avoid.
+            const SizedBox(height: AppSpacing.sm),
+            const NotificationPermissionBanner(
+              message: 'Notifications are off — reminders will not arrive.',
+            ),
             const SizedBox(height: 24),
             Expanded(
               child: Stack(
@@ -396,6 +395,17 @@ class _ScheduleViewState extends State<ScheduleView> {
                   if (_selectedTask != null)
                     _TaskDetailOverlay(
                       task: _selectedTask!,
+                      date: provider.selectedDay.date,
+                      // Persisted immediately and the panel left open: the
+                      // switch is the feedback, so closing the panel over it
+                      // would hide the result of the tap. _selectedTask is
+                      // this screen's own copy, so it has to be advanced too
+                      // or the switch springs back to its old position while
+                      // the write succeeds behind it.
+                      onReminderChanged: (updated) {
+                        provider.updateTask(updated.id, updated);
+                        setState(() => _selectedTask = updated);
+                      },
                       onDismiss: _closeTaskDetail,
                       onToggle: () {
                         provider.updateTask(
@@ -681,13 +691,25 @@ class _DaySelectorStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Derived from the text scale, not fixed at 90: the card holds a weekday,
+    // a date and a progress indicator, so at 1.5 a hard 90 clipped its own
+    // contents — and at 1.0 it overflowed by exactly 1px, which is how close
+    // the original guess was.
     return SizedBox(
-      height: 90,
+      // Scales with text, but capped: past ~112 the strip starts taking room
+      // the task list needs, and on a 568-tall phone at 1.5 the chrome would
+      // leave nothing below it. The card's own FittedBox absorbs the rest.
+      height: AppResponsive.scaled(context, 90).clamp(90.0, 112.0),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 600;
-          final narrowItemWidth = (constraints.maxWidth - 32 - (8 * 4)) / 5.5;
-          final itemWidth = isWide ? 70.0 : narrowItemWidth.clamp(45.0, 70.0);
+          final isWide = constraints.maxWidth >= AppResponsive.mediumWidth;
+          // 5.5 cards visible, so the strip reads as scrollable rather than
+          // looking like it holds exactly as many days as there are.
+          final gutter = AppResponsive.pagePadding(context) * 2;
+          final narrowItemWidth = (constraints.maxWidth - gutter - (8 * 4)) / 5.5;
+          final itemWidth = isWide
+              ? 70.0
+              : narrowItemWidth.clamp(44.0, 70.0).toDouble();
           final lastIndex = weekPlan.length - 1;
 
           if (isWide) {
@@ -707,7 +729,10 @@ class _DaySelectorStrip extends StatelessWidget {
           }
           return ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppResponsive.pagePadding(context),
+              vertical: 8,
+            ),
             itemCount: weekPlan.length,
             itemBuilder: (context, index) => _DayCard(
               day: weekPlan[index],
@@ -807,16 +832,24 @@ class _DayCard extends StatelessWidget {
                         : AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  shortDate,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                const SizedBox(height: 2),
+                // Flexible + FittedBox so a scaled date shrinks to fit rather
+                // than pushing the progress indicator out of the card.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      shortDate,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color:
+                            isSelected ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 if (isSelected && hasTasks)
                   SizedBox(
                     width: 24,
@@ -1059,6 +1092,61 @@ class _EmptyDay extends StatelessWidget {
 
 /// Side panel shown over the schedule on wide layouts, with a tap-to-dismiss
 /// scrim behind it.
+/// The task detail panel as a bottom sheet, on a compact screen.
+///
+/// Stateful only so the reminder switch can show its new position: the sheet
+/// is pushed with one task instance and the provider's later emission does not
+/// reach inside a route built from a captured value, so without local state a
+/// toggle would persist and then appear to snap straight back.
+class _TaskDetailSheet extends StatefulWidget {
+  const _TaskDetailSheet({
+    required this.task,
+    required this.date,
+    required this.onEdit,
+  });
+
+  final Task task;
+  final DateTime date;
+
+  /// Given the task as it currently stands, so an edit opened after a reminder
+  /// change does not reinstate the old settings.
+  final void Function(Task current) onEdit;
+
+  @override
+  State<_TaskDetailSheet> createState() => _TaskDetailSheetState();
+}
+
+class _TaskDetailSheetState extends State<_TaskDetailSheet> {
+  late Task _task = widget.task;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.read<ScheduleStateProvider>();
+    return TaskDetailPanel(
+      task: _task,
+      isCompleted: _task.completed,
+      date: widget.date,
+      onReminderChanged: (updated) {
+        provider.updateTask(updated.id, updated);
+        setState(() => _task = updated);
+      },
+      onToggle: () {
+        provider.updateTask(
+          _task.id,
+          _task.copyWith(completed: !_task.completed),
+        );
+        Navigator.pop(context);
+      },
+      onEdit: () => widget.onEdit(_task),
+      onDelete: () {
+        provider.deleteTask(_task.id);
+        Navigator.pop(context);
+      },
+      onClose: () => Navigator.pop(context),
+    );
+  }
+}
+
 class _TaskDetailOverlay extends StatelessWidget {
   const _TaskDetailOverlay({
     required this.task,
@@ -1066,6 +1154,8 @@ class _TaskDetailOverlay extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    required this.date,
+    required this.onReminderChanged,
   });
 
   final Task task;
@@ -1073,6 +1163,8 @@ class _TaskDetailOverlay extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final DateTime date;
+  final ValueChanged<Task> onReminderChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1099,6 +1191,8 @@ class _TaskDetailOverlay extends StatelessWidget {
               onEdit: onEdit,
               onDelete: onDelete,
               onClose: onDismiss,
+              date: date,
+              onReminderChanged: onReminderChanged,
             ),
           ),
         ),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:chronosky/core/services/alarm_notifier.dart';
 import 'package:chronosky/core/services/alarm_output.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
@@ -20,25 +19,24 @@ import 'package:chronosky/data/repositories/todo_repository.dart';
 /// was closed) are silently disarmed instead of ringing unexpectedly.
 ///
 /// ## Two delivery paths
-/// The in-process timer above only runs while the app does. Every enabled alarm
-/// is therefore *also* registered with the operating system through
-/// [AlarmNotifier], so it still fires when the app is backgrounded, killed, or
-/// the device has rebooted — which on Android is the normal case, since
-/// backgrounded processes are routinely killed and Doze suspends timers.
+/// The in-process timer above only runs while the app does, so every enabled
+/// alarm is *also* registered with the operating system — but by
+/// `NotificationCoordinator`, not here. That split is deliberate: the OS
+/// schedule must have exactly one owner (replacing it wholesale is what keeps
+/// it from drifting, and two owners would erase each other), while the
+/// in-app ringing experience is this class's own business.
 ///
-/// The two are deliberately not mutually exclusive: the in-app overlay is the
-/// richer experience while the app is open, and suppressing one from the other
-/// would need process-state knowledge that is not reliable on Android. See
-/// docs/decisions/0010.
+/// The two paths are deliberately not mutually exclusive: the in-app overlay
+/// is the richer experience while the app is open, and suppressing one from
+/// the other would need process-state knowledge that is not reliable on
+/// Android. See docs/decisions/0010.
 class AlarmSchedulerService extends ChangeNotifier {
   AlarmSchedulerService(
     this._repository,
     this._logger, {
     AlarmOutput? output,
-    AlarmNotifier? notifier,
     Duration retryBaseDelay = const Duration(seconds: 1),
   })  : _output = output ?? PlatformAlarmOutput(),
-        _notifier = notifier ?? const NoOpAlarmNotifier(),
         _retryBaseDelay = retryBaseDelay {
     _subscribe();
   }
@@ -46,7 +44,6 @@ class AlarmSchedulerService extends ChangeNotifier {
   final TodoRepository _repository;
   final Logger _logger;
   final AlarmOutput _output;
-  final AlarmNotifier _notifier;
   final Duration _retryBaseDelay;
 
   static const Duration _missedGrace = Duration(minutes: 1);
@@ -62,7 +59,6 @@ class AlarmSchedulerService extends ChangeNotifier {
   domain.TodoItem? _ringing;
   SoundFailure? _soundFailure;
   final List<domain.TodoItem> _missed = [];
-  bool _notificationsBlocked = false;
   bool _disposed = false;
 
   /// The alarm currently ringing, or null. UI shows a dismiss overlay when set.
@@ -83,13 +79,6 @@ class AlarmSchedulerService extends ChangeNotifier {
   /// user learns rather than quietly losing trust.
   List<domain.TodoItem> get missedAlarms => List.unmodifiable(_missed);
 
-  /// Whether the OS will refuse to deliver alarms.
-  ///
-  /// True when notification permission has been declined, which makes every
-  /// scheduled alarm silently useless — so the UI says so rather than letting
-  /// the user believe an alarm is set.
-  bool get notificationsBlocked => _notificationsBlocked;
-
   /// Clears the missed-alarm notice after the user has seen it.
   void acknowledgeMissedAlarms() {
     if (_missed.isEmpty) return;
@@ -109,10 +98,6 @@ class AlarmSchedulerService extends ChangeNotifier {
         _retryAttempt = 0;
         _alarms = items;
         _rearm();
-        // Keep the OS-level schedule in step with what the user sees. Fired on
-        // every emission rather than diffed: sync() replaces the whole
-        // schedule, so it cannot drift.
-        unawaited(_syncOsSchedule(items));
       },
       onError: _handleStreamError,
     );
@@ -137,66 +122,6 @@ class AlarmSchedulerService extends ChangeNotifier {
     _retryTimer = Timer(delay, () {
       if (!_disposed) _subscribe();
     });
-  }
-
-  /// Mirrors the alarm list into the OS scheduler.
-  ///
-  /// Failures are logged, never rethrown: losing the OS schedule degrades the
-  /// feature to in-session only, which is worse than before this existed but
-  /// not a reason to break the running app.
-  Future<void> _syncOsSchedule(List<domain.TodoItem> alarms) async {
-    try {
-      await _notifier.sync(alarms);
-      if (_disposed) return;
-      final permitted = await _notifier.hasPermission();
-      if (_disposed) return;
-      if (_notificationsBlocked != !permitted) {
-        _notificationsBlocked = !permitted;
-        notifyListeners();
-      }
-    } catch (e, stackTrace) {
-      _logger.error('Could not sync the OS alarm schedule', e, stackTrace);
-    }
-  }
-
-  /// Prompts for notification permission only if the OS would currently
-  /// drop alarms.
-  ///
-  /// Re-checks with the OS rather than trusting [notificationsBlocked], which
-  /// is only as fresh as the last sync -- and the case that matters most is a
-  /// cold start where the user creates their first alarm before that sync has
-  /// settled. A platform with no such permission is treated as permitted, so
-  /// callers never nag a user who has nothing to grant.
-  Future<bool> ensureNotificationPermission() async {
-    try {
-      if (await _notifier.hasPermission()) {
-        if (_disposed) return true;
-        if (_notificationsBlocked) {
-          _notificationsBlocked = false;
-          notifyListeners();
-        }
-        return true;
-      }
-    } catch (e, stackTrace) {
-      _logger.error('Could not read notification permission', e, stackTrace);
-      return true;
-    }
-    return requestNotificationPermission();
-  }
-
-  /// Asks the user for permission to deliver alarms, then re-syncs.
-  ///
-  /// Returns whether permission is now held, so a caller that prompted in
-  /// context can say what the refusal cost. On Android 13+ a second request
-  /// after a denial returns false without showing anything, so a caller must
-  /// not treat false as "the user has not decided yet" and ask again.
-  Future<bool> requestNotificationPermission() async {
-    final granted = await _notifier.requestPermission();
-    if (_disposed) return granted;
-    _notificationsBlocked = !granted;
-    notifyListeners();
-    if (granted) await _syncOsSchedule(_alarms);
-    return granted;
   }
 
   /// Recomputes the armed timer against the current wall clock.

@@ -482,6 +482,109 @@ void main() {
 
       await database.close();
     });
+
+    test('v10 to v11 adds reminder columns and makes the CHECK live', () async {
+      // The one upgrade path the v1 chain test cannot reach. A database that is
+      // already at v10 skips the v10 rebuild, so if the `from == 10` branch did
+      // not rebuild, these users would carry an unguarded column forever while
+      // fresh installs were protected.
+      final executor = NativeDatabase.memory();
+      await executor.ensureOpen(_FakeUser());
+
+      await executor.runCustom('''
+        CREATE TABLE day_plans (
+          id TEXT NOT NULL PRIMARY KEY,
+          date INTEGER NOT NULL,
+          week_key TEXT NOT NULL
+        );
+      ''');
+      // A v10-shaped tasks table: CHECK constraints present, no reminders.
+      await executor.runCustom('''
+        CREATE TABLE tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          type TEXT NOT NULL,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          energy_level TEXT NOT NULL DEFAULT 'medium',
+          estimated_cost REAL NOT NULL DEFAULT 0.0,
+          actual_cost REAL NOT NULL DEFAULT 0.0,
+          completed INTEGER NOT NULL DEFAULT 0,
+          day_plan_id TEXT NOT NULL REFERENCES day_plans (id),
+          source_template_id TEXT NOT NULL DEFAULT '',
+          CHECK (length(title) BETWEEN 1 AND 200)
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE plan_templates (
+          id TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT ''
+        );
+      ''');
+      await executor.runCustom('''
+        CREATE TABLE template_tasks (
+          id TEXT NOT NULL PRIMARY KEY,
+          template_id TEXT NOT NULL REFERENCES plan_templates (id),
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          type TEXT NOT NULL,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          energy_level TEXT NOT NULL DEFAULT 'medium',
+          estimated_cost REAL NOT NULL DEFAULT 0.0
+        );
+      ''');
+
+      final date = DateTime(2026, 10, 11).millisecondsSinceEpoch ~/ 1000;
+      await executor.runCustom(
+        'INSERT INTO day_plans (id, date, week_key) VALUES (?, ?, ?)',
+        ['dp-1', date, '2026-W41'],
+      );
+      await executor.runCustom(
+        'INSERT INTO tasks (id, title, start_time, end_time, type, '
+        'day_plan_id) VALUES (?, ?, ?, ?, ?, ?)',
+        ['t-1', 'Existing task', '09:00', '10:00', 'work', 'dp-1'],
+      );
+
+      final database = TestDatabase(executor);
+      await database.migration.onUpgrade(database.createMigrator(), 10, 11);
+
+      // Existing data survives, defaulted to no reminder.
+      final row = await database.customSelect(
+        'SELECT title, reminder_enabled, reminder_lead_minutes FROM tasks '
+        "WHERE id = 't-1'",
+      ).getSingle();
+      expect(row.read<String>('title'), 'Existing task');
+      expect(row.read<bool>('reminder_enabled'), isFalse);
+      expect(row.read<int>('reminder_lead_minutes'), 10);
+
+      // The lead-time CHECK reached SQL, on both task tables.
+      await expectLater(
+        database.customStatement(
+          'INSERT INTO tasks (id, title, start_time, end_time, type, '
+          'day_plan_id, reminder_lead_minutes) '
+          "VALUES ('bad', 'Fine', '09:00', '10:00', 'work', 'dp-1', 2000)",
+        ),
+        throwsA(isA<Exception>()),
+      );
+      await expectLater(
+        database.customStatement(
+          'INSERT INTO template_tasks (id, template_id, title, start_time, '
+          'end_time, type, reminder_lead_minutes) '
+          "VALUES ('bad-tt', 'tm', 'Fine', '09:00', '10:00', 'work', -1)",
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      // Re-running must be a no-op, not a duplicate-column error.
+      await database.migration.onUpgrade(database.createMigrator(), 10, 11);
+
+      await database.close();
+    });
   });
 }
 

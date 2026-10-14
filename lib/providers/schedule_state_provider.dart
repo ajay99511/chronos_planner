@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
+import 'package:chronosky/data/seeds/default_plan_templates.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
@@ -54,6 +55,13 @@ class ScheduleStateProvider extends ChangeNotifier {
   /// the user has deleted, so they are not auto-recreated on the next load.
   static const String _dismissalPrefKey = 'recurring_dismissals';
   Set<String> _dismissedRecurring = {};
+
+  /// Marks that the starter WorkPlans have been written once.
+  ///
+  /// Seeding used to key off "the library is empty", which meant deleting
+  /// every plan brought the samples back on the next launch — the user's
+  /// deliberate deletion read as data that had not loaded yet.
+  static const String _seededPrefKey = 'templates_seeded';
 
   /// The `today` the currently loaded rolling window was built for. Used to
   /// detect a date rollover (the app left open past midnight) so the window
@@ -127,11 +135,19 @@ class ScheduleStateProvider extends ChangeNotifier {
       final templateResult = await _templateRepo.getAllTemplates();
       final prefResult = await _prefRepo.get('sort_order');
       final dismissResult = await _prefRepo.get(_dismissalPrefKey);
+      final seededResult = await _prefRepo.get(_seededPrefKey);
+
+      // An unreadable flag is treated as "already seeded". Re-seeding a user
+      // who has curated their own library is the worse of the two failures.
+      final alreadySeeded = seededResult.fold(
+        onSuccess: (val) => val != null,
+        onFailure: (_) => true,
+      );
 
       templateResult.fold(
         onSuccess: (data) {
           _templates = List<PlanTemplate>.from(data);
-          if (_templates.isEmpty) {
+          if (_templates.isEmpty && !alreadySeeded) {
             unawaited(_seedDefaultTemplates());
           }
         },
@@ -189,29 +205,25 @@ class ScheduleStateProvider extends ChangeNotifier {
     await loadData();
   }
 
+  /// Populates the WorkPlans library on a first run.
+  ///
+  /// The contents live in `default_plan_templates.dart`; what belongs here is
+  /// only the decision of when to write them, which is once per install — see
+  /// [_seededPrefKey].
+  ///
+  /// The flag is set even if some writes failed. A partial seed is still a
+  /// seed; retrying it on the next launch would duplicate whatever did land.
   Future<void> _seedDefaultTemplates() async {
-    // Basic seeds for MVP
-    final seeds = [
-      PlanTemplate(
-        id: const Uuid().v4(),
-        name: 'Deep Work Friday',
-        description: 'Focused coding schedule',
-        tasks: [
-          TemplateTask(
-            id: const Uuid().v4(),
-            templateId: '', // Set below
-            title: 'Deep Work Block',
-            startTime: '09:00',
-            endTime: '12:00',
-            type: TaskType.work,
-          ),
-        ],
-      ),
-    ];
-
-    for (final t in seeds) {
-      await addTemplate(t);
+    for (final template in defaultPlanTemplates()) {
+      await addTemplate(template);
     }
+    final result = await _prefRepo.set(_seededPrefKey, 'true');
+    result.fold(
+      onSuccess: (_) => null,
+      onFailure: (f) => _logger.error(
+        'Failed to record that templates were seeded: ${f.message}',
+      ),
+    );
   }
 
   void selectDay(int index) {
@@ -557,6 +569,8 @@ class ScheduleStateProvider extends ChangeNotifier {
       energyLevel: task.energyLevel,
       estimatedCost: task.estimatedCost,
       description: task.description,
+      reminderEnabled: task.reminderEnabled,
+      reminderLeadMinutes: task.reminderLeadMinutes,
     );
 
     final newTasks = List<TemplateTask>.from(_templates[idx].tasks)
@@ -618,6 +632,8 @@ class ScheduleStateProvider extends ChangeNotifier {
       energyLevel: task.energyLevel,
       estimatedCost: task.estimatedCost,
       description: task.description,
+      reminderEnabled: task.reminderEnabled,
+      reminderLeadMinutes: task.reminderLeadMinutes,
     );
 
     final newTasks = List<TemplateTask>.from(_templates[idx].tasks)
@@ -721,6 +737,8 @@ class ScheduleStateProvider extends ChangeNotifier {
             estimatedCost: t.estimatedCost,
             description: t.description,
             sourceTemplateId: template.id,
+            reminderEnabled: t.reminderEnabled,
+            reminderLeadMinutes: t.reminderLeadMinutes,
           ),
         )
         .toList();
