@@ -998,8 +998,17 @@ class $PlanTemplatesTable extends PlanTemplates
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
+  static const VerificationMeta _isDemoMeta = const VerificationMeta('isDemo');
   @override
-  List<GeneratedColumn> get $columns => [id, name, description];
+  late final GeneratedColumn<bool> isDemo = GeneratedColumn<bool>(
+      'is_demo', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_demo" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, description, isDemo];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1027,6 +1036,10 @@ class $PlanTemplatesTable extends PlanTemplates
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
     }
+    if (data.containsKey('is_demo')) {
+      context.handle(_isDemoMeta,
+          isDemo.isAcceptableOrUnknown(data['is_demo']!, _isDemoMeta));
+    }
     return context;
   }
 
@@ -1042,6 +1055,8 @@ class $PlanTemplatesTable extends PlanTemplates
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      isDemo: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_demo'])!,
     );
   }
 
@@ -1055,14 +1070,25 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
   final String id;
   final String name;
   final String description;
+
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// A flag rather than a naming convention because the switch has to keep
+  /// working after the user renames or edits a sample, and because "hide" has
+  /// to be reversible — see [TodoItems.isDemo].
+  final bool isDemo;
   const PlanTemplate(
-      {required this.id, required this.name, required this.description});
+      {required this.id,
+      required this.name,
+      required this.description,
+      required this.isDemo});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['description'] = Variable<String>(description);
+    map['is_demo'] = Variable<bool>(isDemo);
     return map;
   }
 
@@ -1071,6 +1097,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: Value(id),
       name: Value(name),
       description: Value(description),
+      isDemo: Value(isDemo),
     );
   }
 
@@ -1081,6 +1108,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String>(json['description']),
+      isDemo: serializer.fromJson<bool>(json['isDemo']),
     );
   }
   @override
@@ -1090,14 +1118,17 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String>(description),
+      'isDemo': serializer.toJson<bool>(isDemo),
     };
   }
 
-  PlanTemplate copyWith({String? id, String? name, String? description}) =>
+  PlanTemplate copyWith(
+          {String? id, String? name, String? description, bool? isDemo}) =>
       PlanTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
         description: description ?? this.description,
+        isDemo: isDemo ?? this.isDemo,
       );
   PlanTemplate copyWithCompanion(PlanTemplatesCompanion data) {
     return PlanTemplate(
@@ -1105,6 +1136,7 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
+      isDemo: data.isDemo.present ? data.isDemo.value : this.isDemo,
     );
   }
 
@@ -1113,37 +1145,42 @@ class PlanTemplate extends DataClass implements Insertable<PlanTemplate> {
     return (StringBuffer('PlanTemplate(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('description: $description')
+          ..write('description: $description, ')
+          ..write('isDemo: $isDemo')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, description);
+  int get hashCode => Object.hash(id, name, description, isDemo);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlanTemplate &&
           other.id == this.id &&
           other.name == this.name &&
-          other.description == this.description);
+          other.description == this.description &&
+          other.isDemo == this.isDemo);
 }
 
 class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> description;
+  final Value<bool> isDemo;
   final Value<int> rowid;
   const PlanTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlanTemplatesCompanion.insert({
     required String id,
     required String name,
     this.description = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name);
@@ -1151,12 +1188,14 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? description,
+    Expression<bool>? isDemo,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
+      if (isDemo != null) 'is_demo': isDemo,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1165,11 +1204,13 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
       {Value<String>? id,
       Value<String>? name,
       Value<String>? description,
+      Value<bool>? isDemo,
       Value<int>? rowid}) {
     return PlanTemplatesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      isDemo: isDemo ?? this.isDemo,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1186,6 +1227,9 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (isDemo.present) {
+      map['is_demo'] = Variable<bool>(isDemo.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1198,6 +1242,7 @@ class PlanTemplatesCompanion extends UpdateCompanion<PlanTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
+          ..write('isDemo: $isDemo, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2316,6 +2361,15 @@ class $TodoItemsTable extends TodoItems
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _isDemoMeta = const VerificationMeta('isDemo');
+  @override
+  late final GeneratedColumn<bool> isDemo = GeneratedColumn<bool>(
+      'is_demo', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_demo" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2329,7 +2383,8 @@ class $TodoItemsTable extends TodoItems
         checklistJson,
         audioFilePath,
         scheduledAt,
-        enabled
+        enabled,
+        isDemo
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2402,6 +2457,10 @@ class $TodoItemsTable extends TodoItems
       context.handle(_enabledMeta,
           enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
     }
+    if (data.containsKey('is_demo')) {
+      context.handle(_isDemoMeta,
+          isDemo.isAcceptableOrUnknown(data['is_demo']!, _isDemoMeta));
+    }
     return context;
   }
 
@@ -2435,6 +2494,8 @@ class $TodoItemsTable extends TodoItems
           .read(DriftSqlType.dateTime, data['${effectivePrefix}scheduled_at']),
       enabled: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
+      isDemo: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_demo'])!,
     );
   }
 
@@ -2457,6 +2518,16 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
   final String audioFilePath;
   final DateTime? scheduledAt;
   final bool enabled;
+
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// The rows are kept and filtered rather than deleted, so turning the switch
+  /// back on restores exactly what was there — including any edits the user
+  /// made to a sample. A toggle that destroys data is not a toggle.
+  ///
+  /// Demo rows are also excluded from the OS notification schedule, or a
+  /// sample alarm would genuinely go off on the user's phone.
+  final bool isDemo;
   const TodoItem(
       {required this.id,
       required this.title,
@@ -2469,7 +2540,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       required this.checklistJson,
       required this.audioFilePath,
       this.scheduledAt,
-      required this.enabled});
+      required this.enabled,
+      required this.isDemo});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2487,6 +2559,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       map['scheduled_at'] = Variable<DateTime>(scheduledAt);
     }
     map['enabled'] = Variable<bool>(enabled);
+    map['is_demo'] = Variable<bool>(isDemo);
     return map;
   }
 
@@ -2506,6 +2579,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ? const Value.absent()
           : Value(scheduledAt),
       enabled: Value(enabled),
+      isDemo: Value(isDemo),
     );
   }
 
@@ -2525,6 +2599,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       audioFilePath: serializer.fromJson<String>(json['audioFilePath']),
       scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
       enabled: serializer.fromJson<bool>(json['enabled']),
+      isDemo: serializer.fromJson<bool>(json['isDemo']),
     );
   }
   @override
@@ -2543,6 +2618,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       'audioFilePath': serializer.toJson<String>(audioFilePath),
       'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
       'enabled': serializer.toJson<bool>(enabled),
+      'isDemo': serializer.toJson<bool>(isDemo),
     };
   }
 
@@ -2558,7 +2634,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           String? checklistJson,
           String? audioFilePath,
           Value<DateTime?> scheduledAt = const Value.absent(),
-          bool? enabled}) =>
+          bool? enabled,
+          bool? isDemo}) =>
       TodoItem(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -2572,6 +2649,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
         audioFilePath: audioFilePath ?? this.audioFilePath,
         scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
         enabled: enabled ?? this.enabled,
+        isDemo: isDemo ?? this.isDemo,
       );
   TodoItem copyWithCompanion(TodoItemsCompanion data) {
     return TodoItem(
@@ -2595,6 +2673,7 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       scheduledAt:
           data.scheduledAt.present ? data.scheduledAt.value : this.scheduledAt,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      isDemo: data.isDemo.present ? data.isDemo.value : this.isDemo,
     );
   }
 
@@ -2612,7 +2691,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           ..write('checklistJson: $checklistJson, ')
           ..write('audioFilePath: $audioFilePath, ')
           ..write('scheduledAt: $scheduledAt, ')
-          ..write('enabled: $enabled')
+          ..write('enabled: $enabled, ')
+          ..write('isDemo: $isDemo')
           ..write(')'))
         .toString();
   }
@@ -2630,7 +2710,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
       checklistJson,
       audioFilePath,
       scheduledAt,
-      enabled);
+      enabled,
+      isDemo);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2646,7 +2727,8 @@ class TodoItem extends DataClass implements Insertable<TodoItem> {
           other.checklistJson == this.checklistJson &&
           other.audioFilePath == this.audioFilePath &&
           other.scheduledAt == this.scheduledAt &&
-          other.enabled == this.enabled);
+          other.enabled == this.enabled &&
+          other.isDemo == this.isDemo);
 }
 
 class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
@@ -2662,6 +2744,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
   final Value<String> audioFilePath;
   final Value<DateTime?> scheduledAt;
   final Value<bool> enabled;
+  final Value<bool> isDemo;
   final Value<int> rowid;
   const TodoItemsCompanion({
     this.id = const Value.absent(),
@@ -2676,6 +2759,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.audioFilePath = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TodoItemsCompanion.insert({
@@ -2691,6 +2775,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     this.audioFilePath = const Value.absent(),
     this.scheduledAt = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.isDemo = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title);
@@ -2707,6 +2792,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     Expression<String>? audioFilePath,
     Expression<DateTime>? scheduledAt,
     Expression<bool>? enabled,
+    Expression<bool>? isDemo,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2722,6 +2808,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       if (audioFilePath != null) 'audio_file_path': audioFilePath,
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
       if (enabled != null) 'enabled': enabled,
+      if (isDemo != null) 'is_demo': isDemo,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2739,6 +2826,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       Value<String>? audioFilePath,
       Value<DateTime?>? scheduledAt,
       Value<bool>? enabled,
+      Value<bool>? isDemo,
       Value<int>? rowid}) {
     return TodoItemsCompanion(
       id: id ?? this.id,
@@ -2753,6 +2841,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
       audioFilePath: audioFilePath ?? this.audioFilePath,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       enabled: enabled ?? this.enabled,
+      isDemo: isDemo ?? this.isDemo,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2796,6 +2885,9 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
+    if (isDemo.present) {
+      map['is_demo'] = Variable<bool>(isDemo.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2817,6 +2909,7 @@ class TodoItemsCompanion extends UpdateCompanion<TodoItem> {
           ..write('audioFilePath: $audioFilePath, ')
           ..write('scheduledAt: $scheduledAt, ')
           ..write('enabled: $enabled, ')
+          ..write('isDemo: $isDemo, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3541,6 +3634,7 @@ typedef $$PlanTemplatesTableCreateCompanionBuilder = PlanTemplatesCompanion
   required String id,
   required String name,
   Value<String> description,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
@@ -3548,6 +3642,7 @@ typedef $$PlanTemplatesTableUpdateCompanionBuilder = PlanTemplatesCompanion
   Value<String> id,
   Value<String> name,
   Value<String> description,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 
@@ -3606,6 +3701,9 @@ class $$PlanTemplatesTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnFilters(column));
 
   Expression<bool> templateActiveDaysRefs(
       Expression<bool> Function($$TemplateActiveDaysTableFilterComposer f) f) {
@@ -3667,6 +3765,9 @@ class $$PlanTemplatesTableOrderingComposer
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlanTemplatesTableAnnotationComposer
@@ -3686,6 +3787,9 @@ class $$PlanTemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDemo =>
+      $composableBuilder(column: $table.isDemo, builder: (column) => column);
 
   Expression<T> templateActiveDaysRefs<T extends Object>(
       Expression<T> Function($$TemplateActiveDaysTableAnnotationComposer a) f) {
@@ -3758,24 +3862,28 @@ class $$PlanTemplatesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String> description = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion(
             id: id,
             name: name,
             description: description,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
             required String name,
             Value<String> description = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlanTemplatesCompanion.insert(
             id: id,
             name: name,
             description: description,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -4596,6 +4704,7 @@ typedef $$TodoItemsTableCreateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> audioFilePath,
   Value<DateTime?> scheduledAt,
   Value<bool> enabled,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
@@ -4611,6 +4720,7 @@ typedef $$TodoItemsTableUpdateCompanionBuilder = TodoItemsCompanion Function({
   Value<String> audioFilePath,
   Value<DateTime?> scheduledAt,
   Value<bool> enabled,
+  Value<bool> isDemo,
   Value<int> rowid,
 });
 
@@ -4659,6 +4769,9 @@ class $$TodoItemsTableFilterComposer
 
   ColumnFilters<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnFilters(column));
 }
 
 class $$TodoItemsTableOrderingComposer
@@ -4708,6 +4821,9 @@ class $$TodoItemsTableOrderingComposer
 
   ColumnOrderings<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDemo => $composableBuilder(
+      column: $table.isDemo, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TodoItemsTableAnnotationComposer
@@ -4754,6 +4870,9 @@ class $$TodoItemsTableAnnotationComposer
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDemo =>
+      $composableBuilder(column: $table.isDemo, builder: (column) => column);
 }
 
 class $$TodoItemsTableTableManager extends RootTableManager<
@@ -4791,6 +4910,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> audioFilePath = const Value.absent(),
             Value<DateTime?> scheduledAt = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion(
@@ -4806,6 +4926,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             audioFilePath: audioFilePath,
             scheduledAt: scheduledAt,
             enabled: enabled,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4821,6 +4942,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             Value<String> audioFilePath = const Value.absent(),
             Value<DateTime?> scheduledAt = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<bool> isDemo = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TodoItemsCompanion.insert(
@@ -4836,6 +4958,7 @@ class $$TodoItemsTableTableManager extends RootTableManager<
             audioFilePath: audioFilePath,
             scheduledAt: scheduledAt,
             enabled: enabled,
+            isDemo: isDemo,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

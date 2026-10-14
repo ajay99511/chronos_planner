@@ -7,6 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/services/scheduled_notification.dart';
 import 'package:chronosky/core/services/scheduled_notifier.dart';
+import 'package:chronosky/domain/reminder_tone.dart';
 
 /// Schedules notifications through `flutter_local_notifications`.
 ///
@@ -41,28 +42,71 @@ class LocalScheduledNotifier implements ScheduledNotifier {
     enableVibration: true,
   );
 
-  /// Reminders: a separate channel, deliberately.
+  /// The reminder tone whose channel is currently in place, if any.
   ///
-  /// Android's per-channel settings are the user's control surface, so this is
-  /// what lets someone mute task nudges while keeping alarms loud. One shared
-  /// channel would take that choice away.
-  static const AndroidNotificationChannel _reminderChannel =
-      AndroidNotificationChannel(
-    'chronos_reminders',
-    'Task reminders',
-    description: 'Nudges before a scheduled task starts.',
-    importance: Importance.high,
-    playSound: true,
-    enableVibration: true,
-  );
+  /// Tracked so [sync] can skip the channel churn when nothing changed, which
+  /// is the common case — it runs on every repository emission.
+  ReminderTone? _installedTone;
 
-  static AndroidNotificationChannel _channelFor(
-    ScheduledNotificationKind kind,
-  ) =>
-      switch (kind) {
-        ScheduledNotificationKind.alarm => _alarmChannel,
-        ScheduledNotificationKind.reminder => _reminderChannel,
-      };
+  /// Reminders: a separate channel per tone, deliberately.
+  ///
+  /// Two things are going on here.
+  ///
+  /// **Separate from alarms** because Android's per-channel settings are the
+  /// user's own control surface, and that is what lets someone mute task
+  /// nudges while keeping alarms loud. One shared channel takes that away.
+  ///
+  /// **One channel per tone** because a channel's sound is immutable once
+  /// created — the user owns it, and re-creating the same id updates only the
+  /// name and description. Changing the reminder sound therefore means a new
+  /// channel, not an edited one. See `reminder_tone.dart`.
+  static AndroidNotificationChannel _reminderChannel(ReminderTone tone) =>
+      AndroidNotificationChannel(
+        reminderChannelId(tone),
+        'Task reminders',
+        description: 'Nudges before a scheduled task starts.',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        sound: tone.resource == null
+            ? null
+            : RawResourceAndroidNotificationSound(tone.resource),
+        // `notification`, not `alarm`: alarm usage plays through the alarm
+        // stream, which pierces silent mode and Do Not Disturb. That is right
+        // for an alarm clock and wrong for a nudge about a calendar block —
+        // a reminder that overrides DND during a meeting is the behaviour
+        // that gets an app muted permanently. Flip this to
+        // AudioAttributesUsage.alarm if reminders should be unmissable.
+        audioAttributesUsage: AudioAttributesUsage.notification,
+      );
+
+  /// Installs the channel for [tone] and removes the channels for the others.
+  ///
+  /// The teardown matters: without it every tone the user ever tried would
+  /// remain listed under "Task reminders" in Android's settings, each with its
+  /// own volume and vibration switches, which is incomprehensible. The cost is
+  /// that per-channel tweaks on an abandoned tone are lost — acceptable,
+  /// because the user has just chosen a different sound.
+  Future<void> _installReminderChannel(ReminderTone tone) async {
+    final android = _android;
+    if (android == null) return;
+    if (_installedTone == tone) return;
+
+    await android.createNotificationChannel(_reminderChannel(tone));
+    for (final other in ReminderTone.values) {
+      if (other == tone) continue;
+      try {
+        await android.deleteNotificationChannel(
+          channelId: reminderChannelId(other),
+        );
+      } catch (e) {
+        // Deleting a channel that was never created is not an error worth
+        // failing a sync over.
+        _logger.debug('Could not delete reminder channel for ${other.name}: $e');
+      }
+    }
+    _installedTone = tone;
+  }
 
   @override
   Future<void> initialise() async {
@@ -89,11 +133,9 @@ class LocalScheduledNotifier implements ScheduledNotifier {
       ),
     );
 
-    final android = _android;
-    if (android != null) {
-      await android.createNotificationChannel(_alarmChannel);
-      await android.createNotificationChannel(_reminderChannel);
-    }
+    // Only the alarm channel here. The reminder channel depends on the tone
+    // the user has chosen, which sync() knows and initialise() does not.
+    await _android?.createNotificationChannel(_alarmChannel);
     _initialised = true;
   }
 
@@ -148,11 +190,15 @@ class LocalScheduledNotifier implements ScheduledNotifier {
   }
 
   @override
-  Future<void> sync(List<ScheduledNotification> items) async {
+  Future<void> sync(
+    List<ScheduledNotification> items, {
+    ReminderTone reminderTone = ReminderTone.fallback,
+  }) async {
     await initialise();
     // The zone can change without the process restarting, and a stale zone
     // silently offsets everything scheduled below.
     await _resolveLocalZone();
+    await _installReminderChannel(reminderTone);
     await cancelAll();
 
     var scheduled = 0;
@@ -167,7 +213,7 @@ class LocalScheduledNotifier implements ScheduledNotifier {
           // subject to Doze batching.
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           payload: '${item.kind.name}:${item.ownerId}',
-          notificationDetails: _detailsFor(item),
+          notificationDetails: _detailsFor(item, reminderTone),
         );
         scheduled++;
       } catch (e, stackTrace) {
@@ -182,9 +228,13 @@ class LocalScheduledNotifier implements ScheduledNotifier {
     _logger.info('Scheduled $scheduled notification(s) with the OS');
   }
 
-  NotificationDetails _detailsFor(ScheduledNotification item) {
-    final channel = _channelFor(item.kind);
+  NotificationDetails _detailsFor(
+    ScheduledNotification item,
+    ReminderTone reminderTone,
+  ) {
     final isAlarm = item.kind == ScheduledNotificationKind.alarm;
+    final channel =
+        isAlarm ? _alarmChannel : _reminderChannel(reminderTone);
     return NotificationDetails(
       android: AndroidNotificationDetails(
         channel.id,

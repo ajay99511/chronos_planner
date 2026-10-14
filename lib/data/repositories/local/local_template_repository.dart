@@ -50,6 +50,7 @@ class LocalTemplateRepository implements TemplateRepository {
           description: t.description,
           tasks: tasksByTemplate[t.id] ?? [],
           activeDays: daysByTemplate[t.id] ?? [],
+          isDemo: t.isDemo,
         );
       }).toList();
     });
@@ -64,6 +65,7 @@ class LocalTemplateRepository implements TemplateRepository {
             id: Value(template.id),
             name: Value(template.name),
             description: Value(template.description),
+            isDemo: Value(template.isDemo),
           ),
         );
 

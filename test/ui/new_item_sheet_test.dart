@@ -6,6 +6,7 @@ import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/services/scheduled_notification.dart';
 import 'package:chronosky/core/services/scheduled_notifier.dart';
+import 'package:chronosky/domain/reminder_tone.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/todo_item_model.dart';
 import 'package:chronosky/providers/todo_provider.dart';
@@ -37,7 +38,10 @@ class _FakeNotifier implements ScheduledNotifier {
   }
 
   @override
-  Future<void> sync(List<ScheduledNotification> items) async {}
+  Future<void> sync(
+    List<ScheduledNotification> items, {
+    ReminderTone reminderTone = ReminderTone.fallback,
+  }) async {}
 
   @override
   Future<void> cancelAll() async {}

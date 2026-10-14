@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import 'package:chronosky/data/repositories/preference_repository.dart';
 import 'package:chronosky/data/repositories/todo_repository.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/ui/screens/home_screen.dart';
 
@@ -208,6 +210,20 @@ class MyApp extends StatelessWidget {
           create: (_) => TodoProvider(todoRepo, prefRepo: prefRepo),
         ),
         ChangeNotifierProvider(
+          // Not lazy: it seeds the Workspace samples on a first run, and the
+          // user may open any tab first.
+          create: (_) {
+            final settings = SettingsProvider(
+              prefRepo: prefRepo,
+              todoRepo: todoRepo,
+              logger: logger,
+            );
+            unawaited(settings.seedDemoItemsIfNeeded());
+            return settings;
+          },
+          lazy: false,
+        ),
+        ChangeNotifierProvider(
           create: (_) => AlarmSchedulerService(todoRepo, logger),
           lazy: false, // Alarms must arm at startup, not on first UI access.
         ),
@@ -218,6 +234,7 @@ class MyApp extends StatelessWidget {
           create: (_) => NotificationCoordinator(
             todoRepo: todoRepo,
             scheduleRepo: scheduleRepo,
+            prefRepo: prefRepo,
             logger: logger,
             notifier: LocalScheduledNotifier(logger),
           ),
@@ -238,6 +255,16 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         theme: AppTheme.dark,
+        // Applied here rather than per screen because `builder` wraps every
+        // route, including dialogs and bottom sheets, which build in their own
+        // subtree and would otherwise escape the cap. See
+        // AppResponsive.maxTextScale for why there is a cap at all.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: AppResponsive.clampedTextScaler(context),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const ChronosHome(),
       ),
     );

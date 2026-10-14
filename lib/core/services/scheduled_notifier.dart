@@ -1,4 +1,5 @@
 import 'package:chronosky/core/services/scheduled_notification.dart';
+import 'package:chronosky/domain/reminder_tone.dart';
 
 /// Registers notifications with the operating system so they fire when the app
 /// is not running.
@@ -35,7 +36,16 @@ abstract class ScheduledNotifier {
   /// alternately erase each other and whichever synced last would win. That is
   /// why both alarms and reminders converge on [ScheduledNotification] and are
   /// handed over together by `NotificationCoordinator`.
-  Future<void> sync(List<ScheduledNotification> items);
+  ///
+  /// [reminderTone] is the sound reminders should make. It is a parameter
+  /// rather than state because the tone decides which Android channel the
+  /// reminders go out on, and that channel has to exist before the first
+  /// notification is scheduled against it. Alarms ignore it — their sound is
+  /// their own, and nothing here changes alarm behaviour.
+  Future<void> sync(
+    List<ScheduledNotification> items, {
+    ReminderTone reminderTone,
+  });
 
   /// Removes every scheduled notification.
   Future<void> cancelAll();
@@ -58,7 +68,10 @@ class NoOpScheduledNotifier implements ScheduledNotifier {
   Future<bool> requestPermission() async => false;
 
   @override
-  Future<void> sync(List<ScheduledNotification> items) async {}
+  Future<void> sync(
+    List<ScheduledNotification> items, {
+    ReminderTone reminderTone = ReminderTone.fallback,
+  }) async {}
 
   @override
   Future<void> cancelAll() async {}

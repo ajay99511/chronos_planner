@@ -40,3 +40,5 @@ anyone who actually knows.
 | [0010](0010-android-first-os-level-alarms.md) | Android-first: schedule alarms with the OS | Accepted |
 | [0011](0011-versioning-scheme.md) | `pubspec.yaml` is the only version; the build number never resets | Accepted |
 | [0012](0012-task-reminders.md) | Per-task reminders, on one OS notification schedule | Accepted |
+| [0013](0013-reminder-tones.md) | A reminder rings for ten seconds, via the file | Accepted |
+| [0014](0014-demo-data.md) | Sample content is flagged and filtered, never deleted | Accepted |

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/ui/strings.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 import 'package:chronosky/providers/todo_provider.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
 import 'package:chronosky/ui/screens/todo_detail_screen.dart';
@@ -35,17 +36,27 @@ class _TodoListViewState extends State<TodoListView> {
     NewItemSheet.show(context, initialTab: _selectedTab);
   }
 
+  /// Applies the demo-data switch and the search box in one pass.
+  ///
+  /// Both filters live here rather than in `TodoProvider` so the provider has
+  /// one job — mirroring the repository — and so hiding sample content costs a
+  /// list walk rather than a re-query. A hidden sample is never searchable:
+  /// turning up a result the user has chosen to hide would be worse than not
+  /// finding it.
   List<domain.TodoItem> _filtered(List<domain.TodoItem> items) {
-    if (_query.isEmpty) return items;
-    final q = _query.toLowerCase();
-    return items
-        .where(
-          (i) =>
-              i.title.toLowerCase().contains(q) ||
-              i.description.toLowerCase().contains(q) ||
-              i.checklist.any((c) => c.text.toLowerCase().contains(q)),
-        )
-        .toList();
+    final demoVisible = context.watch<SettingsProvider>().demoVisible;
+    final query = _query.toLowerCase();
+
+    bool matchesQuery(domain.TodoItem item) =>
+        query.isEmpty ||
+        item.title.toLowerCase().contains(query) ||
+        item.description.toLowerCase().contains(query) ||
+        item.checklist.any((c) => c.text.toLowerCase().contains(query));
+
+    return [
+      for (final item in items)
+        if ((demoVisible || !item.isDemo) && matchesQuery(item)) item,
+    ];
   }
 
   void _openDetail(domain.TodoItem item) {
@@ -194,6 +205,14 @@ class _TodoListViewState extends State<TodoListView> {
       (icon: Icons.checklist_rounded, label: 'Lists'),
     ];
 
+    // Four tabs across 320px leaves ~70px each, and an icon plus "Alarms" at
+    // 13pt needs about 69 — so the labels overflowed by 25-38px on the
+    // narrowest real phones, and at 1.3 text scale on ordinary ones. Below
+    // 360 the label is dropped and the icon carries the tab; the Semantics
+    // label below keeps it announced either way, so nothing is lost to a
+    // screen reader.
+    final showLabels = !AppResponsive.isTiny(context);
+
     return GlassContainer(
       padding: const EdgeInsets.all(4),
       borderRadius: AppRadius.pill,
@@ -231,19 +250,27 @@ class _TodoListViewState extends State<TodoListView> {
                               ? Colors.white
                               : AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          tabs[i].label,
-                          style: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            fontSize: 13,
+                        if (showLabels) ...[
+                          const SizedBox(width: 6),
+                          // Flexible so a scaled label ellipsizes inside its
+                          // own tab rather than pushing the row past the edge.
+                          Flexible(
+                            child: Text(
+                              tabs[i].label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -265,11 +292,16 @@ class _TodoListViewState extends State<TodoListView> {
     final extra = isSearching ? 0 : 1;
     return GridView.builder(
       padding: AppResponsive.screenPadding(context),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+      // mainAxisExtent rather than childAspectRatio, for the same reason as
+      // the WorkPlans grid: a ratio ties tile height to tile width, so the
+      // number of columns silently decides whether the contents fit. Two
+      // columns at 411px gave 152px of height, and the card needed more once
+      // the text scale passed 1.2.
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 300,
         mainAxisSpacing: AppSpacing.md,
         crossAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.2, // Slightly wider than square for better text fit
+        mainAxisExtent: AppResponsive.scaled(context, 150).clamp(150.0, 210.0),
       ),
       itemCount: notes.length + extra,
       itemBuilder: (context, index) {
@@ -406,7 +438,7 @@ class _TodoListViewState extends State<TodoListView> {
       return Column(
         children: [
           const NotificationPermissionBanner(
-            message: 'Notifications are off, so alarms will not go off.',
+            message: 'Notifications are off — alarms will not go off.',
           ),
           sortBar,
           Expanded(
@@ -421,7 +453,7 @@ class _TodoListViewState extends State<TodoListView> {
     return Column(
       children: [
         const NotificationPermissionBanner(
-          message: 'Notifications are off, so alarms will not go off.',
+          message: 'Notifications are off — alarms will not go off.',
         ),
         sortBar,
         Expanded(

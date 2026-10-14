@@ -8,8 +8,10 @@ import 'package:chronosky/core/services/scheduled_notifier.dart';
 import 'package:chronosky/core/services/task_reminders.dart';
 import 'package:chronosky/data/models/day_plan_model.dart';
 import 'package:chronosky/data/models/todo_item_model.dart' as domain;
+import 'package:chronosky/data/repositories/preference_repository.dart';
 import 'package:chronosky/data/repositories/schedule_repository.dart';
 import 'package:chronosky/data/repositories/todo_repository.dart';
+import 'package:chronosky/domain/reminder_tone.dart';
 
 /// The single owner of the operating system's notification schedule.
 ///
@@ -36,21 +38,28 @@ class NotificationCoordinator extends ChangeNotifier {
     required TodoRepository todoRepo,
     required ScheduleRepository scheduleRepo,
     required Logger logger,
+    PreferenceRepository? prefRepo,
     ScheduledNotifier? notifier,
     int horizonDays = 7,
     Duration retryBaseDelay = const Duration(seconds: 1),
   })  : _todoRepo = todoRepo,
         _scheduleRepo = scheduleRepo,
         _logger = logger,
+        _prefRepo = prefRepo,
         _notifier = notifier ?? const NoOpScheduledNotifier(),
         _horizonDays = horizonDays,
         _retryBaseDelay = retryBaseDelay {
     _subscribe();
+    unawaited(_loadReminderTone());
   }
 
   final TodoRepository _todoRepo;
   final ScheduleRepository _scheduleRepo;
   final Logger _logger;
+
+  /// Optional so a test can build a coordinator without a preference store;
+  /// the tone then stays at [ReminderTone.fallback].
+  final PreferenceRepository? _prefRepo;
   final ScheduledNotifier _notifier;
 
   /// How far ahead reminders are scheduled, in days.
@@ -73,7 +82,27 @@ class NotificationCoordinator extends ChangeNotifier {
   List<domain.TodoItem> _alarms = const [];
   List<DayPlan> _days = const [];
   bool _notificationsBlocked = false;
+  ReminderTone _reminderTone = ReminderTone.fallback;
+
+  /// Whether the tone has been settled, by the initial load or by the user.
+  ///
+  /// The initial read is async and fired from the constructor, so a user who
+  /// opens settings and picks a tone before it lands would otherwise have
+  /// their choice overwritten by the stored value a moment later — and
+  /// re-synced with the wrong sound. Whoever gets there first wins, and the
+  /// user getting there first is the case that matters.
+  bool _toneResolved = false;
   bool _disposed = false;
+
+  /// Preference key for the chosen reminder tone.
+  static const String reminderTonePrefKey = 'reminder_tone';
+
+  /// The sound reminders currently make.
+  ///
+  /// Lives here rather than in a settings provider because it decides which
+  /// Android channel reminders are scheduled on, so [_sync] needs it and the
+  /// channel has to exist before the first notification goes out against it.
+  ReminderTone get reminderTone => _reminderTone;
 
   /// Whether the OS will refuse to deliver.
   ///
@@ -89,6 +118,58 @@ class NotificationCoordinator extends ChangeNotifier {
   /// The schedule as it currently stands, for assertions in tests.
   @visibleForTesting
   List<ScheduledNotification> get pending => _project(DateTime.now());
+
+  Future<void> _loadReminderTone() async {
+    final repo = _prefRepo;
+    if (repo == null) {
+      _toneResolved = true;
+      return;
+    }
+    final result = await repo.get(reminderTonePrefKey);
+    if (_disposed) return;
+    // The user chose while this was in flight; their choice stands.
+    if (_toneResolved) return;
+    _toneResolved = true;
+    final stored = result.fold(
+      onSuccess: (value) => value,
+      onFailure: (failure) {
+        _logger.warning('Could not read the reminder tone: ${failure.message}');
+        return null;
+      },
+    );
+    final tone = ReminderTone.fromName(stored);
+    if (tone == _reminderTone) return;
+    _reminderTone = tone;
+    notifyListeners();
+    await _sync();
+  }
+
+  /// Changes the reminder sound, persists it, and re-syncs.
+  ///
+  /// The re-sync is not optional: the tone determines the channel, and
+  /// notifications already scheduled against the old channel keep the old
+  /// sound until they are replaced.
+  Future<void> setReminderTone(ReminderTone tone) async {
+    // Set before the early return: choosing the tone that happens to already
+    // be showing is still the user settling the question, and must stop a
+    // pending load from replacing it.
+    final wasResolved = _toneResolved;
+    _toneResolved = true;
+    if (tone == _reminderTone) {
+      // Nothing to persist unless this is the first time it has been pinned.
+      if (wasResolved) return;
+    }
+    _reminderTone = tone;
+    notifyListeners();
+    await _sync();
+    final result = await _prefRepo?.set(reminderTonePrefKey, tone.name);
+    result?.fold(
+      onSuccess: (_) => null,
+      onFailure: (failure) => _logger.error(
+        'Could not persist the reminder tone: ${failure.message}',
+      ),
+    );
+  }
 
   void _subscribe() {
     _alarmSub?.cancel();
@@ -164,7 +245,7 @@ class NotificationCoordinator extends ChangeNotifier {
   Future<void> _sync() async {
     try {
       final items = _project(DateTime.now());
-      await _notifier.sync(items);
+      await _notifier.sync(items, reminderTone: _reminderTone);
       if (_disposed) return;
       final permitted = await _notifier.hasPermission();
       if (_disposed) return;

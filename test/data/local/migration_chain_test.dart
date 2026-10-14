@@ -194,6 +194,27 @@ void main() {
     expect(row.read<int>('reminder_lead_minutes'), 10);
   });
 
+  test('v12 adds the demo flag, defaulted off for existing rows', () async {
+    final db = await upgradedFromV1();
+    addTearDown(db.close);
+
+    // Everything that predates the flag is the user's own content, so it must
+    // not be hidden when the demo switch goes off.
+    expect(
+      await columnsOf(db, 'todo_items'),
+      contains('is_demo'),
+    );
+    expect(
+      await columnsOf(db, 'plan_templates'),
+      contains('is_demo'),
+    );
+
+    final row = await db.customSelect(
+      "SELECT is_demo FROM plan_templates WHERE id = 'tmpl-1'",
+    ).getSingle();
+    expect(row.read<bool>('is_demo'), isFalse);
+  });
+
   test('the v11 lead-time constraint is live after upgrading', () async {
     final db = await upgradedFromV1();
     addTearDown(db.close);

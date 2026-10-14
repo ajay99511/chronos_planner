@@ -19,7 +19,7 @@ DateTime? reminderFireTime(Task task, DateTime date) {
     date.month,
     date.day,
     start.hour,
-    start.minutesSinceMidnight % 60,
+    start.minute,
   ).subtract(Duration(minutes: task.reminderLeadMinutes));
 }
 

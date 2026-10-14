@@ -149,6 +149,18 @@ class AppStrings {
     return '$minutes minutes before';
   }
 
+  /// Compact lead time for a card pill: "AT START", "10M", "1H".
+  ///
+  /// Separate from [reminderLeadLabel] rather than truncated from it, because
+  /// a card pill has room for a token, not a phrase — the long form overflowed
+  /// the task card at 320px — and because abbreviating a translated phrase by
+  /// cutting characters produces nonsense in most languages.
+  static String reminderLeadShort(int minutes) {
+    if (minutes == 0) return 'AT START';
+    if (minutes % 60 == 0) return '${minutes ~/ 60}H';
+    return '${minutes}M';
+  }
+
   /// Body of the notification itself.
   ///
   /// Says when the task starts, because the reminder arrives minutes earlier

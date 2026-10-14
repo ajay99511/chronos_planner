@@ -34,10 +34,13 @@ class ClockTime implements Comparable<ClockTime> {
   /// Hour component, `0..23`.
   int get hour => minutesSinceMidnight ~/ 60;
 
+  /// Minute component, `0..59`.
+  int get minute => minutesSinceMidnight % 60;
+
   /// Zero-padded `HH:mm` representation.
   String get formatted {
     final h = hour.toString().padLeft(2, '0');
-    final m = (minutesSinceMidnight % 60).toString().padLeft(2, '0');
+    final m = minute.toString().padLeft(2, '0');
     return '$h:$m';
   }
 

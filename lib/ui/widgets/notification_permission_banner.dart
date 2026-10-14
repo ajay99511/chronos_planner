@@ -57,8 +57,13 @@ class NotificationPermissionBanner extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
+              // Bounded: this is a prompt competing for height with the list
+              // it sits above, and on a 320x568 phone at 1.3 text scale an
+              // unbounded three-line message pushed the whole screen over.
               child: Text(
                 message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style:
                     AppTextStyles.bodySmall.copyWith(color: Colors.orangeAccent),
               ),

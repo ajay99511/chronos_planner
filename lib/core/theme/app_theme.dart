@@ -148,21 +148,65 @@ class AppSpacing {
 // RESPONSIVE LAYOUT
 // ─────────────────────────────────────────────────
 class AppResponsive {
+  /// Widths below this are a real device class, not an edge case: small
+  /// Androids, an iPhone SE, and — far more often — any phone in split-screen.
+  /// Every screen used to overflow here.
+  static const double tinyWidth = 360;
+
+  /// Material 3's compact/medium boundary.
+  static const double mediumWidth = 600;
+
+  /// Material 3's medium/expanded boundary.
+  static const double expandedWidth = 900;
+
+  /// The largest text scale the app lays out for.
+  ///
+  /// Android and iOS both allow more (2.0 and beyond). Past roughly 1.5 a
+  /// planner's information density stops working at any width — a day card
+  /// cannot show a weekday, a date and a progress bar in a strip that still
+  /// fits seven of them — so the app clamps rather than pretending. Clamping
+  /// only the *upper* bound, because a user who prefers smaller text is asking
+  /// for something the layout can honour.
+  ///
+  /// 1.5 is also the ceiling the responsive test matrix probes, so nothing
+  /// larger can reach a layout that has not been checked.
+  static const double maxTextScale = 1.5;
+
+  /// [MediaQuery]'s text scaler, capped at [maxTextScale].
+  ///
+  /// Applied once in `MyApp.builder` so it covers every route, including
+  /// dialogs and bottom sheets, which build in their own subtree.
+  static TextScaler clampedTextScaler(BuildContext context) =>
+      MediaQuery.textScalerOf(context).clamp(maxScaleFactor: maxTextScale);
+
+  static bool isTiny(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < tinyWidth;
+
   static bool isCompact(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < 600;
+      MediaQuery.sizeOf(context).width < mediumWidth;
 
   static bool isMedium(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= 600 &&
-      MediaQuery.sizeOf(context).width < 900;
+      MediaQuery.sizeOf(context).width >= mediumWidth &&
+      MediaQuery.sizeOf(context).width < expandedWidth;
 
   static bool isExpanded(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= 900;
+      MediaQuery.sizeOf(context).width >= expandedWidth;
+
+  /// Scales a fixed dimension with the user's text size.
+  ///
+  /// For a box whose contents are text: a height in logical pixels is only
+  /// correct at scale 1.0, and at 1.5 the same box clips its own label. Use
+  /// this wherever a hard-coded height or width exists to contain text.
+  static double scaled(BuildContext context, double base) =>
+      clampedTextScaler(context).scale(base);
 
   static double pagePadding(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 360) return AppSpacing.md;
-    if (width < 600) return AppSpacing.md;
-    if (width < 900) return AppSpacing.lg;
+    // Tighter gutters below 360: at that width the previous flat 16 left 288
+    // for content, which is what pushed several rows over.
+    if (width < tinyWidth) return AppSpacing.sm;
+    if (width < mediumWidth) return AppSpacing.md;
+    if (width < expandedWidth) return AppSpacing.lg;
     return AppSpacing.xl;
   }
 
@@ -176,11 +220,18 @@ class AppResponsive {
     return EdgeInsets.symmetric(horizontal: padding);
   }
 
-  static double heading1Size(BuildContext context) =>
-      isCompact(context) ? 26 : 32;
+  static double heading1Size(BuildContext context) {
+    if (isTiny(context)) return 22;
+    if (isCompact(context)) return 26;
+    if (isMedium(context)) return 29;
+    return 32;
+  }
 
-  static double heading2Size(BuildContext context) =>
-      isCompact(context) ? 24 : 28;
+  static double heading2Size(BuildContext context) {
+    if (isTiny(context)) return 20;
+    if (isCompact(context)) return 24;
+    return 28;
+  }
 
   static double cardRadius(BuildContext context) =>
       isCompact(context) ? AppRadius.lg : AppRadius.xl;

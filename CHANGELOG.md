@@ -18,6 +18,19 @@ observable effect are left to the git history, which is where they belong.
 
 ### Added
 
+- **Reminders ring for ten seconds and stop**, with a choice of three bundled
+  tones plus your device's own notification sound. Chosen in Settings; the
+  default is Chime. **Alarms are unchanged** — they keep their own sound and
+  their ring-until-dismissed behaviour.
+  ([ADR 0013](docs/decisions/0013-reminder-tones.md))
+- **Sample content, and one switch to hide it.** Three each of notes, timers,
+  alarms and checklists in the Workspace tab, alongside the three starter
+  plans. One switch in Settings hides or shows all of it; hiding **filters
+  rather than deletes**, so anything you edited is still there when you switch
+  it back on, and your own items are never touched. Sample alarms can never
+  ring. ([ADR 0014](docs/decisions/0014-demo-data.md))
+- **A Settings tab**, holding the reminder sound, the default reminder time for
+  new reminders, and the sample-content switch.
 - **Per-task reminders.** A scheduled task can be set to notify you a chosen
   number of minutes before it starts — at start, 5, 10, 15, 30 or 60 — and the
   notification arrives with the app closed. Off by default, armed from the task
@@ -57,6 +70,17 @@ observable effect are left to the git history, which is where they belong.
 
 ### Changed
 
+- **Text scale is capped at 1.5** app-wide. Android and iOS allow more, but
+  past roughly 1.5 a planner's density stops working at any width. Only the
+  upper bound is clamped — a user who prefers smaller text gets it.
+- **Layouts adapt below 360px**, which is a real device class (small Androids,
+  and any phone in split-screen) rather than an edge case: tighter gutters,
+  smaller headings, and the Tasks tab's sub-tabs drop to icons, which stay
+  announced to a screen reader.
+- **Grids size their tiles by height, not aspect ratio.** A `childAspectRatio`
+  derives tile height from tile width, so the column count silently decided
+  whether a card's contents fit; two grids clipped their own buttons because of
+  it. Heights now scale with the text size instead.
 - **The application id is now `io.github.ajay99511.chronos_planner`**, replacing
   the Flutter template's `com.example.chronos_planner`, with the iOS, macOS and
   Windows identifiers moved to match. This is a one-way door for any *published*
@@ -75,6 +99,16 @@ observable effect are left to the git history, which is where they belong.
 
 ### Fixed
 
+- **Editing a task opened the time picker on 09:00** instead of the task's own
+  start and end time. The row displaying the time was right, so the only clue
+  was the dial — and confirming it without touching anything silently rewrote
+  the task's times to 09:00.
+- **Every screen overflowed its layout at 320px wide**, and the Tasks tab
+  overflowed at 411px once the text scale reached 1.3 — an ordinary
+  accessibility setting on an ordinary phone. A `RenderFlex` overflow is
+  invisible in release builds, so this only showed up to someone holding the
+  right device. Fixed across all five screens and now covered by 90 assertions
+  (6 sizes x 3 text scales) that fail the build rather than the user.
 - **Scheduled notifications could never be delivered on Android.**
   `flutter_local_notifications` requires the host app to declare the receivers
   that show a scheduled notification and restore the schedule after a reboot,
