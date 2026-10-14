@@ -87,6 +87,13 @@ class PlanTemplates extends Table {
   TextColumn get description => text().withDefault(const Constant(''))();
   // v5: Removed activeDays (moved to TemplateActiveDays table)
 
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// A flag rather than a naming convention because the switch has to keep
+  /// working after the user renames or edits a sample, and because "hide" has
+  /// to be reversible — see [TodoItems.isDemo].
+  BoolColumn get isDemo => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -173,6 +180,16 @@ class TodoItems extends Table {
   DateTimeColumn get scheduledAt => dateTime().nullable()();
   // v8: Added — whether an alarm is armed; one-shot alarms flip to false on fire
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+
+  /// v12: sample content, hidden when the demo-data switch is off.
+  ///
+  /// The rows are kept and filtered rather than deleted, so turning the switch
+  /// back on restores exactly what was there — including any edits the user
+  /// made to a sample. A toggle that destroys data is not a toggle.
+  ///
+  /// Demo rows are also excluded from the OS notification schedule, or a
+  /// sample alarm would genuinely go off on the user's phone.
+  BoolColumn get isDemo => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

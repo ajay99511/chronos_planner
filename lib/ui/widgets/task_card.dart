@@ -291,9 +291,9 @@ class _TaskCardState extends State<TaskCard>
                               if (widget.task.reminderEnabled)
                                 _buildPill(
                                   icon: Icons.notifications_active_rounded,
-                                  label: AppStrings.reminderLeadLabel(
+                                  label: AppStrings.reminderLeadShort(
                                     widget.task.reminderLeadMinutes,
-                                  ).toUpperCase(),
+                                  ),
                                   color: AppColors.neonBlue,
                                 ),
                             ],
@@ -432,18 +432,26 @@ class _TaskCardState extends State<TaskCard>
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
+      // Flexible + ellipsis so a long label shrinks the pill instead of
+      // overflowing the card. The pills sit in a Wrap, which hands each child
+      // the full row width, so one over-long pill used to push past the edge
+      // rather than wrapping.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppTextStyles.chip.copyWith(
-              color: color, 
-              fontSize: 11, 
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.chip.copyWith(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ],

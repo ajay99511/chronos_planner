@@ -1,11 +1,14 @@
+import 'package:chronosky/core/result.dart';
 import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/services/scheduled_notifier.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 
 import 'mocks.dart';
@@ -22,6 +25,7 @@ Future<void> pumpWithProviders(
   required ScheduleStateProvider scheduleProvider,
   AnalyticsProvider? analyticsProvider,
   NotificationCoordinator? notificationCoordinator,
+  SettingsProvider? settingsProvider,
   Size surfaceSize = const Size(1200, 900),
   bool reduceMotion = false,
 }) async {
@@ -44,6 +48,13 @@ Future<void> pumpWithProviders(
         // test that has not said otherwise.
         ChangeNotifierProvider<NotificationCoordinator>.value(
           value: notificationCoordinator ?? _inertCoordinator(),
+        ),
+        // The Workspace and WorkPlans tabs read the demo-data switch, so this
+        // has to be present even for tests about something else. The default
+        // leaves samples visible, which is the shipped default and the harder
+        // case to lay out.
+        ChangeNotifierProvider<SettingsProvider>.value(
+          value: settingsProvider ?? _inertSettings(),
         ),
       ],
       child: MaterialApp(
@@ -89,6 +100,26 @@ NotificationCoordinator _inertCoordinator() {
   );
   addTearDown(coordinator.dispose);
   return coordinator;
+}
+
+/// Settings over fresh mocks, with nothing stored.
+///
+/// Seeding is not triggered: a widget test asserting on layout should not also
+/// be writing twelve sample rows.
+SettingsProvider _inertSettings() {
+  final prefRepo = MockPreferenceRepository();
+  final todoRepo = MockTodoRepository();
+  stubTodoRepoEmpty(todoRepo);
+  when(() => prefRepo.get(any())).thenAnswer((_) async => const Success(null));
+  when(() => prefRepo.set(any(), any()))
+      .thenAnswer((_) async => const Success(null));
+  final settings = SettingsProvider(
+    prefRepo: prefRepo,
+    todoRepo: todoRepo,
+    logger: const NoOpLogger(),
+  );
+  addTearDown(settings.dispose);
+  return settings;
 }
 
 /// Builds a [ScheduleStateProvider] over mocks, already stubbed to succeed.

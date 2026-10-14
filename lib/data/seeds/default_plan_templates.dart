@@ -20,6 +20,12 @@ import 'package:chronosky/data/models/task_model.dart';
 /// are offered, not imposed: the user applies one with APPLY, or makes it
 /// recurring from the plan dialog.
 ///
+/// ## Why they are flagged as demo
+/// Every one carries `isDemo: true`, so the single demo-data switch in
+/// Settings governs these and the Workspace samples together. Hiding them
+/// filters rather than deletes, so an edited sample is still there when the
+/// switch goes back on.
+///
 /// ## Why the times are plain
 /// Treat the contents as sample data, not as advice. They are ordinary
 /// round-numbered blocks that read as something to edit, which is what a first
@@ -53,6 +59,10 @@ PlanTemplate _template({
     name: name,
     description: description,
     tasks: tasks(id),
+    // Sample content, so the demo-data switch governs these too. Flagged
+    // rather than deleted when hidden, so a plan the user has edited survives
+    // a round trip through the switch.
+    isDemo: true,
   );
 }
 

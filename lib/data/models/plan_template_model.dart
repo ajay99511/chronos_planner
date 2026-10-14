@@ -209,6 +209,9 @@ class PlanTemplate {
   final List<TemplateTask> tasks;
   final List<int> activeDays;
 
+  /// Sample content, hidden when the demo-data switch is off.
+  final bool isDemo;
+
   bool get isRecurring => activeDays.isNotEmpty;
 
   const PlanTemplate({
@@ -217,6 +220,7 @@ class PlanTemplate {
     required this.description,
     required this.tasks,
     this.activeDays = const [],
+    this.isDemo = false,
   });
 
   PlanTemplate copyWith({
@@ -225,6 +229,7 @@ class PlanTemplate {
     String? description,
     List<TemplateTask>? tasks,
     List<int>? activeDays,
+    bool? isDemo,
   }) {
     return PlanTemplate(
       id: id ?? this.id,
@@ -232,6 +237,7 @@ class PlanTemplate {
       description: description ?? this.description,
       tasks: tasks ?? this.tasks,
       activeDays: activeDays ?? this.activeDays,
+      isDemo: isDemo ?? this.isDemo,
     );
   }
 
@@ -241,6 +247,7 @@ class PlanTemplate {
         'description': description,
         'tasks': tasks.map((t) => t.toJson()).toList(),
         'activeDays': activeDays,
+        'isDemo': isDemo,
       };
 
   factory PlanTemplate.fromJson(Map<String, dynamic> json) {
@@ -256,6 +263,7 @@ class PlanTemplate {
         (json['activeDays'] as List<dynamic>?)?.map((e) => e as int) ??
             const [],
       ),
+      isDemo: (json['isDemo'] ?? false) as bool,
     );
   }
 
@@ -268,7 +276,8 @@ class PlanTemplate {
           name == other.name &&
           description == other.description &&
           listEquals(tasks, other.tasks) &&
-          listEquals(activeDays, other.activeDays);
+          listEquals(activeDays, other.activeDays) &&
+          isDemo == other.isDemo;
 
   // Both collections are compared with listEquals above, so both must be
   // hashed by content. See the note on DayPlan.hashCode.
@@ -279,5 +288,6 @@ class PlanTemplate {
         description,
         Object.hashAll(tasks),
         Object.hashAll(activeDays),
+        isDemo,
       );
 }

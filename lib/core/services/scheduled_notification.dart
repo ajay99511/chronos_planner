@@ -138,11 +138,17 @@ List<ScheduledNotification> schedulableNotifications(
 
 /// The alarms that should hold an OS-level schedule, given the clock.
 ///
-/// Pure, so the rule is testable without a platform: enabled, has a time, and
-/// that time is still in the future.
+/// Pure, so the rule is testable without a platform: not sample content,
+/// enabled, has a time, and that time is still in the future.
+///
+/// Demo rows are excluded unconditionally — not merely while the demo-data
+/// switch is off. A sample alarm that rings is indefensible for content the
+/// user did not create, and making it conditional would mean this rule had to
+/// know about a UI setting. Someone who wants an alarm creates one.
 List<TodoItem> schedulableAlarms(List<TodoItem> alarms, DateTime now) => [
       for (final alarm in alarms)
-        if (alarm.enabled &&
+        if (!alarm.isDemo &&
+            alarm.enabled &&
             alarm.scheduledAt != null &&
             alarm.scheduledAt!.isAfter(now))
           alarm,

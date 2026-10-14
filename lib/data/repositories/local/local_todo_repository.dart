@@ -86,6 +86,7 @@ class LocalTodoRepository implements TodoRepository {
       audioFilePath: dbTodo.audioFilePath,
       scheduledAt: dbTodo.scheduledAt,
       enabled: dbTodo.enabled,
+      isDemo: dbTodo.isDemo,
     );
   }
 
@@ -104,6 +105,7 @@ class LocalTodoRepository implements TodoRepository {
       audioFilePath: Value(todo.audioFilePath),
       scheduledAt: Value(todo.scheduledAt),
       enabled: Value(todo.enabled),
+      isDemo: Value(todo.isDemo),
     );
   }
 
@@ -121,6 +123,7 @@ class LocalTodoRepository implements TodoRepository {
       audioFilePath: todo.audioFilePath,
       scheduledAt: todo.scheduledAt,
       enabled: todo.enabled,
+      isDemo: todo.isDemo,
     );
   }
 }

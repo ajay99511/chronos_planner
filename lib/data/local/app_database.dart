@@ -24,7 +24,7 @@ part 'app_database.g.dart';
 /// - Schema version control and migrations
 /// - DAO factory (provides access to all data access objects)
 ///
-/// ## Schema Version: 11
+/// ## Schema Version: 12
 /// Migration history:
 /// - **v1→v2**: Added `sourceTemplateId` to tasks, `activeDays` to templates
 /// - **v2→v3**: Added `TodoItems` table
@@ -45,6 +45,8 @@ part 'app_database.g.dart';
 ///   the current Dart definition, so a column added after the v5 and v10
 ///   rebuilds has no source to copy from. Any future additive column goes in
 ///   the same place
+/// - **v11→v12**: Added `isDemo` to todo items and plan templates, so sample
+///   content can be hidden and shown without being destroyed
 ///
 /// ## Tables:
 /// | Table | Purpose |
@@ -99,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   /// Tables whose child rows could be orphaned while foreign keys were off,
   /// paired with the parent they must reference.
@@ -235,24 +237,36 @@ class AppDatabase extends _$AppDatabase {
   };
 
   /// Adds the v11 reminder columns to [table] if they are not already there.
+  Future<void> _addReminderColumns(String table) async {
+    for (final (name, definition) in _reminderColumns.entries.map(
+      (e) => (e.key, e.value),
+    )) {
+      await _addColumnIfMissing(table, name, definition);
+    }
+  }
+
+  /// Adds one column to [table] unless it is already present.
   ///
   /// Existence-checked rather than assumed, matching every step from v2
-  /// onwards: a database that was interrupted mid-upgrade is a real shape, and
-  /// a duplicate ADD COLUMN aborts the whole migration.
-  Future<void> _addReminderColumns(String table) async {
+  /// onwards: a database interrupted mid-upgrade is a real shape, and a
+  /// duplicate ADD COLUMN aborts the whole migration.
+  ///
+  /// [name] and [definition] are interpolated into SQL because SQL cannot
+  /// parameterize identifiers. Safe only because every caller passes a
+  /// compile-time literal — never widen this to accept runtime input.
+  Future<void> _addColumnIfMissing(
+    String table,
+    String name,
+    String definition,
+  ) async {
     final cols = await customSelect('PRAGMA table_info($table)').get();
-    // An empty result means the table does not exist. Both task tables date
-    // from v1 so this should not happen, but an ALTER against a missing table
+    // Empty means the table does not exist. An ALTER against a missing table
     // aborts the whole migration and leaves the app unable to open its own
     // database — too high a price for an assumption.
     if (cols.isEmpty) return;
     final names = cols.map((c) => c.read<String>('name')).toSet();
-    for (final (name, definition) in _reminderColumns.entries.map(
-      (e) => (e.key, e.value),
-    )) {
-      if (names.contains(name)) continue;
-      await customStatement('ALTER TABLE $table ADD COLUMN $name $definition');
-    }
+    if (names.contains(name)) return;
+    await customStatement('ALTER TABLE $table ADD COLUMN $name $definition');
   }
 
   /// Whether [table] carries both v11 reminder columns.
@@ -319,6 +333,25 @@ class AppDatabase extends _$AppDatabase {
             // plan would silently drop the reminders set on it.
             await _addReminderColumns('tasks');
             await _addReminderColumns('template_tasks');
+          }
+          if (from < 12) {
+            // Demo-data flag. Also additive, and also added here rather than
+            // at the bottom, for the reason above.
+            //
+            // Not on `tasks`: a task created by applying a demo plan is the
+            // user's own schedule, and must not vanish when demo data is
+            // switched off. The flag marks sample *content* — library plans
+            // and workspace items — not what the user did with it.
+            await _addColumnIfMissing(
+              'todo_items',
+              'is_demo',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+            await _addColumnIfMissing(
+              'plan_templates',
+              'is_demo',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
           }
 
           if (from < 2) {

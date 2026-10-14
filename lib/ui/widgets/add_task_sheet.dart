@@ -10,6 +10,7 @@ import 'package:chronosky/domain/clock_time.dart';
 import 'package:chronosky/domain/reminder_lead.dart';
 import 'package:chronosky/core/services/intelligence_service.dart';
 import 'package:chronosky/providers/analytics_provider.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 
 enum _TaskDateMode { exactDate, weekdays }
 
@@ -78,6 +79,13 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
       _selectedEnergy = t.energyLevel;
       _reminderEnabled = t.reminderEnabled;
       _reminderLead = t.reminderLeadMinutes;
+    } else {
+      // A new task starts from the global default. Read without listening:
+      // changing the default mid-edit must not move the chips under the
+      // user's finger, and an existing task keeps its own stored value.
+      _reminderLead =
+          Provider.of<SettingsProvider>(context, listen: false)
+              .defaultLeadMinutes;
     }
   }
 
@@ -205,12 +213,19 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          _isEditing ? 'Edit Task' : 'New Task',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        // Expanded + ellipsis: the close button must never be pushed off the
+        // edge by the title, which is what happened at 320px once the text
+        // scale reached 1.3.
+        Expanded(
+          child: Text(
+            _isEditing ? 'Edit Task' : 'New Task',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         IconButton(
@@ -470,9 +485,16 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   }
 
   Future<void> _pickTime(bool isStart) async {
+    // Seeded from the value being edited, not from a fixed 09:00. Opening the
+    // dial on a time the task does not have makes every edit look like the
+    // time was lost, and quietly invites the user to confirm 09:00 over a
+    // start time they never changed.
+    final current = ClockTime.tryParse(isStart ? _startTime : _endTime);
     final t = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 9, minute: 0),
+      initialTime: current == null
+          ? const TimeOfDay(hour: 9, minute: 0)
+          : TimeOfDay(hour: current.hour, minute: current.minute),
     );
     if (t != null) {
       setState(() {

@@ -70,6 +70,12 @@ class TodoItem {
   /// Whether an alarm is armed. One-shot alarms flip to false after firing.
   final bool enabled;
 
+  /// Sample content, hidden when the demo-data switch is off.
+  ///
+  /// Demo items are never scheduled with the OS, so a sample alarm cannot
+  /// actually go off on the user's phone.
+  final bool isDemo;
+
   TodoItem({
     required this.id,
     required this.title,
@@ -83,6 +89,7 @@ class TodoItem {
     this.audioFilePath = '',
     this.scheduledAt,
     this.enabled = true,
+    this.isDemo = false,
   }) : updatedAt = updatedAt ?? createdAt {
     assert(title.isNotEmpty && title.length <= 200,
         'Title must be 1-200 characters',);
@@ -101,6 +108,7 @@ class TodoItem {
     String? audioFilePath,
     DateTime? scheduledAt,
     bool? enabled,
+    bool? isDemo,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -115,6 +123,7 @@ class TodoItem {
       audioFilePath: audioFilePath ?? this.audioFilePath,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       enabled: enabled ?? this.enabled,
+      isDemo: isDemo ?? this.isDemo,
     );
   }
 
@@ -131,6 +140,7 @@ class TodoItem {
         'audioFilePath': audioFilePath,
         'scheduledAt': scheduledAt?.toIso8601String(),
         'enabled': enabled,
+        'isDemo': isDemo,
       };
 
   factory TodoItem.fromJson(Map<String, dynamic> json) {
@@ -160,6 +170,7 @@ class TodoItem {
           ? DateTime.parse(json['scheduledAt'] as String)
           : null,
       enabled: (json['enabled'] ?? true) as bool,
+      isDemo: (json['isDemo'] ?? false) as bool,
     );
   }
 
@@ -179,7 +190,8 @@ class TodoItem {
           listEquals(checklist, other.checklist) &&
           audioFilePath == other.audioFilePath &&
           scheduledAt == other.scheduledAt &&
-          enabled == other.enabled;
+          enabled == other.enabled &&
+          isDemo == other.isDemo;
 
   // Object.hashAll over the checklist to match the listEquals in operator ==;
   // List.hashCode is identity-based. See the note on DayPlan.hashCode.
@@ -197,5 +209,6 @@ class TodoItem {
         audioFilePath,
         scheduledAt,
         enabled,
+        isDemo,
       );
 }

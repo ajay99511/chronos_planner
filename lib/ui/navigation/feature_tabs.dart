@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:chronosky/ui/screens/analytics_view.dart';
 import 'package:chronosky/ui/screens/schedule_view.dart';
+import 'package:chronosky/ui/screens/settings_view.dart';
 import 'package:chronosky/ui/screens/todo_list_view.dart';
 import 'package:chronosky/ui/screens/work_plans_view.dart';
 
@@ -56,5 +57,11 @@ const List<FeatureTab> appFeatureTabs = [
     label: 'Tasks',
     compactLabel: 'Tasks',
     screen: TodoListView(),
+  ),
+  FeatureTab(
+    icon: Icons.settings_outlined,
+    label: 'Settings',
+    compactLabel: 'Settings',
+    screen: SettingsView(),
   ),
 ];

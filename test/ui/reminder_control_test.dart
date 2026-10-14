@@ -2,6 +2,7 @@ import 'package:chronosky/core/services/logger.dart';
 import 'package:chronosky/core/services/notification_coordinator.dart';
 import 'package:chronosky/core/services/scheduled_notification.dart';
 import 'package:chronosky/core/services/scheduled_notifier.dart';
+import 'package:chronosky/domain/reminder_tone.dart';
 import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/data/models/task_model.dart';
 import 'package:chronosky/ui/widgets/reminder_control.dart';
@@ -31,7 +32,10 @@ class _FakeNotifier implements ScheduledNotifier {
   }
 
   @override
-  Future<void> sync(List<ScheduledNotification> items) async {}
+  Future<void> sync(
+    List<ScheduledNotification> items, {
+    ReminderTone reminderTone = ReminderTone.fallback,
+  }) async {}
 
   @override
   Future<void> cancelAll() async {}
@@ -52,22 +56,30 @@ void main() {
     notifier = _FakeNotifier();
   });
 
-  /// A task starting two hours from now, so a reminder is still possible.
+  /// Tomorrow, so a fixed clock time on it is always still in the future.
+  ///
+  /// Not `now + 2 hours` formatted as "HH:mm" on today's date: run after 22:00
+  /// that wraps past midnight and lands in the past, so the control correctly
+  /// disabled itself and the test failed. A flake that only appears in the
+  /// evening is worse than one that always fails.
+  DateTime tomorrow() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+  }
+
+  /// A task that can still be reminded about, paired with [tomorrow].
   Task futureTask({
     bool reminderEnabled = false,
     int leadMinutes = 10,
     bool completed = false,
-  }) {
-    final at = DateTime.now().add(const Duration(hours: 2));
-    return taskFixture(
-      startTime: '${at.hour.toString().padLeft(2, '0')}:'
-          '${at.minute.toString().padLeft(2, '0')}',
-      endTime: '23:59',
-      completed: completed,
-      reminderEnabled: reminderEnabled,
-      reminderLeadMinutes: leadMinutes,
-    );
-  }
+  }) =>
+      taskFixture(
+        startTime: '12:00',
+        endTime: '23:59',
+        completed: completed,
+        reminderEnabled: reminderEnabled,
+        reminderLeadMinutes: leadMinutes,
+      );
 
   Future<List<Task>> pumpControl(
     WidgetTester tester, {
@@ -91,7 +103,7 @@ void main() {
           home: Scaffold(
             body: ReminderControl(
               task: task,
-              date: date ?? DateTime.now(),
+              date: date ?? tomorrow(),
               onChanged: changes.add,
             ),
           ),

@@ -6,6 +6,7 @@ import 'package:chronosky/core/theme/app_theme.dart';
 import 'package:chronosky/ui/strings.dart';
 import 'package:chronosky/data/models/plan_template_model.dart';
 import 'package:chronosky/providers/schedule_state_provider.dart';
+import 'package:chronosky/providers/settings_provider.dart';
 import 'package:chronosky/ui/widgets/glass_container.dart';
 import 'package:chronosky/ui/widgets/work_plan_detail_dialog.dart';
 import 'package:chronosky/ui/widgets/neo_button.dart';
@@ -16,6 +17,14 @@ class WorkPlansView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScheduleStateProvider>(context);
+    // Filtered here rather than in the provider: the provider mirrors the
+    // repository, and the demo switch is a view concern that must not change
+    // what "the template library" means to anything else — applying a plan,
+    // recurrence and the notification schedule all still see every row.
+    final demoVisible = context.watch<SettingsProvider>().demoVisible;
+    final templates = demoVisible
+        ? provider.templates
+        : provider.templates.where((t) => !t.isDemo).toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,20 +56,26 @@ class WorkPlansView extends StatelessWidget {
               AppResponsive.pagePadding(context),
               AppSpacing.xl,
             ),
+            // mainAxisExtent rather than childAspectRatio: an aspect ratio
+            // derives tile height from tile width, so the same ratio that fits
+            // at 411px clipped the card's button row at 320px, and no single
+            // ratio works across every width and text scale. An explicit
+            // height that scales with text is predictable at both.
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: AppResponsive.isCompact(context) ? 480 : 360,
               mainAxisSpacing: AppSpacing.md,
               crossAxisSpacing: AppSpacing.md,
-              childAspectRatio: AppResponsive.isCompact(context) ? 1.45 : 1.6,
+              mainAxisExtent:
+                  AppResponsive.scaled(context, 204).clamp(204.0, 320.0),
             ),
-            itemCount: provider.templates.length + 1,
+            itemCount: templates.length + 1,
             itemBuilder: (context, gridIndex) {
               if (gridIndex == 0) {
                 return _buildCreateCard(context, provider);
               }
 
               final index = gridIndex - 1;
-              final tmpl = provider.templates[index];
+              final tmpl = templates[index];
               return TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0, end: 1),
                 duration: Duration(milliseconds: 300 + (index * 50)),
@@ -104,6 +119,8 @@ class WorkPlansView extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         AppStrings.planTaskCount(tmpl.tasks.length),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodySmall
                             .copyWith(color: AppColors.textSecondary),
                       ),
